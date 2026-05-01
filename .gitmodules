@@ -1,5 +1,5 @@
-[submodule "code"]
-	path = code
+[submodule "libs/eestv"]
+	path = libs/eestv
 	url = https://github.com/EmielEstievenart/eestv_lib.git
 [submodule "libs/ftxui"]
 	path = libs/ftxui

@@ -8,6 +8,6 @@ build
 .claude
 .github/instructions
 out
-apps/slayerlog/debugging/demo_file.log
-apps/slayerlog/debugging/demo_file.log.pid
-apps/slayerlog/debugging/demo_file_secondary.log
+code/slayerlog/debugging/demo_file.log
+code/slayerlog/debugging/demo_file.log.pid
+code/slayerlog/debugging/demo_file_secondary.log

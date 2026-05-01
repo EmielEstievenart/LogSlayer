@@ -77,7 +77,7 @@ target_include_directories(
   LogSlayer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
                     ${CMAKE_CURRENT_SOURCE_DIR}/commands
                     ${CMAKE_CURRENT_SOURCE_DIR}/tracked_sources
-                    ${CMAKE_SOURCE_DIR}/code)
+                    ${CMAKE_SOURCE_DIR}/libs/eestv)
 
 target_link_libraries(
   LogSlayer PRIVATE component ftxui_components Boost::program_options
