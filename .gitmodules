@@ -14,3 +14,6 @@
 [submodule "libs/zstd"]
 	path = libs/zstd
 	url = https://github.com/facebook/zstd.git
+[submodule "libs/ftxui_components"]
+	path = libs/ftxui_components
+	url = git@github.com:EmielEstievenart/ftxui_components.git
