@@ -1,0 +1,13 @@
+.cache/clangd/index
+out/build
+compile_commands.json
+build
+.continue/rules
+.idea
+.vs
+.claude
+.github/instructions
+out
+apps/slayerlog/debugging/demo_file.log
+apps/slayerlog/debugging/demo_file.log.pid
+apps/slayerlog/debugging/demo_file_secondary.log

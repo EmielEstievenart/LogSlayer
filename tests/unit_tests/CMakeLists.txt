@@ -1,0 +1,87 @@
+add_executable(
+  unit_tests
+  slayerlog/file_watcher_tests.cpp
+  slayerlog/zstd_file_watcher_tests.cpp
+  slayerlog/log_source_tests.cpp
+  slayerlog/tracked_source_tests.cpp
+  slayerlog/tracked_source_manager_tests.cpp
+  slayerlog/stream_line_buffer_tests.cpp
+  slayerlog/command_palette_controller_tests.cpp
+  slayerlog/command_registrar_tests.cpp
+  slayerlog/command_line_parser_tests.cpp
+  slayerlog/command_history_tests.cpp
+  slayerlog/command_manager_tests.cpp
+  slayerlog/log_batch_tests.cpp
+  slayerlog/log_timestamp_tests.cpp
+  slayerlog/log_model_tests.cpp
+  slayerlog/log_controller_tests.cpp
+  slayerlog/master_controller_tests.cpp
+  slayerlog/settings_ini_tests.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/commands/command_palette_controller.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/commands/command_palette_controller.hpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/commands/command_palette_model.hpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/commands/command_palette_view.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/commands/command_palette_view.hpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/commands/command_registrar.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/commands/command_registrar.hpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/command_line_parser.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/command_line_parser.hpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/commands/command_history.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/commands/command_history.hpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/commands/command_manager.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/commands/command_manager.hpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/debug_log.hpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/watchers/file_watcher.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/watchers/zstd_file_watcher.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/log_source.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/tracked_sources/tracked_source_base.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/tracked_sources/tracked_source_file.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/tracked_sources/tracked_source_folder.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/tracked_sources/tracked_source_factory.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/tracked_sources/all_tracked_sources.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/log_controller.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/log_batch.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/log_view.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/timestamp/source_timestamp_parser.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/timestamp/timestamp_format_catalog.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/master_controller.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/master_controller.hpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/master_view.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/master_view.hpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/watchers/process_pipe.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/settings_ini.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/settings_ini.hpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/settings_store.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/settings_store.hpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/watchers/ssh_tail_watcher.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/watchers/log_watcher_factory.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/watchers/stream_line_buffer.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/tracked_sources/all_processed_sources.cpp
+  ${CMAKE_SOURCE_DIR}/apps/slayerlog/search_pattern.cpp)
+
+target_link_libraries(
+  unit_tests
+  PRIVATE eestv_lib
+          ftxui_components
+          component
+          GTest::gtest_main
+          Boost::log
+          Boost::log_setup
+          Boost::filesystem
+          Boost::thread
+          Boost::program_options
+          log4cplus::log4cplus
+          libzstd)
+
+target_compile_definitions(unit_tests PRIVATE BOOST_ALL_NO_LIB BOOST_USE_WINAPI_VERSION=0x0602)
+target_include_directories(
+  unit_tests
+  PRIVATE ${CMAKE_SOURCE_DIR}/apps/slayerlog
+          ${CMAKE_SOURCE_DIR}/apps/slayerlog/commands
+          ${CMAKE_SOURCE_DIR}/apps/slayerlog/tracked_sources
+          ${CMAKE_SOURCE_DIR}/code)
+
+if(ENABLE_CTEST)
+  include(GoogleTest)
+  gtest_discover_tests(unit_tests DISCOVERY_MODE PRE_TEST)
+endif()

@@ -1,0 +1,16 @@
+if(NOT EXISTS "@CC_SRC@")
+  message(STATUS "Skipping compile_commands.json copy; file not found at @CC_SRC@")
+  return()
+endif()
+
+file(READ "@CC_SRC@" _contents)
+
+# Normalize drive letters to lowercase (applies globally)
+foreach(_drive_letter A B C D E F G H I J K L M N O P Q R S T U V W X Y Z)
+  string(TOLOWER "${_drive_letter}" _drive_letter_lower)
+  string(REPLACE "${_drive_letter}:" "${_drive_letter_lower}:" _contents "${_contents}")
+endforeach()
+
+# Write normalized contents to destination
+file(WRITE "@CC_DST@" "${_contents}")
+message(STATUS "Wrote @CC_DST@")
