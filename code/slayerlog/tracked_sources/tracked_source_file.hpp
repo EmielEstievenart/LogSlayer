@@ -16,6 +16,7 @@ public:
     TrackedSourceFile(LogSource source, std::string source_label, std::shared_ptr<const TimestampFormatCatalog> timestamp_formats = default_timestamp_format_catalog());
 
     bool poll() override;
+    void set_timestamp_format(std::string format) override;
 
     void add_entries_from_raw_strings(std::vector<std::string> lines);
 

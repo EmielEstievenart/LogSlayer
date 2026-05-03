@@ -33,6 +33,8 @@ public:
     std::size_t source_count() const;
     bool empty() const;
     std::vector<std::string> source_labels() const;
+    const std::vector<std::string>& timestamp_formats() const;
+    std::optional<std::string> set_source_timestamp_format(std::size_t source_index, const std::string& format);
 
 private:
     bool contains_source(const LogSource& candidate_source) const;

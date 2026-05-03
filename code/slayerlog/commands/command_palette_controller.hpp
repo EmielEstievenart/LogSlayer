@@ -30,6 +30,8 @@ public:
     void open_with_query(std::string query);
     void open_history();
     void open_close_open_file_picker(std::vector<std::string> open_files, std::function<CommandResult(std::size_t selected_index)> on_confirm);
+    void open_timestamp_source_picker(std::vector<std::string> sources, std::function<CommandResult(std::size_t selected_index)> on_confirm);
+    void open_timestamp_format_picker(std::vector<std::string> formats, std::function<CommandResult(std::size_t selected_index)> on_confirm);
     void open_delete_filters_picker(std::vector<CommandPaletteModel::FilterPickerEntry> filters, std::function<CommandResult(const std::vector<CommandPaletteModel::FilterPickerEntry>& selected_filters)> on_confirm);
     void close();
     bool handle_event(const ftxui::Event& event);
@@ -51,6 +53,8 @@ private:
     CommandResult execute_command_from_command_mode();
     CommandResult execute_command_from_history_mode();
     CommandResult execute_close_open_file_selection();
+    CommandResult execute_timestamp_source_selection();
+    CommandResult execute_timestamp_format_selection();
     CommandResult execute_delete_filters_selection();
     bool record_successful_command(std::string_view command_line);
 
@@ -58,6 +62,8 @@ private:
     CommandManager& _command_manager;
     CommandHistory* _command_history = nullptr;
     std::function<CommandResult(std::size_t selected_index)> _close_open_file_selection_handler;
+    std::function<CommandResult(std::size_t selected_index)> _timestamp_source_selection_handler;
+    std::function<CommandResult(std::size_t selected_index)> _timestamp_format_selection_handler;
     std::function<CommandResult(const std::vector<CommandPaletteModel::FilterPickerEntry>& selected_filters)> _delete_filters_selection_handler;
     TextViewController _result_text_view_controller;
     std::vector<std::string> _result_lines;

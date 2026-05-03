@@ -230,4 +230,41 @@ TEST(CommandRegistrarTest, DeleteFiltersCommandFailsWhenNoFiltersExist)
     EXPECT_EQ(result.message, "No filters to delete");
 }
 
+TEST(CommandRegistrarTest, SetTimeFormatCommandOpensSourceAndFormatPickers)
+{
+    const auto log_path = make_temp_export_path();
+    {
+        std::ofstream output(log_path, std::ios::binary | std::ios::trunc);
+        ASSERT_TRUE(output.is_open());
+        output << "plain line\n";
+    }
+
+    AllProcessedSources processed_sources;
+    LogController controller;
+    CommandManager command_manager;
+    CommandPaletteModel command_palette_model;
+    CommandPaletteController command_palette_controller(command_palette_model, command_manager);
+    std::string header_text;
+    auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
+    AllTrackedSources tracked_sources;
+    ASSERT_FALSE(tracked_sources.open_source(parse_log_source(log_path.string())).has_value());
+    register_commands(command_manager, processed_sources, controller, command_palette_controller, header_text, screen, tracked_sources);
+
+    const auto result = command_manager.execute("set-time-format");
+
+    EXPECT_TRUE(result.success);
+    EXPECT_FALSE(result.close_palette_on_success);
+    EXPECT_EQ(result.message, "Select a source to configure");
+    ASSERT_TRUE(command_palette_controller.is_open());
+    EXPECT_EQ(command_palette_controller.model().mode, CommandPaletteMode::SelectTimestampSource);
+
+    ASSERT_TRUE(command_palette_controller.handle_event(ftxui::Event::Return));
+    ASSERT_TRUE(command_palette_controller.is_open());
+    EXPECT_EQ(command_palette_controller.model().mode, CommandPaletteMode::SelectTimestampFormat);
+
+    EXPECT_FALSE(command_palette_controller.model().timestamp_formats.empty());
+
+    remove_temp_export_file(log_path);
+}
+
 } // namespace slayerlog

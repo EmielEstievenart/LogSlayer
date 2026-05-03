@@ -119,6 +119,46 @@ bool TrackedSourceFolder::poll()
     return true;
 }
 
+void TrackedSourceFolder::set_timestamp_format(std::string format)
+{
+    auto formats = std::make_shared<const TimestampFormatCatalog>(std::vector<std::string> {std::move(format)});
+    set_timestamp_formats(formats);
+
+    for (auto& child : _children)
+    {
+        if (child.second.tracked_source != nullptr)
+        {
+            child.second.tracked_source->set_timestamp_format(formats->formats().front());
+        }
+    }
+
+    std::vector<LogBatchSourceRange> source_ranges;
+    source_ranges.reserve(_active_file_order.size());
+    for (std::size_t source_index = 0; source_index < _active_file_order.size(); ++source_index)
+    {
+        const auto child_it = _children.find(_active_file_order[source_index]);
+        if (child_it == _children.end() || child_it->second.tracked_source == nullptr)
+        {
+            continue;
+        }
+
+        const auto& child_entries = child_it->second.tracked_source->entries();
+        if (child_entries.empty())
+        {
+            continue;
+        }
+
+        source_ranges.push_back({
+            &child_entries,
+            0,
+            source_index,
+            source_label(),
+        });
+    }
+
+    replace_entries_with_merged_entries(source_ranges);
+}
+
 void TrackedSourceFolder::refresh_active_children()
 {
     _active_file_order.clear();

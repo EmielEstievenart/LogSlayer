@@ -176,6 +176,28 @@ TEST(TrackedSourceTest, UpdatesSourceLabelWithoutTouchingStoredEntries)
     EXPECT_EQ(tracked_source.entries()[0]->text, "plain line");
 }
 
+TEST(TrackedSourceTest, SetTimestampFormatReparsesExistingFileEntries)
+{
+    TrackedSourceFile tracked_source(parse_log_source("alpha.log"), "alpha.log");
+
+    tracked_source.add_entries_from_raw_strings({
+        "2026/04/01 10:00:00 slash timestamp",
+        "plain follow-up",
+    });
+
+    ASSERT_EQ(tracked_source.entries().size(), 2U);
+    EXPECT_FALSE(tracked_source.entries()[0]->metadata.timestamp.has_value());
+
+    tracked_source.set_timestamp_format("YYYY/MM/DD hh:mm:ss");
+
+    EXPECT_TRUE(tracked_source.entries()[0]->metadata.timestamp.has_value());
+    EXPECT_EQ(tracked_source.entries()[0]->metadata.extracted_time_text, "2026/04/01 10:00:00");
+    EXPECT_EQ(tracked_source.entries()[0]->metadata.parsed_time_text, "2026-04-01 10:00:00");
+    EXPECT_FALSE(tracked_source.entries()[1]->metadata.timestamp.has_value());
+    EXPECT_EQ(tracked_source.entries()[0]->metadata.sequence_number, 0U);
+    EXPECT_EQ(tracked_source.entries()[1]->metadata.sequence_number, 1U);
+}
+
 TEST(TrackedSourceTest, FilePollReadsZstdFileOnce)
 {
     ScopedTestFolder folder;

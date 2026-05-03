@@ -210,7 +210,7 @@ CommandResult export_visible_text_command(std::string_view file_path, const AllP
 }
 
 CommandResult close_open_file_command(CommandPaletteController& command_palette_controller, AllTrackedSources& tracked_sources, std::string& header_text, AllProcessedSources& processed_sources, LogController& controller,
-                                      ftxui::ScreenInteractive& screen)
+                                       ftxui::ScreenInteractive& screen)
 {
     const auto labels = tracked_sources.source_labels();
     if (labels.empty())
@@ -234,6 +234,54 @@ CommandResult close_open_file_command(CommandPaletteController& command_palette_
                                                            });
 
     return CommandResult {true, "Select a file to close", false};
+}
+
+CommandResult set_time_format_command(CommandPaletteController& command_palette_controller, AllTrackedSources& tracked_sources, std::string& header_text, AllProcessedSources& processed_sources, LogController& controller,
+                                      ftxui::ScreenInteractive& screen)
+{
+    const auto labels = tracked_sources.source_labels();
+    if (labels.empty())
+    {
+        return CommandResult {false, "No open sources to configure"};
+    }
+
+    const auto formats = tracked_sources.timestamp_formats();
+    if (formats.empty())
+    {
+        return CommandResult {false, "No timestamp formats configured"};
+    }
+
+    command_palette_controller.open_timestamp_source_picker(labels,
+                                                            [&, labels, formats](std::size_t source_index) -> CommandResult
+                                                            {
+                                                                if (source_index >= labels.size())
+                                                                {
+                                                                    return CommandResult {false, "Invalid source selection"};
+                                                                }
+
+                                                                command_palette_controller.open_timestamp_format_picker(formats,
+                                                                                                                        [&, source_index, labels, formats](std::size_t format_index) -> CommandResult
+                                                                                                                        {
+                                                                                                                            if (format_index >= formats.size())
+                                                                                                                            {
+                                                                                                                                return CommandResult {false, "Invalid timestamp format selection"};
+                                                                                                                            }
+
+                                                                                                                            const auto error = tracked_sources.set_source_timestamp_format(source_index, formats[format_index]);
+                                                                                                                            if (error.has_value())
+                                                                                                                            {
+                                                                                                                                SLAYERLOG_LOG_ERROR("set-time-format failed source_index=" << source_index << " format_index=" << format_index << " error=" << *error);
+                                                                                                                                return CommandResult {false, *error};
+                                                                                                                            }
+
+                                                                                                                            reload_processed_sources(tracked_sources, header_text, processed_sources, controller, screen);
+                                                                                                                            return CommandResult {true, "Set timestamp format for " + labels[source_index] + ": " + formats[format_index]};
+                                                                                                                        });
+
+                                                                return CommandResult {true, "Select timestamp format for " + labels[source_index], false};
+                                                            });
+
+    return CommandResult {true, "Select a source to configure", false};
 }
 
 std::vector<CommandPaletteModel::FilterPickerEntry> build_filter_picker_entries(const AllProcessedSources& processed_sources)
@@ -546,8 +594,8 @@ void register_commands(CommandManager& command_manager, AllProcessedSources& pro
                                      });
 
     command_manager.register_command({"close-open-file",
-                                      "Close one currently open file",
-                                      "close-open-file",
+                                       "Close one currently open file",
+                                       "close-open-file",
                                       {
                                           "Opens a picker containing the currently tracked sources.",
                                           "Use Up/Down to select a source and Enter to close it.",
@@ -559,8 +607,25 @@ void register_commands(CommandManager& command_manager, AllProcessedSources& pro
                                              return CommandResult {false, "Usage: close-open-file"};
                                          }
 
-                                         return close_open_file_command(command_palette_controller, tracked_sources, header_text, processed_sources, controller, screen);
-                                     });
+                                          return close_open_file_command(command_palette_controller, tracked_sources, header_text, processed_sources, controller, screen);
+                                      });
+
+    command_manager.register_command({"set-time-format",
+                                       "Set timestamp parser for one source",
+                                       "set-time-format",
+                                       {
+                                           "Opens a source picker, then a timestamp format picker.",
+                                           "Confirm each selection with Enter. All lines from that source are reparsed and all tracked lines are re-sorted.",
+                                       }},
+                                      [&](std::string_view arguments)
+                                      {
+                                          if (!trim_text(arguments).empty())
+                                          {
+                                              return CommandResult {false, "Usage: set-time-format"};
+                                          }
+
+                                          return set_time_format_command(command_palette_controller, tracked_sources, header_text, processed_sources, controller, screen);
+                                      });
 
     command_manager.register_command({"go-to-line",
                                       "Center the view on a line number",

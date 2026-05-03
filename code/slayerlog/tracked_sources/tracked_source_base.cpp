@@ -41,6 +41,46 @@ const std::shared_ptr<const TimestampFormatCatalog>& TrackedSourceBase::timestam
     return _timestamp_formats;
 }
 
+void TrackedSourceBase::set_timestamp_formats(std::shared_ptr<const TimestampFormatCatalog> timestamp_formats)
+{
+    _timestamp_formats = std::move(timestamp_formats);
+    if (_timestamp_formats == nullptr)
+    {
+        _timestamp_formats = default_timestamp_format_catalog();
+    }
+}
+
+void TrackedSourceBase::reparse_entries(SourceTimestampParser& parser, bool& parser_initialized)
+{
+    parser             = SourceTimestampParser();
+    parser_initialized = false;
+
+    const auto catalog = timestamp_formats();
+    for (const auto& entry : _entries)
+    {
+        entry->metadata.timestamp.reset();
+        entry->metadata.extracted_time_text.clear();
+        entry->metadata.parsed_time_text.clear();
+        entry->metadata.extracted_time_start.reset();
+        entry->metadata.extracted_time_end.reset();
+
+        if (catalog == nullptr)
+        {
+            continue;
+        }
+
+        if (!parser_initialized)
+        {
+            parser_initialized = parser.init(*entry, *catalog);
+        }
+
+        if (parser_initialized)
+        {
+            parser.parse(*entry);
+        }
+    }
+}
+
 void TrackedSourceBase::reserve_entries(std::size_t additional_count)
 {
     _entries.reserve(_entries.size() + additional_count);
@@ -65,6 +105,13 @@ void TrackedSourceBase::append_merged_entries(const std::vector<LogBatchSourceRa
         _entries[entry_index]->metadata.sequence_number = _next_sequence_number++;
         _entries[entry_index]->metadata.source          = this;
     }
+}
+
+void TrackedSourceBase::replace_entries_with_merged_entries(const std::vector<LogBatchSourceRange>& source_ranges)
+{
+    _entries.clear();
+    _next_sequence_number = 0;
+    append_merged_entries(source_ranges);
 }
 
 } // namespace slayerlog

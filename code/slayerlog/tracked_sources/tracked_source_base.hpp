@@ -24,6 +24,7 @@ public:
     const LogSource& source() const;
     const std::string& source_label() const;
     void set_source_label(std::string source_label);
+    virtual void set_timestamp_format(std::string format) = 0;
 
     virtual bool poll() = 0;
 
@@ -31,9 +32,12 @@ public:
 
 protected:
     const std::shared_ptr<const TimestampFormatCatalog>& timestamp_formats() const;
+    void set_timestamp_formats(std::shared_ptr<const TimestampFormatCatalog> timestamp_formats);
+    void reparse_entries(SourceTimestampParser& parser, bool& parser_initialized);
     void reserve_entries(std::size_t additional_count);
     LogEntry& append_entry();
     void append_merged_entries(const std::vector<LogBatchSourceRange>& source_ranges);
+    void replace_entries_with_merged_entries(const std::vector<LogBatchSourceRange>& source_ranges);
 
 private:
     LogSource _source;

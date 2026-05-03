@@ -143,11 +143,14 @@ void CommandPaletteController::open()
     _model.mode = CommandPaletteMode::Commands;
     _model.query.clear();
     _model.open_files.clear();
+    _model.timestamp_formats.clear();
     _model.filter_picker_entries.clear();
-    _close_open_file_selection_handler = {};
-    _delete_filters_selection_handler  = {};
-    _model.cursor_position             = 0;
-    _model.selected_index              = 0;
+    _close_open_file_selection_handler  = {};
+    _timestamp_source_selection_handler = {};
+    _timestamp_format_selection_handler = {};
+    _delete_filters_selection_handler   = {};
+    _model.cursor_position              = 0;
+    _model.selected_index               = 0;
     _model.status_message.clear();
     _model.status_is_error = false;
     refresh_matches();
@@ -167,11 +170,14 @@ void CommandPaletteController::open_history()
     _model.mode = CommandPaletteMode::History;
     _model.query.clear();
     _model.open_files.clear();
+    _model.timestamp_formats.clear();
     _model.filter_picker_entries.clear();
-    _close_open_file_selection_handler = {};
-    _delete_filters_selection_handler  = {};
-    _model.cursor_position             = 0;
-    _model.selected_index              = 0;
+    _close_open_file_selection_handler  = {};
+    _timestamp_source_selection_handler = {};
+    _timestamp_format_selection_handler = {};
+    _delete_filters_selection_handler   = {};
+    _model.cursor_position              = 0;
+    _model.selected_index               = 0;
     _model.status_message.clear();
     _model.status_is_error = false;
     refresh_matches();
@@ -183,11 +189,52 @@ void CommandPaletteController::open_close_open_file_picker(std::vector<std::stri
     _model.mode = CommandPaletteMode::CloseOpenFile;
     _model.query.clear();
     _model.open_files = std::move(open_files);
+    _model.timestamp_formats.clear();
     _model.filter_picker_entries.clear();
-    _close_open_file_selection_handler = std::move(on_confirm);
-    _delete_filters_selection_handler  = {};
-    _model.cursor_position             = 0;
-    _model.selected_index              = 0;
+    _close_open_file_selection_handler  = std::move(on_confirm);
+    _timestamp_source_selection_handler = {};
+    _timestamp_format_selection_handler = {};
+    _delete_filters_selection_handler   = {};
+    _model.cursor_position              = 0;
+    _model.selected_index               = 0;
+    _model.status_message.clear();
+    _model.status_is_error = false;
+    refresh_matches();
+}
+
+void CommandPaletteController::open_timestamp_source_picker(std::vector<std::string> sources, std::function<CommandResult(std::size_t selected_index)> on_confirm)
+{
+    _model.open = true;
+    _model.mode = CommandPaletteMode::SelectTimestampSource;
+    _model.query.clear();
+    _model.open_files = std::move(sources);
+    _model.timestamp_formats.clear();
+    _model.filter_picker_entries.clear();
+    _close_open_file_selection_handler  = {};
+    _timestamp_source_selection_handler = std::move(on_confirm);
+    _timestamp_format_selection_handler = {};
+    _delete_filters_selection_handler   = {};
+    _model.cursor_position              = 0;
+    _model.selected_index               = 0;
+    _model.status_message.clear();
+    _model.status_is_error = false;
+    refresh_matches();
+}
+
+void CommandPaletteController::open_timestamp_format_picker(std::vector<std::string> formats, std::function<CommandResult(std::size_t selected_index)> on_confirm)
+{
+    _model.open = true;
+    _model.mode = CommandPaletteMode::SelectTimestampFormat;
+    _model.query.clear();
+    _model.open_files.clear();
+    _model.timestamp_formats = std::move(formats);
+    _model.filter_picker_entries.clear();
+    _close_open_file_selection_handler  = {};
+    _timestamp_source_selection_handler = {};
+    _timestamp_format_selection_handler = std::move(on_confirm);
+    _delete_filters_selection_handler   = {};
+    _model.cursor_position              = 0;
+    _model.selected_index               = 0;
     _model.status_message.clear();
     _model.status_is_error = false;
     refresh_matches();
@@ -199,11 +246,14 @@ void CommandPaletteController::open_delete_filters_picker(std::vector<CommandPal
     _model.mode = CommandPaletteMode::DeleteFilters;
     _model.query.clear();
     _model.open_files.clear();
+    _model.timestamp_formats.clear();
     _model.filter_picker_entries       = std::move(filters);
-    _close_open_file_selection_handler = {};
-    _delete_filters_selection_handler  = std::move(on_confirm);
-    _model.cursor_position             = 0;
-    _model.selected_index              = 0;
+    _close_open_file_selection_handler  = {};
+    _timestamp_source_selection_handler = {};
+    _timestamp_format_selection_handler = {};
+    _delete_filters_selection_handler   = std::move(on_confirm);
+    _model.cursor_position              = 0;
+    _model.selected_index               = 0;
     _model.status_message.clear();
     _model.status_is_error = false;
     refresh_matches();
@@ -215,11 +265,14 @@ void CommandPaletteController::close()
     _model.mode = CommandPaletteMode::Commands;
     _model.query.clear();
     _model.open_files.clear();
+    _model.timestamp_formats.clear();
     _model.filter_picker_entries.clear();
-    _close_open_file_selection_handler = {};
-    _delete_filters_selection_handler  = {};
-    _model.cursor_position             = 0;
-    _model.selected_index              = 0;
+    _close_open_file_selection_handler  = {};
+    _timestamp_source_selection_handler = {};
+    _timestamp_format_selection_handler = {};
+    _delete_filters_selection_handler   = {};
+    _model.cursor_position              = 0;
+    _model.selected_index               = 0;
     refresh_matches();
 }
 
@@ -240,10 +293,13 @@ bool CommandPaletteController::handle_event(const ftxui::Event& event)
         }
     }
 
-    const bool close_open_file_mode = _model.mode == CommandPaletteMode::CloseOpenFile;
-    const bool delete_filters_mode  = _model.mode == CommandPaletteMode::DeleteFilters;
+    const bool close_open_file_mode       = _model.mode == CommandPaletteMode::CloseOpenFile;
+    const bool timestamp_source_mode      = _model.mode == CommandPaletteMode::SelectTimestampSource;
+    const bool timestamp_format_mode      = _model.mode == CommandPaletteMode::SelectTimestampFormat;
+    const bool single_selection_mode      = close_open_file_mode || timestamp_source_mode || timestamp_format_mode;
+    const bool delete_filters_mode        = _model.mode == CommandPaletteMode::DeleteFilters;
 
-    if (_command_history != nullptr && event == ftxui::Event::CtrlR && !close_open_file_mode && !delete_filters_mode)
+    if (_command_history != nullptr && event == ftxui::Event::CtrlR && !single_selection_mode && !delete_filters_mode)
     {
         _model.mode           = _model.mode == CommandPaletteMode::Commands ? CommandPaletteMode::History : CommandPaletteMode::Commands;
         _model.selected_index = 0;
@@ -280,7 +336,7 @@ bool CommandPaletteController::handle_event(const ftxui::Event& event)
         return true;
     }
 
-    if ((close_open_file_mode || delete_filters_mode) && event != ftxui::Event::Return)
+    if ((single_selection_mode || delete_filters_mode) && event != ftxui::Event::Return)
     {
         return true;
     }
@@ -348,6 +404,14 @@ bool CommandPaletteController::handle_event(const ftxui::Event& event)
         else if (_model.mode == CommandPaletteMode::CloseOpenFile)
         {
             result = execute_close_open_file_selection();
+        }
+        else if (_model.mode == CommandPaletteMode::SelectTimestampSource)
+        {
+            result = execute_timestamp_source_selection();
+        }
+        else if (_model.mode == CommandPaletteMode::SelectTimestampFormat)
+        {
+            result = execute_timestamp_format_selection();
         }
         else if (_model.mode == CommandPaletteMode::DeleteFilters)
         {
@@ -423,6 +487,7 @@ void CommandPaletteController::refresh_matches()
     {
         _model.matching_commands.clear();
         _model.open_files.clear();
+        _model.timestamp_formats.clear();
         _model.filter_picker_entries.clear();
         if (_command_history != nullptr)
         {
@@ -437,6 +502,7 @@ void CommandPaletteController::refresh_matches()
     {
         _model.matching_history_entries.clear();
         _model.open_files.clear();
+        _model.timestamp_formats.clear();
         _model.filter_picker_entries.clear();
         _model.matching_commands = _command_manager.matching_commands(_model.query);
     }
@@ -444,6 +510,21 @@ void CommandPaletteController::refresh_matches()
     {
         _model.matching_history_entries.clear();
         _model.matching_commands.clear();
+        _model.timestamp_formats.clear();
+        _model.filter_picker_entries.clear();
+    }
+    else if (_model.mode == CommandPaletteMode::SelectTimestampSource)
+    {
+        _model.matching_history_entries.clear();
+        _model.matching_commands.clear();
+        _model.timestamp_formats.clear();
+        _model.filter_picker_entries.clear();
+    }
+    else if (_model.mode == CommandPaletteMode::SelectTimestampFormat)
+    {
+        _model.matching_history_entries.clear();
+        _model.matching_commands.clear();
+        _model.open_files.clear();
         _model.filter_picker_entries.clear();
     }
     else if (_model.mode == CommandPaletteMode::DeleteFilters)
@@ -451,12 +532,14 @@ void CommandPaletteController::refresh_matches()
         _model.matching_history_entries.clear();
         _model.matching_commands.clear();
         _model.open_files.clear();
+        _model.timestamp_formats.clear();
     }
     else
     {
         _model.matching_history_entries.clear();
         _model.matching_commands.clear();
         _model.open_files.clear();
+        _model.timestamp_formats.clear();
     }
 
     if (active_match_count() == 0)
@@ -556,6 +639,16 @@ std::size_t CommandPaletteController::active_match_count() const
         return _model.open_files.size();
     }
 
+    if (_model.mode == CommandPaletteMode::SelectTimestampSource)
+    {
+        return _model.open_files.size();
+    }
+
+    if (_model.mode == CommandPaletteMode::SelectTimestampFormat)
+    {
+        return _model.timestamp_formats.size();
+    }
+
     if (_model.mode == CommandPaletteMode::DeleteFilters)
     {
         return _model.filter_picker_entries.size();
@@ -614,6 +707,34 @@ void CommandPaletteController::rebuild_result_lines()
             for (std::size_t index = 0; index < _model.open_files.size(); ++index)
             {
                 push_line(_model.open_files[index], static_cast<int>(index));
+            }
+        }
+    }
+    else if (_model.mode == CommandPaletteMode::SelectTimestampSource)
+    {
+        if (_model.open_files.empty())
+        {
+            push_line("No open sources", -1);
+        }
+        else
+        {
+            for (std::size_t index = 0; index < _model.open_files.size(); ++index)
+            {
+                push_line(_model.open_files[index], static_cast<int>(index));
+            }
+        }
+    }
+    else if (_model.mode == CommandPaletteMode::SelectTimestampFormat)
+    {
+        if (_model.timestamp_formats.empty())
+        {
+            push_line("No timestamp formats configured", -1);
+        }
+        else
+        {
+            for (std::size_t index = 0; index < _model.timestamp_formats.size(); ++index)
+            {
+                push_line(_model.timestamp_formats[index], static_cast<int>(index));
             }
         }
     }
@@ -775,6 +896,38 @@ CommandResult CommandPaletteController::execute_close_open_file_selection()
     }
 
     return _close_open_file_selection_handler(static_cast<std::size_t>(_model.selected_index));
+}
+
+CommandResult CommandPaletteController::execute_timestamp_source_selection()
+{
+    if (_timestamp_source_selection_handler == nullptr)
+    {
+        return {false, "No timestamp source handler is configured."};
+    }
+
+    if (_model.selected_index < 0 || static_cast<std::size_t>(_model.selected_index) >= _model.open_files.size())
+    {
+        return {false, "No source is selected."};
+    }
+
+    auto handler = _timestamp_source_selection_handler;
+    return handler(static_cast<std::size_t>(_model.selected_index));
+}
+
+CommandResult CommandPaletteController::execute_timestamp_format_selection()
+{
+    if (_timestamp_format_selection_handler == nullptr)
+    {
+        return {false, "No timestamp format handler is configured."};
+    }
+
+    if (_model.selected_index < 0 || static_cast<std::size_t>(_model.selected_index) >= _model.timestamp_formats.size())
+    {
+        return {false, "No timestamp format is selected."};
+    }
+
+    auto handler = _timestamp_format_selection_handler;
+    return handler(static_cast<std::size_t>(_model.selected_index));
 }
 
 CommandResult CommandPaletteController::execute_delete_filters_selection()

@@ -263,6 +263,28 @@ std::vector<std::string> AllTrackedSources::source_labels() const
     return labels;
 }
 
+const std::vector<std::string>& AllTrackedSources::timestamp_formats() const
+{
+    return _timestamp_formats->formats();
+}
+
+std::optional<std::string> AllTrackedSources::set_source_timestamp_format(std::size_t source_index, const std::string& format)
+{
+    if (source_index >= _sources.size())
+    {
+        return "Invalid source selection";
+    }
+
+    if (format.empty())
+    {
+        return "Invalid timestamp format selection";
+    }
+
+    _sources[source_index]->set_timestamp_format(format);
+    rebuild_all_lines();
+    return std::nullopt;
+}
+
 bool AllTrackedSources::contains_source(const LogSource& candidate_source) const
 {
     for (const auto& source : _sources)

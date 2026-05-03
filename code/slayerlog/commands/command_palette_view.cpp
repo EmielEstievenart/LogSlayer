@@ -65,12 +65,12 @@ ftxui::Element build_palette_help(CommandPaletteMode mode)
         });
     }
 
-    if (mode == CommandPaletteMode::CloseOpenFile)
+    if (mode == CommandPaletteMode::CloseOpenFile || mode == CommandPaletteMode::SelectTimestampSource || mode == CommandPaletteMode::SelectTimestampFormat)
     {
         return ftxui::hbox({
             theme::key_hint("Up/Down", "select"),
             sep(),
-            theme::key_hint("Enter", "close file"),
+            theme::key_hint("Enter", mode == CommandPaletteMode::CloseOpenFile ? "close file" : "confirm"),
             sep(),
             theme::key_hint("PgUp/PgDn", "scroll"),
             sep(),
@@ -183,15 +183,25 @@ ftxui::Element CommandPaletteView::render(CommandPaletteController& command_pale
         status = ftxui::text(command_palette.status_message) | ftxui::color(command_palette.status_is_error ? theme::error_fg : theme::success_fg);
     }
 
-    const std::string title = command_palette.mode == CommandPaletteMode::History         ? "Command History"
-                              : command_palette.mode == CommandPaletteMode::CloseOpenFile ? "Close Open File"
-                              : command_palette.mode == CommandPaletteMode::DeleteFilters ? "Delete Filters"
-                                                                                           : "Command Palette";
+    const std::string title = command_palette.mode == CommandPaletteMode::History                 ? "Command History"
+                              : command_palette.mode == CommandPaletteMode::CloseOpenFile         ? "Close Open File"
+                              : command_palette.mode == CommandPaletteMode::SelectTimestampSource ? "Select Log Source"
+                              : command_palette.mode == CommandPaletteMode::SelectTimestampFormat ? "Select Timestamp Format"
+                              : command_palette.mode == CommandPaletteMode::DeleteFilters         ? "Delete Filters"
+                                                                                                   : "Command Palette";
 
     ftxui::Elements body;
     if (command_palette.mode == CommandPaletteMode::CloseOpenFile)
     {
         body.push_back(ftxui::text("Select file to close") | ftxui::color(theme::muted));
+    }
+    else if (command_palette.mode == CommandPaletteMode::SelectTimestampSource)
+    {
+        body.push_back(ftxui::text("Select source to reparse") | ftxui::color(theme::muted));
+    }
+    else if (command_palette.mode == CommandPaletteMode::SelectTimestampFormat)
+    {
+        body.push_back(ftxui::text("Select timestamp format") | ftxui::color(theme::muted));
     }
     else if (command_palette.mode == CommandPaletteMode::DeleteFilters)
     {

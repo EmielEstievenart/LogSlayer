@@ -16,6 +16,8 @@ enum class CommandPaletteMode
     Commands,
     History,
     CloseOpenFile,
+    SelectTimestampSource,
+    SelectTimestampFormat,
     DeleteFilters,
 };
 
@@ -36,6 +38,7 @@ struct CommandPaletteModel
     std::vector<CommandDescriptor> matching_commands;
     std::vector<std::string> matching_history_entries;
     std::vector<std::string> open_files;
+    std::vector<std::string> timestamp_formats;
     std::vector<FilterPickerEntry> filter_picker_entries;
     int selected_index = 0;
     std::string status_message;

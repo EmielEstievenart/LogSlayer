@@ -562,6 +562,37 @@ TEST(CommandPaletteControllerTest, CloseOpenFilePickerEscapeCancels)
     EXPECT_FALSE(handler_called);
 }
 
+TEST(CommandPaletteControllerTest, TimestampPickersSelectAndExecuteHandlers)
+{
+    CommandManager manager;
+    CommandPaletteModel model;
+    CommandPaletteController controller(model, manager);
+
+    int selected_source_index = -1;
+    controller.open_timestamp_source_picker({"alpha.log", "beta.log"},
+                                            [&](std::size_t index)
+                                            {
+                                                selected_source_index = static_cast<int>(index);
+                                                controller.open_timestamp_format_picker({"YYYY-MM-DDThh:mm:ss", "YYYY/MM/DD hh:mm:ss"}, [](std::size_t) { return CommandResult {true, "format set"}; });
+                                                return CommandResult {true, "Pick format", false};
+                                            });
+
+    ASSERT_TRUE(controller.is_open());
+    EXPECT_EQ(controller.model().mode, CommandPaletteMode::SelectTimestampSource);
+    ASSERT_TRUE(controller.handle_event(ftxui::Event::ArrowDown));
+    ASSERT_TRUE(controller.handle_event(ftxui::Event::Return));
+
+    EXPECT_EQ(selected_source_index, 1);
+    EXPECT_TRUE(controller.is_open());
+    EXPECT_EQ(controller.model().mode, CommandPaletteMode::SelectTimestampFormat);
+
+    ASSERT_TRUE(controller.handle_event(ftxui::Event::ArrowDown));
+    ASSERT_TRUE(controller.handle_event(ftxui::Event::Return));
+
+    EXPECT_FALSE(controller.is_open());
+    EXPECT_EQ(controller.model().status_message, "format set");
+}
+
 TEST(CommandPaletteControllerTest, DeleteFiltersPickerTogglesMultipleSelectionsAndExecutesHandler)
 {
     CommandManager manager;

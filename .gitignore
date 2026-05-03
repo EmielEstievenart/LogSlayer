@@ -11,3 +11,4 @@ out
 code/slayerlog/debugging/demo_file.log
 code/slayerlog/debugging/demo_file.log.pid
 code/slayerlog/debugging/demo_file_secondary.log
+compile_commands copy.json

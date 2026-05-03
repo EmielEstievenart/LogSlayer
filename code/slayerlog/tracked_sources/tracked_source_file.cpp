@@ -86,4 +86,10 @@ bool TrackedSourceFile::poll()
     return true;
 }
 
+void TrackedSourceFile::set_timestamp_format(std::string format)
+{
+    set_timestamp_formats(std::make_shared<const TimestampFormatCatalog>(std::vector<std::string> {std::move(format)}));
+    reparse_entries(_timestamp_parser, _timestamp_parser_initialized);
+}
+
 } // namespace slayerlog
