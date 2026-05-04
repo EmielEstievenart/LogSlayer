@@ -2,12 +2,14 @@
 #include <chrono>
 #include <exception>
 #include <iostream>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
 
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/screen_interactive.hpp>
+#include <ftxui_components/toast_component.hpp>
 
 #include "command_line_parser.hpp"
 #include "command_palette_controller.hpp"
@@ -154,10 +156,9 @@ int main(int argc, char** argv)
 
     slayerlog::CommandPaletteController command_palette_controller(command_palette_model, command_manager, command_history);
 
-    slayerlog::register_commands(command_manager, processed_sources, controller, command_palette_controller, header_text, screen, tracked_sources);
-
     if (config.show_help)
     {
+        slayerlog::register_commands(command_manager, processed_sources, controller, command_palette_controller, header_text, screen, tracked_sources);
         std::cout << slayerlog::build_help_text(command_manager);
         return 0;
     }
@@ -186,7 +187,17 @@ int main(int argc, char** argv)
             return master_controller.handle_event(event);
         });
 
-    screen.Loop(viewer);
+    ToastHostOption toast_option;
+    toast_option.screen           = &screen;
+    toast_option.width            = 48;
+    toast_option.max_visible      = 3;
+    toast_option.style.success    = ftxui::Color::GreenLight;
+    toast_option.style.background = ftxui::Color::GrayDark;
+    auto toast_host               = std::make_shared<ToastHostComponent>(viewer, toast_option);
+
+    slayerlog::register_commands(command_manager, processed_sources, controller, command_palette_controller, header_text, screen, tracked_sources, toast_host.get());
+
+    screen.Loop(toast_host);
     SLAYERLOG_LOG_INFO("Screen loop exited");
     keep_running = false;
     if (watcher_thread.joinable())

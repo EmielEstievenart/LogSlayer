@@ -9,8 +9,10 @@
 #include <sstream>
 #include <stdexcept>
 #include <string_view>
+#include <utility>
 
 #include <ftxui/component/screen_interactive.hpp>
+#include <ftxui_components/toast_component.hpp>
 
 #include "command_manager.hpp"
 #include "command_palette_controller.hpp"
@@ -114,7 +116,22 @@ std::optional<int> highest_shown_line_number(const AllProcessedSources& processe
     return processed_sources.line_number_for_visible_line(VisibleLineIndex {last_visible_line});
 }
 
-CommandResult open_file_command(std::string_view file_path, AllTrackedSources& tracked_sources, std::string& header_text, AllProcessedSources& processed_sources, LogController& controller, ftxui::ScreenInteractive& screen)
+void show_file_opened_toast(ToastHostComponent* toast_host, const LogSource& source)
+{
+    if (toast_host == nullptr)
+    {
+        return;
+    }
+
+    ToastOption option;
+    option.title   = "File opened";
+    option.message = source_display_path(source);
+    option.level   = ToastLevel::Success;
+    toast_host->show(std::move(option));
+}
+
+CommandResult open_file_command(std::string_view file_path, AllTrackedSources& tracked_sources, std::string& header_text, AllProcessedSources& processed_sources, LogController& controller, ftxui::ScreenInteractive& screen,
+                                ToastHostComponent* toast_host)
 {
     LogSource source;
     try
@@ -134,6 +151,7 @@ CommandResult open_file_command(std::string_view file_path, AllTrackedSources& t
     }
 
     reload_processed_sources(tracked_sources, header_text, processed_sources, controller, screen);
+    show_file_opened_toast(toast_host, source);
     return CommandResult {true, "Opened file: " + source_display_path(source)};
 }
 
@@ -328,7 +346,7 @@ CommandResult delete_filters_command(CommandPaletteController& command_palette_c
 } // namespace
 
 void register_commands(CommandManager& command_manager, AllProcessedSources& processed_sources, LogController& controller, CommandPaletteController& command_palette_controller, std::string& header_text, ftxui::ScreenInteractive& screen,
-                       AllTrackedSources& tracked_sources)
+                       AllTrackedSources& tracked_sources, ToastHostComponent* toast_host)
 {
     command_manager.register_command({"filter-in",
                                       "Show lines matching text or regex",
@@ -570,7 +588,7 @@ void register_commands(CommandManager& command_manager, AllProcessedSources& pro
                                              return CommandResult {false, "Usage: open-file <path>"};
                                          }
 
-                                         return open_file_command(file_path, tracked_sources, header_text, processed_sources, controller, screen);
+                                         return open_file_command(file_path, tracked_sources, header_text, processed_sources, controller, screen, toast_host);
                                      });
 
     command_manager.register_command({"open-folder",
