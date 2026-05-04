@@ -171,6 +171,7 @@ int main(int argc, char** argv)
     }
 
     std::atomic<bool> keep_running = true;
+    std::vector<std::thread> background_tasks;
     std::thread watcher_thread     = start_watcher_thread(config.poll_interval_ms, tracked_sources, model_mutex, processed_sources, controller, screen, keep_running);
 
     auto viewer = ftxui::Renderer(
@@ -195,7 +196,7 @@ int main(int argc, char** argv)
     toast_option.style.background = ftxui::Color::GrayDark;
     auto toast_host               = std::make_shared<ToastHostComponent>(viewer, toast_option);
 
-    slayerlog::register_commands(command_manager, processed_sources, controller, command_palette_controller, header_text, screen, tracked_sources, toast_host.get());
+    slayerlog::register_commands(command_manager, processed_sources, controller, command_palette_controller, header_text, screen, tracked_sources, toast_host.get(), &model_mutex, &background_tasks);
 
     screen.Loop(toast_host);
     SLAYERLOG_LOG_INFO("Screen loop exited");
@@ -203,6 +204,14 @@ int main(int argc, char** argv)
     if (watcher_thread.joinable())
     {
         watcher_thread.join();
+    }
+
+    for (auto& background_task : background_tasks)
+    {
+        if (background_task.joinable())
+        {
+            background_task.join();
+        }
     }
 
     SLAYERLOG_LOG_INFO("Slayerlog shutdown complete");

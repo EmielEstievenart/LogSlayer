@@ -67,14 +67,21 @@ std::vector<std::filesystem::path> enumerate_regular_files(const std::string& fo
 
 } // namespace
 
-TrackedSourceFolder::TrackedSourceFolder(LogSource source, std::string source_label, std::shared_ptr<const TimestampFormatCatalog> timestamp_formats)
-    : TrackedSourceBase(std::move(source), std::move(source_label), std::move(timestamp_formats))
+TrackedSourceFolder::TrackedSourceFolder(LogSource source, std::string source_label, std::shared_ptr<const TimestampFormatCatalog> timestamp_formats, OpenProgressCallback open_progress_callback)
+    : TrackedSourceBase(std::move(source), std::move(source_label), std::move(timestamp_formats)), _open_progress_callback(std::move(open_progress_callback))
 {
 }
 
 bool TrackedSourceFolder::poll()
 {
     refresh_active_children();
+
+    const std::size_t total_file_count = _active_file_order.size();
+    std::size_t opened_file_count      = 0;
+    if (_open_progress_callback)
+    {
+        _open_progress_callback(opened_file_count, total_file_count);
+    }
 
     std::vector<LogBatchSourceRange> source_ranges;
     source_ranges.reserve(_active_file_order.size());
@@ -90,7 +97,13 @@ bool TrackedSourceFolder::poll()
         auto& child = child_it->second;
         TrackedSourceFile& child_source     = *child.tracked_source;
         const std::size_t first_new_entry_index = child_source.entries().size();
-        if (!child_source.poll())
+        const bool has_new_entries              = child_source.poll();
+        if (_open_progress_callback)
+        {
+            _open_progress_callback(++opened_file_count, total_file_count);
+        }
+
+        if (!has_new_entries)
         {
             continue;
         }
@@ -108,6 +121,8 @@ bool TrackedSourceFolder::poll()
             source_label(),
         });
     }
+
+    _open_progress_callback = {};
 
     if (source_ranges.empty())
     {

@@ -23,6 +23,7 @@ public:
     ~AllTrackedSources();
 
     std::optional<std::string> open_source(const LogSource& source);
+    std::optional<std::string> add_opened_source(std::unique_ptr<TrackedSourceBase> source_state);
     std::optional<std::string> close_source(std::size_t source_index, std::string* closed_label = nullptr);
 
     std::optional<AllLineIndex> poll();
@@ -34,6 +35,7 @@ public:
     bool empty() const;
     std::vector<std::string> source_labels() const;
     const std::vector<std::string>& timestamp_formats() const;
+    std::shared_ptr<const TimestampFormatCatalog> timestamp_format_catalog() const;
     std::optional<std::string> set_source_timestamp_format(std::size_t source_index, const std::string& format);
 
 private:

@@ -100,6 +100,28 @@ std::optional<std::string> AllTrackedSources::open_source(const LogSource& sourc
     }
 }
 
+std::optional<std::string> AllTrackedSources::add_opened_source(std::unique_ptr<TrackedSourceBase> source_state)
+{
+    if (source_state == nullptr)
+    {
+        return "Opened source is invalid";
+    }
+
+    if (contains_source(source_state->source()))
+    {
+        return "Source already open: " + source_display_path(source_state->source());
+    }
+
+    const std::size_t source_index = _sources.size();
+    const std::string display_path = source_display_path(source_state->source());
+    _sources.push_back(std::move(source_state));
+    rebuild_source_labels();
+    rebuild_all_lines();
+
+    SLAYERLOG_LOG_INFO("Opened source index=" << source_index << " source=" << display_path);
+    return std::nullopt;
+}
+
 std::optional<std::string> AllTrackedSources::close_source(std::size_t source_index, std::string* closed_label)
 {
     if (source_index >= _sources.size())
@@ -266,6 +288,11 @@ std::vector<std::string> AllTrackedSources::source_labels() const
 const std::vector<std::string>& AllTrackedSources::timestamp_formats() const
 {
     return _timestamp_formats->formats();
+}
+
+std::shared_ptr<const TimestampFormatCatalog> AllTrackedSources::timestamp_format_catalog() const
+{
+    return _timestamp_formats;
 }
 
 std::optional<std::string> AllTrackedSources::set_source_timestamp_format(std::size_t source_index, const std::string& format)

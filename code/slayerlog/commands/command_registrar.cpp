@@ -2,13 +2,17 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <exception>
 #include <filesystem>
 #include <fstream>
+#include <memory>
+#include <mutex>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string_view>
+#include <thread>
 #include <utility>
 
 #include <ftxui/component/screen_interactive.hpp>
@@ -18,6 +22,7 @@
 #include "command_palette_controller.hpp"
 #include "debug_log.hpp"
 #include "tracked_sources/all_tracked_sources.hpp"
+#include "tracked_sources/tracked_source_factory.hpp"
 #include "log_controller.hpp"
 #include "log_source.hpp"
 #include "tracked_sources/all_processed_sources.hpp"
@@ -155,7 +160,54 @@ CommandResult open_file_command(std::string_view file_path, AllTrackedSources& t
     return CommandResult {true, "Opened file: " + source_display_path(source)};
 }
 
-CommandResult open_folder_command(std::string_view folder_path, AllTrackedSources& tracked_sources, std::string& header_text, AllProcessedSources& processed_sources, LogController& controller, ftxui::ScreenInteractive& screen)
+void update_folder_open_toast(ToastHostComponent* toast_host, std::optional<ToastId>& toast_id, std::size_t opened_file_count, std::size_t total_file_count)
+{
+    if (toast_host == nullptr)
+    {
+        return;
+    }
+
+    ToastOption option;
+    option.title    = "Opening folder";
+    option.message  = std::to_string(opened_file_count) + " / " + std::to_string(total_file_count) + " files opened";
+    option.level    = ToastLevel::Info;
+    option.progress = total_file_count == 0 ? 1.0F : static_cast<float>(opened_file_count) / static_cast<float>(total_file_count);
+    option.timeout  = std::chrono::milliseconds(0);
+
+    if (toast_id.has_value())
+    {
+        toast_host->update(*toast_id, std::move(option));
+        return;
+    }
+
+    toast_id = toast_host->show(std::move(option));
+}
+
+void finish_folder_open_toast(ToastHostComponent* toast_host, std::optional<ToastId> toast_id, const std::string& title, const std::string& message, ToastLevel level, float progress)
+{
+    if (toast_host == nullptr)
+    {
+        return;
+    }
+
+    ToastOption option;
+    option.title    = title;
+    option.message  = message;
+    option.level    = level;
+    option.progress = progress;
+    option.timeout  = std::chrono::seconds(level == ToastLevel::Error ? 5 : 3);
+
+    if (toast_id.has_value())
+    {
+        toast_host->update(*toast_id, std::move(option));
+        return;
+    }
+
+    toast_host->show(std::move(option));
+}
+
+CommandResult open_folder_command(std::string_view folder_path, AllTrackedSources& tracked_sources, std::string& header_text, AllProcessedSources& processed_sources, LogController& controller, ftxui::ScreenInteractive& screen,
+                                  ToastHostComponent* toast_host, std::mutex* model_mutex, std::vector<std::thread>* background_tasks)
 {
     LogSource source;
     try
@@ -167,15 +219,57 @@ CommandResult open_folder_command(std::string_view folder_path, AllTrackedSource
         return CommandResult {false, ex.what()};
     }
 
-    const auto error = tracked_sources.open_source(source);
-    if (error.has_value())
+    if (model_mutex == nullptr || background_tasks == nullptr)
     {
-        SLAYERLOG_LOG_ERROR("open-folder failed folder=" << source_display_path(source) << " error=" << *error);
-        return CommandResult {false, *error};
+        const auto error = tracked_sources.open_source(source);
+        if (error.has_value())
+        {
+            SLAYERLOG_LOG_ERROR("open-folder failed folder=" << source_display_path(source) << " error=" << *error);
+            return CommandResult {false, *error};
+        }
+
+        reload_processed_sources(tracked_sources, header_text, processed_sources, controller, screen);
+        return CommandResult {true, "Opened folder: " + source_display_path(source)};
     }
 
-    reload_processed_sources(tracked_sources, header_text, processed_sources, controller, screen);
-    return CommandResult {true, "Opened folder: " + source_display_path(source)};
+    const std::string display_path      = source_display_path(source);
+    auto timestamp_format_catalog       = tracked_sources.timestamp_format_catalog();
+    background_tasks->emplace_back([source = std::move(source), display_path, timestamp_format_catalog = std::move(timestamp_format_catalog), &tracked_sources, &header_text, &processed_sources, &controller, &screen, toast_host, model_mutex]
+                                   {
+                                       std::optional<ToastId> toast_id;
+                                       try
+                                       {
+                                           auto source_state = create_tracked_source(source,
+                                                                                    display_path,
+                                                                                    timestamp_format_catalog,
+                                                                                    [toast_host, &toast_id](std::size_t opened_file_count, std::size_t total_file_count)
+                                                                                    { update_folder_open_toast(toast_host, toast_id, opened_file_count, total_file_count); });
+
+                                           source_state->poll();
+
+                                           {
+                                               std::lock_guard lock(*model_mutex);
+                                               const auto error = tracked_sources.add_opened_source(std::move(source_state));
+                                               if (error.has_value())
+                                               {
+                                                   SLAYERLOG_LOG_ERROR("open-folder failed folder=" << display_path << " error=" << *error);
+                                                   finish_folder_open_toast(toast_host, toast_id, "Folder open failed", *error, ToastLevel::Error, 1.0F);
+                                                   return;
+                                               }
+
+                                               reload_processed_sources(tracked_sources, header_text, processed_sources, controller, screen);
+                                           }
+
+                                           finish_folder_open_toast(toast_host, toast_id, "Folder opened", display_path, ToastLevel::Success, 1.0F);
+                                       }
+                                       catch (const std::exception& ex)
+                                       {
+                                           SLAYERLOG_LOG_ERROR("open-folder failed folder=" << display_path << " error=" << ex.what());
+                                           finish_folder_open_toast(toast_host, toast_id, "Folder open failed", ex.what(), ToastLevel::Error, 1.0F);
+                                       }
+                                   });
+
+    return CommandResult {true, "Opening folder in background: " + display_path};
 }
 
 CommandResult export_visible_text_command(std::string_view file_path, const AllProcessedSources& processed_sources)
@@ -346,7 +440,7 @@ CommandResult delete_filters_command(CommandPaletteController& command_palette_c
 } // namespace
 
 void register_commands(CommandManager& command_manager, AllProcessedSources& processed_sources, LogController& controller, CommandPaletteController& command_palette_controller, std::string& header_text, ftxui::ScreenInteractive& screen,
-                       AllTrackedSources& tracked_sources, ToastHostComponent* toast_host)
+                       AllTrackedSources& tracked_sources, ToastHostComponent* toast_host, std::mutex* model_mutex, std::vector<std::thread>* background_tasks)
 {
     command_manager.register_command({"filter-in",
                                       "Show lines matching text or regex",
@@ -608,8 +702,8 @@ void register_commands(CommandManager& command_manager, AllProcessedSources& pro
                                              return CommandResult {false, "Usage: open-folder <path>"};
                                          }
 
-                                         return open_folder_command(folder_path, tracked_sources, header_text, processed_sources, controller, screen);
-                                     });
+                                          return open_folder_command(folder_path, tracked_sources, header_text, processed_sources, controller, screen, toast_host, model_mutex, background_tasks);
+                                      });
 
     command_manager.register_command({"close-open-file",
                                        "Close one currently open file",
