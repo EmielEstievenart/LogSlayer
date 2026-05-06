@@ -674,7 +674,7 @@ void register_commands(CommandManager& command_manager, AllProcessedSources& pro
                                           "Example: open-file logs/app.log",
                                           "Example: open-file ssh://user@example.com/var/log/app.log",
                                       }},
-                                     [&](std::string_view arguments)
+                                     [&, toast_host](std::string_view arguments)
                                      {
                                          const std::string file_path = trim_text(arguments);
                                          if (file_path.empty())
@@ -694,7 +694,7 @@ void register_commands(CommandManager& command_manager, AllProcessedSources& pro
                                           "Use this for log directories; SSH folders are not supported.",
                                           "Example: open-folder logs/archive",
                                       }},
-                                     [&](std::string_view arguments)
+                                     [&, toast_host, model_mutex, background_tasks](std::string_view arguments)
                                      {
                                          const std::string folder_path = trim_text(arguments);
                                          if (folder_path.empty())
