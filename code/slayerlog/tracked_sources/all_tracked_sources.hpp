@@ -8,6 +8,7 @@
 
 #include "log_batch.hpp"
 #include "log_source.hpp"
+#include "notifications/notification.hpp"
 #include "timestamp/source_timestamp_parser.hpp"
 #include "log_types.hpp"
 
@@ -36,6 +37,7 @@ public:
     std::vector<std::string> source_labels() const;
     const std::vector<std::string>& timestamp_formats() const;
     std::shared_ptr<const TimestampFormatCatalog> timestamp_format_catalog() const;
+    void set_notifier(Notifier notifier);
     std::optional<std::string> set_source_timestamp_format(std::size_t source_index, const std::string& format);
 
 private:
@@ -48,6 +50,7 @@ private:
     std::vector<std::unique_ptr<TrackedSourceBase>> _sources;
     IndexedVector<std::shared_ptr<LogEntry>, AllLineIndex> _all_lines;
     std::shared_ptr<const TimestampFormatCatalog> _timestamp_formats;
+    Notifier _notifier;
 };
 
 } // namespace slayerlog

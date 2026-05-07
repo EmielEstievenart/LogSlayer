@@ -42,7 +42,7 @@ std::optional<std::chrono::system_clock::time_point> earliest_new_timestamp(cons
 }
 
 std::size_t find_rewrite_start_index(const IndexedVector<std::shared_ptr<LogEntry>, AllLineIndex>& all_lines,
-                                     const std::chrono::system_clock::time_point& earliest_timestamp)
+                                      const std::chrono::system_clock::time_point& earliest_timestamp)
 {
     for (std::size_t line_index = 0; line_index < all_lines.size(); ++line_index)
     {
@@ -59,6 +59,27 @@ std::size_t find_rewrite_start_index(const IndexedVector<std::shared_ptr<LogEntr
     }
 
     return all_lines.size();
+}
+
+int rebuild_progress_percent(std::size_t completed_step_count, std::size_t total_step_count)
+{
+    if (total_step_count == 0)
+    {
+        return 100;
+    }
+
+    return static_cast<int>((completed_step_count * 100) / total_step_count);
+}
+
+Notification rebuild_progress_notification(int percent, std::string message)
+{
+    Notification notification;
+    notification.title    = "Rebuilding log lines";
+    notification.message  = std::move(message);
+    notification.level    = NotificationLevel::Info;
+    notification.progress = static_cast<float>(percent) / 100.0F;
+    notification.timeout  = std::chrono::milliseconds(0);
+    return notification;
 }
 
 } // namespace
@@ -295,6 +316,11 @@ std::shared_ptr<const TimestampFormatCatalog> AllTrackedSources::timestamp_forma
     return _timestamp_formats;
 }
 
+void AllTrackedSources::set_notifier(Notifier notifier)
+{
+    _notifier = std::move(notifier);
+}
+
 std::optional<std::string> AllTrackedSources::set_source_timestamp_format(std::size_t source_index, const std::string& format)
 {
     if (source_index >= _sources.size())
@@ -345,16 +371,30 @@ void AllTrackedSources::rebuild_all_lines()
 {
     _all_lines.clear();
 
+    const std::size_t total_step_count = _sources.size() + 1;
+    NotificationHandle progress_notification(_notifier);
+    int last_reported_percent = 0;
+    (void)progress_notification.show_or_update(rebuild_progress_notification(last_reported_percent, "0% rebuilt"));
+
     std::vector<LogBatchSourceRange> source_ranges;
     source_ranges.reserve(_sources.size());
     for (std::size_t source_index = 0; source_index < _sources.size(); ++source_index)
     {
         append_source_range(source_ranges, *_sources[source_index], source_index, 0);
+        const std::size_t completed_step_count = source_index + 1;
+        const int percent                      = rebuild_progress_percent(completed_step_count, total_step_count);
+        if (percent != last_reported_percent)
+        {
+            last_reported_percent = percent;
+            (void)progress_notification.show_or_update(rebuild_progress_notification(percent, std::to_string(percent) + "% rebuilt"));
+        }
     }
 
     std::vector<std::shared_ptr<LogEntry>> merged_lines;
     merge_log_batch(source_ranges, merged_lines);
     append_merged_lines(merged_lines);
+
+    (void)progress_notification.show_or_update(rebuild_progress_notification(100, "100% rebuilt (" + std::to_string(merged_lines.size()) + " log lines)"));
 }
 
 void AllTrackedSources::append_source_range(std::vector<LogBatchSourceRange>& source_ranges, const TrackedSourceBase& source, std::size_t source_index,

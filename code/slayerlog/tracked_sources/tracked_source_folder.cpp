@@ -167,7 +167,7 @@ void TrackedSourceFolder::finish_open_notification(std::string title, std::strin
     notification.message  = std::move(message);
     notification.level    = level;
     notification.progress = progress;
-    notification.timeout  = std::chrono::seconds(level == NotificationLevel::Error ? 5 : 3);
+    notification.timeout  = std::chrono::seconds(level == NotificationLevel::Error ? 10 : 6);
     (void)_open_progress_notification.show_or_update(std::move(notification));
 }
 

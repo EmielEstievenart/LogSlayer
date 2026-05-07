@@ -3,6 +3,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -91,6 +92,29 @@ public:
 
 private:
     std::filesystem::path _path;
+};
+
+class RecordingNotificationSink : public NotificationSink
+{
+public:
+    NotificationId show(Notification notification) override
+    {
+        notifications.push_back(std::move(notification));
+        return next_id++;
+    }
+
+    void update(NotificationId id, Notification notification) override
+    {
+        updated_ids.push_back(id);
+        notifications.push_back(std::move(notification));
+    }
+
+    void dismiss(NotificationId id) override { dismissed_ids.push_back(id); }
+
+    NotificationId next_id = 1;
+    std::vector<Notification> notifications;
+    std::vector<NotificationId> updated_ids;
+    std::vector<NotificationId> dismissed_ids;
 };
 
 std::vector<std::string> all_texts(const AllTrackedSources& tracked_sources)
@@ -211,6 +235,32 @@ TEST(AllTrackedSourcesTest, SetSourceTimestampFormatReparsesAndResortsAllLines)
                                                "2026-04-01T10:00:00 alpha first",
                                                "2026/04/01 10:01:00 beta second",
                                            }));
+}
+
+TEST(AllTrackedSourcesTest, RebuildAllLinesReportsProgressThroughNotifier)
+{
+    const auto path = make_unique_test_path();
+    ScopedTestFile file(path);
+    file.write("first\nsecond\n");
+    auto sink = std::make_shared<RecordingNotificationSink>();
+
+    AllTrackedSources tracked_sources;
+    tracked_sources.set_notifier(Notifier(sink));
+
+    ASSERT_FALSE(tracked_sources.open_source(parse_log_source(path.string())).has_value());
+
+    ASSERT_EQ(sink->notifications.size(), 3U);
+    EXPECT_EQ(sink->notifications[0].title, "Rebuilding log lines");
+    EXPECT_EQ(sink->notifications[0].message, "0% rebuilt");
+    ASSERT_TRUE(sink->notifications[0].progress.has_value());
+    EXPECT_FLOAT_EQ(*sink->notifications[0].progress, 0.0F);
+    EXPECT_EQ(sink->notifications[1].message, "50% rebuilt");
+    ASSERT_TRUE(sink->notifications[1].progress.has_value());
+    EXPECT_FLOAT_EQ(*sink->notifications[1].progress, 0.5F);
+    EXPECT_EQ(sink->notifications[2].message, "100% rebuilt (2 log lines)");
+    ASSERT_TRUE(sink->notifications[2].progress.has_value());
+    EXPECT_FLOAT_EQ(*sink->notifications[2].progress, 1.0F);
+    EXPECT_EQ(sink->updated_ids, std::vector<NotificationId>({1, 1}));
 }
 
 TEST(AllTrackedSourcesTest, SetFolderSourceTimestampFormatRebuildsMergedFolderLines)

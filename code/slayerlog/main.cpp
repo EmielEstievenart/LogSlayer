@@ -193,10 +193,12 @@ int main(int argc, char** argv)
     toast_option.screen           = &screen;
     toast_option.width            = 48;
     toast_option.max_visible      = 3;
+    toast_option.style.info       = ftxui::Color::CyanLight;
     toast_option.style.success    = ftxui::Color::GreenLight;
     toast_option.style.background = ftxui::Color::GrayDark;
     auto toast_host               = std::make_shared<ToastHostComponent>(viewer, toast_option);
     slayerlog::Notifier notifier(std::make_shared<slayerlog::FtxuiToastNotificationSink>(toast_host));
+    tracked_sources.set_notifier(notifier);
 
     slayerlog::register_commands(command_manager, processed_sources, controller, command_palette_controller, header_text, screen, tracked_sources, notifier, &model_mutex, &background_tasks);
 

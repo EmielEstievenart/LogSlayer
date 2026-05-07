@@ -168,7 +168,7 @@ void finish_folder_open_notification(TrackedSourceBase* source_state, const Noti
     notification.message  = message;
     notification.level    = level;
     notification.progress = progress;
-    notification.timeout  = std::chrono::seconds(level == NotificationLevel::Error ? 5 : 3);
+    notification.timeout  = std::chrono::seconds(level == NotificationLevel::Error ? 10 : 6);
     (void)notifier.show(std::move(notification));
 }
 
