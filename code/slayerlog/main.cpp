@@ -25,6 +25,7 @@
 #include "log_view.hpp"
 #include "master_controller.hpp"
 #include "master_view.hpp"
+#include "notifications/ftxui_toast_notification_sink.hpp"
 #include "tracked_sources/all_processed_sources.hpp"
 #include "settings_store.hpp"
 
@@ -195,8 +196,9 @@ int main(int argc, char** argv)
     toast_option.style.success    = ftxui::Color::GreenLight;
     toast_option.style.background = ftxui::Color::GrayDark;
     auto toast_host               = std::make_shared<ToastHostComponent>(viewer, toast_option);
+    slayerlog::Notifier notifier(std::make_shared<slayerlog::FtxuiToastNotificationSink>(toast_host));
 
-    slayerlog::register_commands(command_manager, processed_sources, controller, command_palette_controller, header_text, screen, tracked_sources, toast_host.get(), &model_mutex, &background_tasks);
+    slayerlog::register_commands(command_manager, processed_sources, controller, command_palette_controller, header_text, screen, tracked_sources, notifier, &model_mutex, &background_tasks);
 
     screen.Loop(toast_host);
     SLAYERLOG_LOG_INFO("Screen loop exited");

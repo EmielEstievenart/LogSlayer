@@ -42,6 +42,10 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/code/slayerlog/log_controller.cpp
   ${CMAKE_SOURCE_DIR}/code/slayerlog/log_batch.cpp
   ${CMAKE_SOURCE_DIR}/code/slayerlog/log_view.cpp
+  ${CMAKE_SOURCE_DIR}/code/slayerlog/notifications/ftxui_toast_notification_sink.cpp
+  ${CMAKE_SOURCE_DIR}/code/slayerlog/notifications/ftxui_toast_notification_sink.hpp
+  ${CMAKE_SOURCE_DIR}/code/slayerlog/notifications/notification.cpp
+  ${CMAKE_SOURCE_DIR}/code/slayerlog/notifications/notification.hpp
   ${CMAKE_SOURCE_DIR}/code/slayerlog/timestamp/source_timestamp_parser.cpp
   ${CMAKE_SOURCE_DIR}/code/slayerlog/timestamp/timestamp_format_catalog.cpp
   ${CMAKE_SOURCE_DIR}/code/slayerlog/master_controller.cpp
@@ -78,6 +82,7 @@ target_include_directories(
   unit_tests
   PRIVATE ${CMAKE_SOURCE_DIR}/code/slayerlog
           ${CMAKE_SOURCE_DIR}/code/slayerlog/commands
+          ${CMAKE_SOURCE_DIR}/code/slayerlog/notifications
           ${CMAKE_SOURCE_DIR}/code/slayerlog/tracked_sources
           ${CMAKE_SOURCE_DIR}/libs/eestv)
 

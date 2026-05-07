@@ -30,6 +30,10 @@ add_executable(
   master_controller.hpp
   master_view.cpp
   master_view.hpp
+  notifications/ftxui_toast_notification_sink.cpp
+  notifications/ftxui_toast_notification_sink.hpp
+  notifications/notification.cpp
+  notifications/notification.hpp
    timestamp/source_timestamp_parser.cpp
    timestamp/timestamp_format_catalog.cpp
    timestamp/source_timestamp_parser.hpp
@@ -76,6 +80,7 @@ target_compile_definitions(LogSlayer PRIVATE BOOST_ALL_NO_LIB
 target_include_directories(
   LogSlayer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
                     ${CMAKE_CURRENT_SOURCE_DIR}/commands
+                    ${CMAKE_CURRENT_SOURCE_DIR}/notifications
                     ${CMAKE_CURRENT_SOURCE_DIR}/tracked_sources
                     ${CMAKE_SOURCE_DIR}/libs/eestv)
 

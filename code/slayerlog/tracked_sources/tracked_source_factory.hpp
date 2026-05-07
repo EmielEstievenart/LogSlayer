@@ -11,7 +11,7 @@ namespace slayerlog
 {
 
 std::unique_ptr<TrackedSourceBase> create_tracked_source(LogSource source, std::string source_label,
-                                                          std::shared_ptr<const TimestampFormatCatalog> timestamp_formats = default_timestamp_format_catalog(),
-                                                          TrackedSourceFolder::OpenProgressCallback open_progress_callback = {});
+                                                           std::shared_ptr<const TimestampFormatCatalog> timestamp_formats = default_timestamp_format_catalog(),
+                                                           Notifier notifier = {});
 
 } // namespace slayerlog
