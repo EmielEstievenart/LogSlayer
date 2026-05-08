@@ -31,7 +31,7 @@ std::optional<LogEntryMetadata> parse_timestamp_details(const std::string& line)
     return raw_line.metadata;
 }
 
-std::optional<std::chrono::system_clock::time_point> parse_timestamp(const std::string& line)
+std::optional<LogTimestamp> parse_timestamp(const std::string& line)
 {
     const auto parsed = parse_timestamp_details(line);
     if (!parsed.has_value())
@@ -52,8 +52,25 @@ TEST(LogTimestampTest, ParsesBracketedIsoTimestamp)
 
 TEST(LogTimestampTest, ParsesSpaceSeparatedTimestampWithFraction)
 {
-    const auto parsed = parse_timestamp("2026-04-01 12:34:56.123 details");
+    auto formats = std::make_shared<const TimestampFormatCatalog>(std::vector<std::string> {"YYYY-MM-DD hh:mm:ss.fff"});
+    SourceTimestampParser parser;
+    LogEntry line("2026-04-01 12:34:56.123 details");
+
+    ASSERT_TRUE(parser.init(line, *formats));
+    const bool parsed_line = parser.parse(line);
+
+    ASSERT_TRUE(parsed_line);
+    ASSERT_TRUE(line.metadata.timestamp.has_value());
+    EXPECT_EQ(line.metadata.timestamp->nanosecond, 123000000U);
+    EXPECT_EQ(format_log_timestamp_utc(*line.metadata.timestamp), "2026-04-01 12:34:56.123");
+}
+
+TEST(LogTimestampTest, TreatsOffsetlessTimestampsAsUtc)
+{
+    const auto parsed = parse_timestamp("1970-01-01 00:00:00 epoch");
     EXPECT_TRUE(parsed.has_value());
+    EXPECT_EQ(parsed->epoch_seconds, 0);
+    EXPECT_EQ(parsed->nanosecond, 0U);
 }
 
 TEST(LogTimestampTest, NormalizesZuluAndOffsetTimestamps)
@@ -99,8 +116,10 @@ TEST(LogTimestampTest, DetectsTimestampAfterPrefixAndKeepsCompiledParser)
     ASSERT_TRUE(second_parsed);
     EXPECT_EQ(first_line.metadata.extracted_time_text, "2026-04-01 12:34:56");
     EXPECT_EQ(second_line.metadata.extracted_time_text, "2026-04-01 12:35:56");
-    EXPECT_EQ(first_line.metadata.parsed_time_text, "2026-04-01 12:34:56");
-    EXPECT_EQ(second_line.metadata.parsed_time_text, "2026-04-01 12:35:56");
+    ASSERT_TRUE(first_line.metadata.timestamp.has_value());
+    ASSERT_TRUE(second_line.metadata.timestamp.has_value());
+    EXPECT_EQ(format_log_timestamp_utc(*first_line.metadata.timestamp), "2026-04-01 12:34:56");
+    EXPECT_EQ(format_log_timestamp_utc(*second_line.metadata.timestamp), "2026-04-01 12:35:56");
     ASSERT_TRUE(first_line.metadata.extracted_time_start.has_value());
     ASSERT_TRUE(first_line.metadata.extracted_time_end.has_value());
     ASSERT_TRUE(second_line.metadata.extracted_time_start.has_value());
@@ -120,16 +139,36 @@ TEST(LogTimestampTest, InitDoesNotPopulateMetadata)
     ASSERT_TRUE(parser.init(line, *formats));
     EXPECT_FALSE(line.metadata.timestamp.has_value());
     EXPECT_TRUE(line.metadata.extracted_time_text.empty());
-    EXPECT_TRUE(line.metadata.parsed_time_text.empty());
     EXPECT_FALSE(line.metadata.extracted_time_start.has_value());
     EXPECT_FALSE(line.metadata.extracted_time_end.has_value());
 }
 
-TEST(LogTimestampTest, FormatsTimezoneInDisplayText)
+TEST(LogTimestampTest, FormatsTimezoneAsStoredUtcInstant)
 {
     const auto parsed = parse_timestamp_details("2026-04-01T12:34:56+0200 event");
     ASSERT_TRUE(parsed.has_value());
-    EXPECT_EQ(parsed->parsed_time_text, "2026-04-01 12:34:56+02:00");
+    ASSERT_TRUE(parsed->timestamp.has_value());
+    EXPECT_EQ(format_log_timestamp_utc(*parsed->timestamp), "2026-04-01 10:34:56");
+}
+
+TEST(LogTimestampTest, OrdersFractionsInsideSameSecond)
+{
+    const auto earlier = make_log_timestamp_utc(2026, 4, 1, 12, 34, 56, 100000000);
+    const auto later   = make_log_timestamp_utc(2026, 4, 1, 12, 34, 56, 200000000);
+
+    ASSERT_TRUE(earlier.has_value());
+    ASSERT_TRUE(later.has_value());
+    EXPECT_LT(*earlier, *later);
+}
+
+TEST(LogTimestampTest, SupportsNegativeEpochSeconds)
+{
+    const auto timestamp = make_log_timestamp_utc(1969, 12, 31, 23, 59, 59, 500000000);
+
+    ASSERT_TRUE(timestamp.has_value());
+    EXPECT_EQ(timestamp->epoch_seconds, -1);
+    EXPECT_EQ(timestamp->nanosecond, 500000000U);
+    EXPECT_EQ(format_log_timestamp_utc(*timestamp), "1969-12-31 23:59:59.5");
 }
 
 } // namespace slayerlog

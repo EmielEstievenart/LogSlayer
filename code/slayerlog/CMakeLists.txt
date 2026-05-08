@@ -35,8 +35,10 @@ add_executable(
   notifications/notification.cpp
   notifications/notification.hpp
    timestamp/source_timestamp_parser.cpp
+   timestamp/log_timestamp.cpp
    timestamp/timestamp_format_catalog.cpp
    timestamp/source_timestamp_parser.hpp
+   timestamp/log_timestamp.hpp
    timestamp/timestamp_format_catalog.hpp
   log_types.hpp
   settings_ini.cpp

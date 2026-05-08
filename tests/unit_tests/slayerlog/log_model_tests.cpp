@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 
-#include <chrono>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -42,8 +41,13 @@ std::vector<LogEntry> numbered_lines(int count)
     return lines;
 }
 
+LogTimestamp test_timestamp(unsigned second = 0)
+{
+    return *make_log_timestamp_utc(2026, 4, 1, 10, 0, second, 0);
+}
+
 LogEntry make_batch_entry(std::size_t source_index, std::string source_label, std::string text, std::uint64_t sequence_number,
-                         std::optional<std::chrono::system_clock::time_point> timestamp = std::nullopt, std::string parsed_time_text = {})
+                          std::optional<LogTimestamp> timestamp = std::nullopt)
 {
     LogEntry entry;
     entry.metadata.source_index  = source_index;
@@ -51,7 +55,6 @@ LogEntry make_batch_entry(std::size_t source_index, std::string source_label, st
     entry.text                   = std::move(text);
     entry.metadata.timestamp     = timestamp;
     entry.metadata.sequence_number = sequence_number;
-    entry.metadata.parsed_time_text = std::move(parsed_time_text);
     return entry;
 }
 
@@ -187,7 +190,7 @@ TEST(LogModelTest, HidesDetectedTimestampTextByDefault)
 {
     LogModel model;
 
-    LogEntry entry {"alpha.log", "INFO 2026-04-01 10:00:00 hello", std::nullopt, "2026-04-01 10:00:00"};
+    LogEntry entry {"alpha.log", "INFO 2026-04-01 10:00:00 hello", test_timestamp()};
     entry.metadata.extracted_time_start = 5;
     entry.metadata.extracted_time_end   = 24;
 
@@ -200,7 +203,7 @@ TEST(LogModelTest, ShowsDetectedTimestampTextWhenEnabled)
 {
     LogModel model;
 
-    LogEntry entry {"alpha.log", "INFO 2026-04-01 10:00:00 hello", std::nullopt, "2026-04-01 10:00:00"};
+    LogEntry entry {"alpha.log", "INFO 2026-04-01 10:00:00 hello", test_timestamp()};
     entry.metadata.extracted_time_start = 5;
     entry.metadata.extracted_time_end   = 24;
 
@@ -255,7 +258,7 @@ TEST(LogModelTest, ReservesTimestampColumnWidthForRowsWithoutTimestamp)
     model.set_show_source_labels(true);
 
     model.append_lines({
-        LogEntry {"alpha.log", "with timestamp", std::nullopt, "2026-04-01 10:00:00"},
+        LogEntry {"alpha.log", "with timestamp", test_timestamp()},
         LogEntry {"alpha.log", "without timestamp"},
     });
 
@@ -278,7 +281,7 @@ TEST(LogModelTest, ColumnWidthsGrowDynamicallyAndResetWhenModelBecomesEmpty)
     model.set_show_source_labels(true);
 
     model.append_lines({
-        LogEntry {"alpha.log", "first", std::nullopt, "2026-04-01 10:00:00"},
+        LogEntry {"alpha.log", "first", test_timestamp()},
         LogEntry {123, "omega.log", "second"},
     });
 

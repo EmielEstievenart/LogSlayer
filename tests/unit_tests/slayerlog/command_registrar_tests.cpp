@@ -85,6 +85,11 @@ std::string render_all_visible_lines(const AllProcessedSources& processed_source
     return output.str();
 }
 
+LogTimestamp test_timestamp(unsigned second = 0)
+{
+    return *make_log_timestamp_utc(2026, 4, 1, 10, 0, second, 0);
+}
+
 } // namespace
 
 TEST(CommandRegistrarTest, ExportVisibleTextWritesAllVisibleRenderedLines)
@@ -121,7 +126,7 @@ TEST(CommandRegistrarTest, ExportVisibleTextWritesAllVisibleRenderedLines)
 TEST(CommandRegistrarTest, ShowAndHideOriginalTimeCommandsToggleRenderedMessage)
 {
     AllProcessedSources processed_sources;
-    LogEntry entry {"alpha.log", "INFO 2026-04-01 10:00:00 hello", std::nullopt, "2026-04-01 10:00:00"};
+    LogEntry entry {"alpha.log", "INFO 2026-04-01 10:00:00 hello", test_timestamp()};
     entry.metadata.extracted_time_start = 5;
     entry.metadata.extracted_time_end   = 24;
     processed_sources.append_lines({entry});

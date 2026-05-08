@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 
-#include <chrono>
 #include <memory>
 #include <optional>
 #include <string>
@@ -18,7 +17,7 @@ namespace
 
 LogEntry make_entry(std::size_t source_index, std::string source_label, std::string text)
 {
-    std::optional<std::chrono::system_clock::time_point> timestamp;
+    std::optional<LogTimestamp> timestamp;
 
     const auto catalog = default_timestamp_format_catalog();
     if (catalog != nullptr)

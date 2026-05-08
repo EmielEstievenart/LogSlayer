@@ -1,8 +1,5 @@
 #include "timestamp/source_timestamp_parser.hpp"
 
-#include <iomanip>
-#include <sstream>
-
 namespace slayerlog
 {
 
@@ -32,53 +29,6 @@ bool apply_parser(const eestv::compiledDataAndTimeParser& parser, const std::str
     return true;
 }
 
-std::string format_two_digits(unsigned value)
-{
-    std::ostringstream output;
-    output << std::setw(2) << std::setfill('0') << value;
-    return output.str();
-}
-
-std::string format_nine_digits(unsigned value)
-{
-    std::ostringstream output;
-    output << std::setw(9) << std::setfill('0') << value;
-    return output.str();
-}
-
-std::string trim_fraction_suffix(std::string text)
-{
-    while (!text.empty() && text.back() == '0')
-    {
-        text.pop_back();
-    }
-
-    return text;
-}
-
-std::string format_display_time(const DateAndTime& parsed)
-{
-    std::ostringstream output;
-    output << std::setw(4) << std::setfill('0') << parsed.year << '-' << std::setw(2) << std::setfill('0') << parsed.month << '-' << std::setw(2) << std::setfill('0') << parsed.day << ' ' << std::setw(2) << std::setfill('0') << parsed.hour
-           << ':' << std::setw(2) << std::setfill('0') << parsed.minute << ':' << std::setw(2) << std::setfill('0') << parsed.second;
-
-    if (parsed.nanosecond != 0)
-    {
-        output << '.' << trim_fraction_suffix(format_nine_digits(parsed.nanosecond));
-    }
-
-    if (parsed.utc_offset_minutes.has_value())
-    {
-        const int total_minutes    = *parsed.utc_offset_minutes;
-        const int absolute_minutes = std::abs(total_minutes);
-        const int hours            = absolute_minutes / 60;
-        const int minutes          = absolute_minutes % 60;
-        output << (total_minutes >= 0 ? '+' : '-') << format_two_digits(static_cast<unsigned>(hours)) << ':' << format_two_digits(static_cast<unsigned>(minutes));
-    }
-
-    return output.str();
-}
-
 bool try_parse_with_format(const eestv::compiledDataAndTimeParser& parser, const std::string& line, int start_index, LogEntryMetadata& metadata)
 {
     DateAndTime parsed;
@@ -88,15 +38,14 @@ bool try_parse_with_format(const eestv::compiledDataAndTimeParser& parser, const
         return false;
     }
 
-    const auto time_point = parsed.to_time_point();
-    if (!time_point.has_value())
+    const auto timestamp = make_log_timestamp_utc(parsed.year, parsed.month, parsed.day, parsed.hour, parsed.minute, parsed.second, parsed.nanosecond, parsed.utc_offset_minutes);
+    if (!timestamp.has_value())
     {
         return false;
     }
 
-    metadata.timestamp = *time_point;
+    metadata.timestamp = *timestamp;
     metadata.extracted_time_text = line.substr(static_cast<std::size_t>(start_index), static_cast<std::size_t>(end_index - start_index));
-    metadata.parsed_time_text    = format_display_time(parsed);
     metadata.extracted_time_start = static_cast<std::size_t>(start_index);
     metadata.extracted_time_end   = static_cast<std::size_t>(end_index);
     return true;

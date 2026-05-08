@@ -46,9 +46,10 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/code/slayerlog/notifications/ftxui_toast_notification_sink.cpp
   ${CMAKE_SOURCE_DIR}/code/slayerlog/notifications/ftxui_toast_notification_sink.hpp
   ${CMAKE_SOURCE_DIR}/code/slayerlog/notifications/notification.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/notifications/notification.hpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/timestamp/source_timestamp_parser.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/timestamp/timestamp_format_catalog.cpp
+   ${CMAKE_SOURCE_DIR}/code/slayerlog/notifications/notification.hpp
+   ${CMAKE_SOURCE_DIR}/code/slayerlog/timestamp/log_timestamp.cpp
+   ${CMAKE_SOURCE_DIR}/code/slayerlog/timestamp/source_timestamp_parser.cpp
+   ${CMAKE_SOURCE_DIR}/code/slayerlog/timestamp/timestamp_format_catalog.cpp
   ${CMAKE_SOURCE_DIR}/code/slayerlog/master_controller.cpp
   ${CMAKE_SOURCE_DIR}/code/slayerlog/master_controller.hpp
   ${CMAKE_SOURCE_DIR}/code/slayerlog/master_view.cpp

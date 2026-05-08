@@ -1,7 +1,6 @@
 #include "log_batch.hpp"
 
 #include <algorithm>
-#include <chrono>
 #include <cstddef>
 #include <optional>
 #include <vector>
@@ -109,7 +108,7 @@ std::vector<std::shared_ptr<LogEntry>> merge_shared_log_batch(const std::vector<
         }
 
         std::optional<std::size_t> next_source_index;
-        std::optional<std::chrono::system_clock::time_point> next_timestamp;
+        std::optional<LogTimestamp> next_timestamp;
 
         for (std::size_t source_index = 0; source_index < source_states.size(); ++source_index)
         {
@@ -199,7 +198,7 @@ void merge_log_batch(const std::vector<LogBatchSourceRange>& source_ranges, std:
         }
 
         std::optional<std::size_t> next_state_index;
-        std::optional<std::chrono::system_clock::time_point> next_timestamp;
+        std::optional<LogTimestamp> next_timestamp;
 
         for (std::size_t state_index = 0; state_index < source_states.size(); ++state_index)
         {

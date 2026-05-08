@@ -60,7 +60,6 @@ void TrackedSourceBase::reparse_entries(SourceTimestampParser& parser, bool& par
     {
         entry->metadata.timestamp.reset();
         entry->metadata.extracted_time_text.clear();
-        entry->metadata.parsed_time_text.clear();
         entry->metadata.extracted_time_start.reset();
         entry->metadata.extracted_time_end.reset();
 

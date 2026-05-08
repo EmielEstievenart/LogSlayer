@@ -1,0 +1,39 @@
+#pragma once
+
+#include <cstdint>
+#include <optional>
+#include <string>
+
+namespace slayerlog
+{
+
+struct LogTimestamp
+{
+    std::int64_t epoch_seconds = 0;
+    std::uint32_t nanosecond   = 0;
+};
+
+struct LogCivilTime
+{
+    int year = 1970;
+    unsigned month = 1;
+    unsigned day = 1;
+    unsigned hour = 0;
+    unsigned minute = 0;
+    unsigned second = 0;
+    unsigned nanosecond = 0;
+};
+
+bool operator==(LogTimestamp lhs, LogTimestamp rhs);
+bool operator!=(LogTimestamp lhs, LogTimestamp rhs);
+bool operator<(LogTimestamp lhs, LogTimestamp rhs);
+bool operator<=(LogTimestamp lhs, LogTimestamp rhs);
+bool operator>(LogTimestamp lhs, LogTimestamp rhs);
+bool operator>=(LogTimestamp lhs, LogTimestamp rhs);
+
+std::optional<LogTimestamp> make_log_timestamp_utc(int year, unsigned month, unsigned day, unsigned hour, unsigned minute, unsigned second, unsigned nanosecond,
+                                                    std::optional<int> utc_offset_minutes = std::nullopt);
+LogCivilTime to_utc_civil_time(LogTimestamp timestamp);
+std::string format_log_timestamp_utc(LogTimestamp timestamp);
+
+} // namespace slayerlog

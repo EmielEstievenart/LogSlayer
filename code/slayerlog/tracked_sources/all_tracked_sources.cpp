@@ -16,9 +16,9 @@ namespace slayerlog
 namespace
 {
 
-std::optional<std::chrono::system_clock::time_point> earliest_new_timestamp(const std::vector<LogBatchSourceRange>& source_ranges)
+std::optional<LogTimestamp> earliest_new_timestamp(const std::vector<LogBatchSourceRange>& source_ranges)
 {
-    std::optional<std::chrono::system_clock::time_point> earliest_timestamp;
+    std::optional<LogTimestamp> earliest_timestamp;
     for (const auto& source_range : source_ranges)
     {
         if (source_range.entries == nullptr || source_range.first_entry_index >= source_range.entries->size())
@@ -41,8 +41,7 @@ std::optional<std::chrono::system_clock::time_point> earliest_new_timestamp(cons
     return earliest_timestamp;
 }
 
-std::size_t find_rewrite_start_index(const IndexedVector<std::shared_ptr<LogEntry>, AllLineIndex>& all_lines,
-                                      const std::chrono::system_clock::time_point& earliest_timestamp)
+std::size_t find_rewrite_start_index(const IndexedVector<std::shared_ptr<LogEntry>, AllLineIndex>& all_lines, LogTimestamp earliest_timestamp)
 {
     for (std::size_t line_index = 0; line_index < all_lines.size(); ++line_index)
     {
@@ -208,7 +207,7 @@ std::optional<AllLineIndex> AllTrackedSources::poll()
     };
 
     bool can_append_to_tail = true;
-    std::optional<std::chrono::system_clock::time_point> min_new_timestamp;
+    std::optional<LogTimestamp> min_new_timestamp;
     if (!_all_lines.empty())
     {
         const auto& last_line = _all_lines[AllLineIndex {static_cast<int>(_all_lines.size() - 1)}];
