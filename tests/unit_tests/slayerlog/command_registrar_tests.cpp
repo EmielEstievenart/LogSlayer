@@ -216,7 +216,7 @@ TEST(CommandRegistrarTest, OpenFileCommandShowsToastWhenSourceAlreadyOpen)
     EXPECT_EQ(result.message, "Source already open: " + log_path.string());
     ASSERT_EQ(sink->notifications.size(), 1U);
     EXPECT_EQ(sink->notifications[0].title, "File already open");
-    EXPECT_EQ(sink->notifications[0].message, log_path.string());
+    EXPECT_EQ(sink->notifications[0].message, log_path.filename().string());
     EXPECT_EQ(sink->notifications[0].level, NotificationLevel::Warning);
 
     remove_temp_export_file(log_path);
@@ -254,7 +254,7 @@ TEST(CommandRegistrarTest, OpenFolderCommandPreflightsAlreadyOpenSourceBeforeSta
     EXPECT_TRUE(background_tasks.empty());
     ASSERT_EQ(sink->notifications.size(), 1U);
     EXPECT_EQ(sink->notifications[0].title, "Folder already open");
-    EXPECT_EQ(sink->notifications[0].message, folder_path.string());
+    EXPECT_EQ(sink->notifications[0].message, folder_path.filename().string());
     EXPECT_EQ(sink->notifications[0].level, NotificationLevel::Warning);
 
     std::error_code error_code;

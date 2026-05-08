@@ -134,7 +134,7 @@ void show_source_already_open_notification(const Notifier& notifier, const LogSo
 {
     Notification notification;
     notification.title   = source.kind == LogSourceKind::LocalFolder ? "Folder already open" : "File already open";
-    notification.message = source_display_path(source);
+    notification.message = source_basename(source);
     notification.level   = NotificationLevel::Warning;
     (void)notifier.show(std::move(notification));
 }
