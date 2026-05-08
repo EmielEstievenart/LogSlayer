@@ -16,6 +16,7 @@ add_executable(
   slayerlog/log_model_tests.cpp
   slayerlog/log_controller_tests.cpp
   slayerlog/master_controller_tests.cpp
+  slayerlog/toast_component_tests.cpp
   slayerlog/settings_ini_tests.cpp
   ${CMAKE_SOURCE_DIR}/code/slayerlog/commands/command_palette_controller.cpp
   ${CMAKE_SOURCE_DIR}/code/slayerlog/commands/command_palette_controller.hpp

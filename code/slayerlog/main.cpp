@@ -2,6 +2,7 @@
 #include <chrono>
 #include <exception>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -173,7 +174,7 @@ int main(int argc, char** argv)
 
     std::atomic<bool> keep_running = true;
     std::vector<std::thread> background_tasks;
-    std::thread watcher_thread     = start_watcher_thread(config.poll_interval_ms, tracked_sources, model_mutex, processed_sources, controller, screen, keep_running);
+    std::thread watcher_thread = start_watcher_thread(config.poll_interval_ms, tracked_sources, model_mutex, processed_sources, controller, screen, keep_running);
 
     auto viewer = ftxui::Renderer(
         [&]
@@ -192,7 +193,7 @@ int main(int argc, char** argv)
     ToastHostOption toast_option;
     toast_option.screen           = &screen;
     toast_option.width            = 48;
-    toast_option.max_visible      = 3;
+    toast_option.max_visible      = std::numeric_limits<int>::max();
     toast_option.style.info       = ftxui::Color::CyanLight;
     toast_option.style.success    = ftxui::Color::GreenLight;
     toast_option.style.background = ftxui::Color::GrayDark;
