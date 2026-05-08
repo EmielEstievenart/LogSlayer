@@ -130,6 +130,15 @@ void show_file_opened_notification(const Notifier& notifier, const LogSource& so
     (void)notifier.show(std::move(notification));
 }
 
+void show_source_already_open_notification(const Notifier& notifier, const LogSource& source)
+{
+    Notification notification;
+    notification.title   = source.kind == LogSourceKind::LocalFolder ? "Folder already open" : "File already open";
+    notification.message = source_display_path(source);
+    notification.level   = NotificationLevel::Warning;
+    (void)notifier.show(std::move(notification));
+}
+
 CommandResult open_file_command(std::string_view file_path, AllTrackedSources& tracked_sources, std::string& header_text, AllProcessedSources& processed_sources, LogController& controller, ftxui::ScreenInteractive& screen,
                                 const Notifier& notifier)
 {
@@ -141,6 +150,14 @@ CommandResult open_file_command(std::string_view file_path, AllTrackedSources& t
     catch (const std::exception& ex)
     {
         return CommandResult {false, ex.what()};
+    }
+
+    if (tracked_sources.is_source_open(source))
+    {
+        const std::string error = "Source already open: " + source_display_path(source);
+        SLAYERLOG_LOG_ERROR("open-file failed file=" << file_path << " error=" << error);
+        show_source_already_open_notification(notifier, source);
+        return CommandResult {false, error};
     }
 
     const auto error = tracked_sources.open_source(source);
@@ -185,6 +202,15 @@ CommandResult open_folder_command(std::string_view folder_path, AllTrackedSource
         return CommandResult {false, ex.what()};
     }
 
+    const std::string display_path = source_display_path(source);
+    if (tracked_sources.is_source_open(source))
+    {
+        const std::string error = "Source already open: " + display_path;
+        SLAYERLOG_LOG_ERROR("open-folder failed folder=" << display_path << " error=" << error);
+        show_source_already_open_notification(notifier, source);
+        return CommandResult {false, error};
+    }
+
     if (model_mutex == nullptr || background_tasks == nullptr)
     {
         const auto error = tracked_sources.open_source(source);
@@ -198,8 +224,7 @@ CommandResult open_folder_command(std::string_view folder_path, AllTrackedSource
         return CommandResult {true, "Opened folder: " + source_display_path(source)};
     }
 
-    const std::string display_path      = source_display_path(source);
-    auto timestamp_format_catalog       = tracked_sources.timestamp_format_catalog();
+    auto timestamp_format_catalog = tracked_sources.timestamp_format_catalog();
     background_tasks->emplace_back([source = std::move(source), display_path, timestamp_format_catalog = std::move(timestamp_format_catalog), &tracked_sources, &header_text, &processed_sources, &controller, &screen, notifier, model_mutex]
                                     {
                                         std::unique_ptr<TrackedSourceBase> source_state;

@@ -34,6 +34,7 @@ public:
 
     std::size_t source_count() const;
     bool empty() const;
+    bool is_source_open(const LogSource& candidate_source) const;
     std::vector<std::string> source_labels() const;
     const std::vector<std::string>& timestamp_formats() const;
     std::shared_ptr<const TimestampFormatCatalog> timestamp_format_catalog() const;
@@ -41,7 +42,6 @@ public:
     std::optional<std::string> set_source_timestamp_format(std::size_t source_index, const std::string& format);
 
 private:
-    bool contains_source(const LogSource& candidate_source) const;
     void rebuild_source_labels();
     void rebuild_all_lines();
     void append_source_range(std::vector<LogBatchSourceRange>& source_ranges, const TrackedSourceBase& source, std::size_t source_index, std::size_t first_entry_index) const;

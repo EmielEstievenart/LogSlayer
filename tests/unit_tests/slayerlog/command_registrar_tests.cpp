@@ -3,8 +3,11 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <memory>
+#include <mutex>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <ftxui/component/screen_interactive.hpp>
@@ -42,6 +45,29 @@ std::string read_file_contents(const std::filesystem::path& export_path)
     output << input.rdbuf();
     return output.str();
 }
+
+class RecordingNotificationSink : public NotificationSink
+{
+public:
+    NotificationId show(Notification notification) override
+    {
+        notifications.push_back(std::move(notification));
+        return next_id++;
+    }
+
+    void update(NotificationId id, Notification notification) override
+    {
+        updated_ids.push_back(id);
+        notifications.push_back(std::move(notification));
+    }
+
+    void dismiss(NotificationId id) override { dismissed_ids.push_back(id); }
+
+    NotificationId next_id = 1;
+    std::vector<Notification> notifications;
+    std::vector<NotificationId> updated_ids;
+    std::vector<NotificationId> dismissed_ids;
+};
 
 std::string render_all_visible_lines(const AllProcessedSources& processed_sources)
 {
@@ -161,6 +187,78 @@ TEST(CommandRegistrarTest, BuildHeaderTextIncludesNumberedSourceTags)
     EXPECT_EQ(build_header_text({}), "No files opened (use open-file <path> or open-folder <path>)");
     EXPECT_EQ(build_header_text({"file1.txt", "file2.txt"}), "file1.txt:1 | file2.txt:2");
     EXPECT_EQ(build_header_text({"single.log"}), "single.log:1");
+}
+
+TEST(CommandRegistrarTest, OpenFileCommandShowsToastWhenSourceAlreadyOpen)
+{
+    const auto log_path = make_temp_export_path();
+    {
+        std::ofstream output(log_path, std::ios::binary | std::ios::trunc);
+        ASSERT_TRUE(output.is_open());
+        output << "plain line\n";
+    }
+
+    AllProcessedSources processed_sources;
+    CommandManager command_manager;
+    LogController controller;
+    CommandPaletteModel command_palette_model;
+    CommandPaletteController command_palette_controller(command_palette_model, command_manager);
+    std::string header_text;
+    auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
+    AllTrackedSources tracked_sources;
+    ASSERT_FALSE(tracked_sources.open_source(parse_log_source(log_path.string())).has_value());
+    auto sink = std::make_shared<RecordingNotificationSink>();
+    register_commands(command_manager, processed_sources, controller, command_palette_controller, header_text, screen, tracked_sources, Notifier(sink));
+
+    const auto result = command_manager.execute("open-file " + log_path.string());
+
+    EXPECT_FALSE(result.success);
+    EXPECT_EQ(result.message, "Source already open: " + log_path.string());
+    ASSERT_EQ(sink->notifications.size(), 1U);
+    EXPECT_EQ(sink->notifications[0].title, "File already open");
+    EXPECT_EQ(sink->notifications[0].message, log_path.string());
+    EXPECT_EQ(sink->notifications[0].level, NotificationLevel::Warning);
+
+    remove_temp_export_file(log_path);
+}
+
+TEST(CommandRegistrarTest, OpenFolderCommandPreflightsAlreadyOpenSourceBeforeStartingBackgroundTask)
+{
+    const auto folder_path = std::filesystem::temp_directory_path() / ("slayerlog_command_folder_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directories(folder_path);
+    const auto log_path = folder_path / "alpha.log";
+    {
+        std::ofstream output(log_path, std::ios::binary | std::ios::trunc);
+        ASSERT_TRUE(output.is_open());
+        output << "plain line\n";
+    }
+
+    AllProcessedSources processed_sources;
+    CommandManager command_manager;
+    LogController controller;
+    CommandPaletteModel command_palette_model;
+    CommandPaletteController command_palette_controller(command_palette_model, command_manager);
+    std::string header_text;
+    auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
+    AllTrackedSources tracked_sources;
+    ASSERT_FALSE(tracked_sources.open_source(make_local_folder_source(folder_path.string())).has_value());
+    std::mutex model_mutex;
+    std::vector<std::thread> background_tasks;
+    auto sink = std::make_shared<RecordingNotificationSink>();
+    register_commands(command_manager, processed_sources, controller, command_palette_controller, header_text, screen, tracked_sources, Notifier(sink), &model_mutex, &background_tasks);
+
+    const auto result = command_manager.execute("open-folder " + folder_path.string());
+
+    EXPECT_FALSE(result.success);
+    EXPECT_EQ(result.message, "Source already open: " + folder_path.string());
+    EXPECT_TRUE(background_tasks.empty());
+    ASSERT_EQ(sink->notifications.size(), 1U);
+    EXPECT_EQ(sink->notifications[0].title, "Folder already open");
+    EXPECT_EQ(sink->notifications[0].message, folder_path.string());
+    EXPECT_EQ(sink->notifications[0].level, NotificationLevel::Warning);
+
+    std::error_code error_code;
+    std::filesystem::remove_all(folder_path, error_code);
 }
 
 TEST(CommandRegistrarTest, DeleteFiltersCommandOpensPickerAndRemovesSelectedFilters)

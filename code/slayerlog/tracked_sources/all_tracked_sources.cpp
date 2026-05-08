@@ -96,7 +96,7 @@ AllTrackedSources::~AllTrackedSources() = default;
 
 std::optional<std::string> AllTrackedSources::open_source(const LogSource& source)
 {
-    if (contains_source(source))
+    if (is_source_open(source))
     {
         return "Source already open: " + source_display_path(source);
     }
@@ -128,7 +128,7 @@ std::optional<std::string> AllTrackedSources::add_opened_source(std::unique_ptr<
         return "Opened source is invalid";
     }
 
-    if (contains_source(source_state->source()))
+    if (is_source_open(source_state->source()))
     {
         return "Source already open: " + source_display_path(source_state->source());
     }
@@ -338,7 +338,7 @@ std::optional<std::string> AllTrackedSources::set_source_timestamp_format(std::s
     return std::nullopt;
 }
 
-bool AllTrackedSources::contains_source(const LogSource& candidate_source) const
+bool AllTrackedSources::is_source_open(const LogSource& candidate_source) const
 {
     for (const auto& source : _sources)
     {
