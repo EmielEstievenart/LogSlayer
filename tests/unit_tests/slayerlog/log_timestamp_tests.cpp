@@ -203,4 +203,30 @@ TEST(LogTimestampTest, AddsTimestampOffsetAcrossSecondBoundary)
     EXPECT_EQ(result->nanosecond, 750000000U);
 }
 
+TEST(LogTimestampTest, CalculatesPositiveOffsetBetweenTimestamps)
+{
+    const LogTimestamp from {10, 750000000};
+    const LogTimestamp to {16, 250000000};
+
+    const auto offset = offset_between(from, to);
+
+    ASSERT_TRUE(offset.has_value());
+    EXPECT_EQ(offset->seconds, 5);
+    EXPECT_EQ(offset->nanosecond, 500000000);
+    EXPECT_EQ(add_offset(from, *offset), std::optional<LogTimestamp>(to));
+}
+
+TEST(LogTimestampTest, CalculatesNegativeOffsetBetweenTimestamps)
+{
+    const LogTimestamp from {16, 250000000};
+    const LogTimestamp to {10, 750000000};
+
+    const auto offset = offset_between(from, to);
+
+    ASSERT_TRUE(offset.has_value());
+    EXPECT_EQ(offset->seconds, -5);
+    EXPECT_EQ(offset->nanosecond, -500000000);
+    EXPECT_EQ(add_offset(from, *offset), std::optional<LogTimestamp>(to));
+}
+
 } // namespace slayerlog

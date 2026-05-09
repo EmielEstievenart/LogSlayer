@@ -22,6 +22,7 @@ void LogController::reset()
     _find_pattern.reset();
     _find_match_entry_indices.clear();
     _active_find_entry_index.reset();
+    reset_time_alignment();
     _text_view_controller.set_content(0, 0, [this](int index) -> const std::string& { return active_buffer()[static_cast<std::size_t>(index)]; });
     _text_view_controller.scroll_to_bottom();
 }
@@ -262,20 +263,61 @@ std::optional<VisibleLineIndex> LogController::active_find_visible_index(const A
     return processed_sources.visible_line_index_for_entry(*_active_find_entry_index);
 }
 
+// --- Time alignment ---
+
+void LogController::start_time_alignment(TimeAlignmentApplyCallback apply_callback)
+{
+    _time_alignment_apply_callback = std::move(apply_callback);
+    _time_alignment_phase          = TimeAlignmentPhase::SelectSource;
+    _time_alignment_source.reset();
+    _time_alignment_selected_line = std::max(0, _text_view_controller.first_visible_line());
+    set_time_alignment_status("Select source line");
+}
+
+void LogController::cancel_time_alignment()
+{
+    reset_time_alignment();
+}
+
+bool LogController::time_alignment_active() const
+{
+    return _time_alignment_phase != TimeAlignmentPhase::Inactive;
+}
+
+std::optional<int> LogController::time_alignment_selected_line() const
+{
+    return _time_alignment_selected_line;
+}
+
+std::string LogController::time_alignment_status_text() const
+{
+    return _time_alignment_status;
+}
+
+bool LogController::time_alignment_status_is_error() const
+{
+    return _time_alignment_status_is_error;
+}
+
 // --- Event handling ---
 
 LogEventResult LogController::handle_event(AllProcessedSources& processed_sources, ftxui::Event event, const std::function<std::optional<TextViewPosition>(const ftxui::Mouse&)>& mouse_to_text_position)
 {
+    // Custom event (re-render trigger)
+    if (event == ftxui::Event::Custom)
+    {
+        return {true, false};
+    }
+
+    if (time_alignment_active())
+    {
+        return {handle_time_alignment_event(processed_sources, event, mouse_to_text_position), false};
+    }
+
     // Escape: clear find if active, otherwise delegate (TextViewController handles exit)
     if (event == ftxui::Event::Escape && find_active())
     {
         clear_find(processed_sources);
-        return {true, false};
-    }
-
-    // Custom event (re-render trigger)
-    if (event == ftxui::Event::Custom)
-    {
         return {true, false};
     }
 
@@ -381,6 +423,229 @@ void LogController::expand_find_matches(const AllProcessedSources& processed_sou
 bool LogController::entry_matches_find_query(const LogEntry& entry) const
 {
     return _find_pattern.has_value() && matches_pattern(entry.text, *_find_pattern);
+}
+
+bool LogController::handle_time_alignment_event(AllProcessedSources& processed_sources, ftxui::Event event, const std::function<std::optional<TextViewPosition>(const ftxui::Mouse&)>& mouse_to_text_position)
+{
+    if (event == ftxui::Event::Escape)
+    {
+        cancel_time_alignment();
+        return true;
+    }
+
+    if (event == ftxui::Event::Return)
+    {
+        return confirm_time_alignment_selection(processed_sources);
+    }
+
+    if (find_active() && event == ftxui::Event::ArrowRight)
+    {
+        const bool moved = go_to_next_find_match(processed_sources);
+        const auto active_visible_index = active_find_visible_index(processed_sources);
+        if (active_visible_index.has_value())
+        {
+            set_time_alignment_selected_line(processed_sources, active_visible_index->value, true);
+        }
+        return moved;
+    }
+
+    if (find_active() && event == ftxui::Event::ArrowLeft)
+    {
+        const bool moved = go_to_previous_find_match(processed_sources);
+        const auto active_visible_index = active_find_visible_index(processed_sources);
+        if (active_visible_index.has_value())
+        {
+            set_time_alignment_selected_line(processed_sources, active_visible_index->value, true);
+        }
+        return moved;
+    }
+
+    const int page_step = std::max(1, _text_view_controller.viewport_line_count() - 1);
+    if (event == ftxui::Event::ArrowUp || event == ftxui::Event::Character('k'))
+    {
+        move_time_alignment_selection(processed_sources, -1);
+        return true;
+    }
+
+    if (event == ftxui::Event::ArrowDown || event == ftxui::Event::Character('j'))
+    {
+        move_time_alignment_selection(processed_sources, 1);
+        return true;
+    }
+
+    if (event == ftxui::Event::PageUp)
+    {
+        move_time_alignment_selection(processed_sources, -page_step);
+        return true;
+    }
+
+    if (event == ftxui::Event::PageDown)
+    {
+        move_time_alignment_selection(processed_sources, page_step);
+        return true;
+    }
+
+    if (event == ftxui::Event::Home)
+    {
+        set_time_alignment_selected_line(processed_sources, 0, true);
+        return true;
+    }
+
+    if (event == ftxui::Event::End)
+    {
+        set_time_alignment_selected_line(processed_sources, processed_sources.line_count() - 1, true);
+        return true;
+    }
+
+    if (event.is_mouse())
+    {
+        if (event.mouse().button == ftxui::Mouse::WheelUp)
+        {
+            move_time_alignment_selection(processed_sources, -1);
+            return true;
+        }
+
+        if (event.mouse().button == ftxui::Mouse::WheelDown)
+        {
+            move_time_alignment_selection(processed_sources, 1);
+            return true;
+        }
+
+        if (mouse_to_text_position && event.mouse().button == ftxui::Mouse::Left && event.mouse().motion == ftxui::Mouse::Pressed)
+        {
+            const auto position = mouse_to_text_position(event.mouse());
+            if (position.has_value())
+            {
+                set_time_alignment_selected_line(processed_sources, position->line_index, true);
+                return true;
+            }
+        }
+    }
+
+    const auto result = _text_view_controller.parse_event(event, mouse_to_text_position);
+    return result.handled;
+}
+
+void LogController::reset_time_alignment()
+{
+    _time_alignment_phase = TimeAlignmentPhase::Inactive;
+    _time_alignment_selected_line.reset();
+    _time_alignment_source.reset();
+    _time_alignment_status.clear();
+    _time_alignment_status_is_error = false;
+    _time_alignment_apply_callback  = {};
+}
+
+void LogController::set_time_alignment_status(std::string message, bool is_error)
+{
+    _time_alignment_status          = std::move(message);
+    _time_alignment_status_is_error = is_error;
+}
+
+void LogController::set_time_alignment_selected_line(const AllProcessedSources& processed_sources, int visible_line_index, bool keep_visible)
+{
+    if (processed_sources.line_count() <= 0)
+    {
+        _time_alignment_selected_line.reset();
+        return;
+    }
+
+    _time_alignment_selected_line = std::clamp(visible_line_index, 0, processed_sources.line_count() - 1);
+    if (keep_visible)
+    {
+        _text_view_controller.center_on_line(*_time_alignment_selected_line);
+    }
+}
+
+void LogController::move_time_alignment_selection(const AllProcessedSources& processed_sources, int delta)
+{
+    const int current_line = _time_alignment_selected_line.value_or(_text_view_controller.first_visible_line());
+    set_time_alignment_selected_line(processed_sources, current_line + delta, true);
+}
+
+bool LogController::confirm_time_alignment_selection(AllProcessedSources& processed_sources)
+{
+    const LogEntry* selected_entry = time_alignment_selected_entry(processed_sources);
+    if (selected_entry == nullptr)
+    {
+        set_time_alignment_status("Select a visible log entry, not a collapsed summary row", true);
+        return true;
+    }
+
+    if (_time_alignment_phase == TimeAlignmentPhase::SelectSource)
+    {
+        if (!selected_entry->metadata.timestamp.has_value())
+        {
+            set_time_alignment_status("Source line has no original timestamp", true);
+            return true;
+        }
+
+        _time_alignment_source = TimeAlignmentSource {
+            selected_entry->metadata.source_index,
+            selected_entry->metadata.source_label,
+            *selected_entry->metadata.timestamp,
+        };
+        _time_alignment_phase = TimeAlignmentPhase::SelectDestination;
+        set_time_alignment_status("Source " + selected_entry->metadata.source_label + " selected, select destination line");
+        return true;
+    }
+
+    if (!_time_alignment_source.has_value())
+    {
+        set_time_alignment_status("No source line selected", true);
+        _time_alignment_phase = TimeAlignmentPhase::SelectSource;
+        return true;
+    }
+
+    const auto destination_timestamp = effective_timestamp(selected_entry->metadata);
+    if (!destination_timestamp.has_value())
+    {
+        set_time_alignment_status("Destination line has no timestamp", true);
+        return true;
+    }
+
+    if (selected_entry->metadata.source_index == _time_alignment_source->source_index)
+    {
+        set_time_alignment_status("Destination must be from a different source", true);
+        return true;
+    }
+
+    if (!_time_alignment_apply_callback)
+    {
+        set_time_alignment_status("Time alignment handler is unavailable", true);
+        return true;
+    }
+
+    LogEntry source_entry;
+    source_entry.metadata.timestamp    = _time_alignment_source->timestamp;
+    source_entry.metadata.source_index = _time_alignment_source->source_index;
+    source_entry.metadata.source_label = _time_alignment_source->source_label;
+
+    const TimeAlignmentApplyResult result = _time_alignment_apply_callback(source_entry, *selected_entry);
+    if (!result.success)
+    {
+        set_time_alignment_status(result.message, true);
+        return true;
+    }
+
+    reset_time_alignment();
+    return true;
+}
+
+const LogEntry* LogController::time_alignment_selected_entry(const AllProcessedSources& processed_sources) const
+{
+    if (!_time_alignment_selected_line.has_value())
+    {
+        return nullptr;
+    }
+
+    const auto entry_index = processed_sources.entry_index_for_visible_line(VisibleLineIndex {*_time_alignment_selected_line});
+    if (!entry_index.has_value())
+    {
+        return nullptr;
+    }
+
+    return &processed_sources.entry_at(*entry_index);
 }
 
 } // namespace slayerlog

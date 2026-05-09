@@ -29,6 +29,11 @@ std::vector<LogEntry> numbered_lines(int count)
     return lines;
 }
 
+LogTimestamp timestamp_at_second(unsigned second)
+{
+    return *make_log_timestamp_utc(2026, 4, 1, 10, 0, second, 0);
+}
+
 LogEntry timestamped_entry(std::string text)
 {
     LogEntry entry {"alpha.log", std::move(text)};
@@ -341,6 +346,46 @@ TEST(LogControllerTest, FindSupportsRegexWithRePrefix)
     EXPECT_TRUE(controller.visible_line_matches_find(model, 0));
     EXPECT_FALSE(controller.visible_line_matches_find(model, 1));
     EXPECT_TRUE(controller.visible_line_matches_find(model, 2));
+}
+
+TEST(LogControllerTest, TimeAlignmentSelectorSupportsPageNavigationAndCallback)
+{
+    LogModel model;
+    LogController controller;
+    model.append_lines({
+        LogEntry {0, "alpha.log", "alpha one", timestamp_at_second(0)},
+        LogEntry {1, "beta.log", "beta one", timestamp_at_second(1)},
+        LogEntry {1, "beta.log", "beta two", timestamp_at_second(2)},
+        LogEntry {1, "beta.log", "beta three", timestamp_at_second(3)},
+    });
+    controller.text_view_controller().update_viewport_line_count(3);
+    controller.rebuild_view(model);
+    controller.text_view_controller().scroll_to_top();
+
+    bool callback_called = false;
+    controller.start_time_alignment(
+        [&](const LogEntry& source_entry, const LogEntry& destination_entry)
+        {
+            callback_called = true;
+            EXPECT_EQ(source_entry.metadata.source_index, 0U);
+            EXPECT_EQ(destination_entry.metadata.source_index, 1U);
+            EXPECT_EQ(destination_entry.text, "beta two");
+            return TimeAlignmentApplyResult {true, "aligned"};
+        });
+
+    ASSERT_TRUE(controller.time_alignment_active());
+    ASSERT_EQ(controller.time_alignment_selected_line(), 0);
+
+    EXPECT_TRUE(controller.handle_event(model, ftxui::Event::Return, {}).handled);
+    EXPECT_TRUE(controller.time_alignment_active());
+
+    EXPECT_TRUE(controller.handle_event(model, ftxui::Event::PageDown, {}).handled);
+    ASSERT_TRUE(controller.time_alignment_selected_line().has_value());
+    EXPECT_EQ(*controller.time_alignment_selected_line(), 2);
+
+    EXPECT_TRUE(controller.handle_event(model, ftxui::Event::Return, {}).handled);
+    EXPECT_TRUE(callback_called);
+    EXPECT_FALSE(controller.time_alignment_active());
 }
 
 TEST(LogControllerTest, ClearingFindRemovesAllFindState)

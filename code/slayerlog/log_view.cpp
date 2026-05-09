@@ -143,9 +143,36 @@ ftxui::Element build_find_status(const AllProcessedSources& processed_sources, c
     return ftxui::hbox(std::move(parts));
 }
 
-ftxui::Element build_key_hints()
+ftxui::Element build_alignment_status(const LogController& controller)
+{
+    if (!controller.time_alignment_active())
+    {
+        return ftxui::emptyElement();
+    }
+
+    ftxui::Elements parts;
+    parts.push_back(theme::badge("ALIGN", theme::label_align_fg));
+    const auto status_color = controller.time_alignment_status_is_error() ? theme::error_fg : theme::muted;
+    parts.push_back(ftxui::text(" " + controller.time_alignment_status_text()) | ftxui::color(status_color));
+    return ftxui::hbox(std::move(parts));
+}
+
+ftxui::Element build_key_hints(const LogController& controller)
 {
     auto sep = []() { return ftxui::text("  "); };
+    if (controller.time_alignment_active())
+    {
+        return ftxui::hbox({
+            theme::key_hint("Enter", "select"),
+            sep(),
+            theme::key_hint("PageUp/Down", "jump"),
+            sep(),
+            theme::key_hint("Ctrl+F", "find"),
+            sep(),
+            theme::key_hint("Esc", "cancel align"),
+        });
+    }
+
     return ftxui::hbox({
         theme::key_hint("Ctrl+P", "commands"),
         sep(),
@@ -256,6 +283,22 @@ ftxui::Element LogView::render(const AllProcessedSources& processed_sources, Log
         data.col_highlight.active    = true;
     }
 
+    if (controller.time_alignment_active())
+    {
+        const auto selected_line = controller.time_alignment_selected_line();
+        if (selected_line.has_value())
+        {
+            TextViewRangeDecoration selection_decoration;
+            selection_decoration.line_index        = *selected_line;
+            selection_decoration.col_start         = 0;
+            selection_decoration.col_end           = std::max(1, data.max_line_width);
+            selection_decoration.style.background  = ftxui::Color::Cyan;
+            selection_decoration.style.foreground  = ftxui::Color::Black;
+            selection_decoration.style.bold        = true;
+            data.range_decorations.push_back(selection_decoration);
+        }
+    }
+
     const auto draw_content = [rendered_rows = std::move(rendered_rows)](ftxui::Canvas& canvas, int first_line, int line_count, int first_col, int col_count)
     {
         (void)first_line;
@@ -305,11 +348,12 @@ ftxui::Element LogView::render(const AllProcessedSources& processed_sources, Log
                                                        header,
                                                        ftxui::separator(),
                                                        log_view,
-                                                       ftxui::separator(),
-                                                       build_filter_status(processed_sources),
-                                                       build_find_status(processed_sources, controller),
-                                                       build_key_hints(),
-                                                   }));
+                                                        ftxui::separator(),
+                                                        build_filter_status(processed_sources),
+                                                        build_find_status(processed_sources, controller),
+                                                        build_alignment_status(controller),
+                                                        build_key_hints(controller),
+                                                    }));
 }
 
 std::optional<TextViewPosition> LogView::mouse_to_text_position(const LogController& controller, const ftxui::Mouse& mouse) const

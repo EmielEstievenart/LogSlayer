@@ -26,6 +26,7 @@ inline const auto error_fg   = ftxui::Color::Red;
 // Status bar labels
 inline const auto label_filter_fg = ftxui::Color::Cyan;
 inline const auto label_find_fg   = ftxui::Color::Yellow;
+inline const auto label_align_fg  = ftxui::Color::MagentaLight;
 inline const auto label_key_fg    = ftxui::Color::White;
 inline const auto paused_fg       = ftxui::Color::Yellow;
 

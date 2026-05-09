@@ -69,6 +69,8 @@ set(SLAYERLOG_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/command_palette_view.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/clear_column_filters_command.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/clear_column_filters_command.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/align_time_command.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/align_time_command.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/clear_filters_command.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/clear_filters_command.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/clear_time_offset_command.cpp

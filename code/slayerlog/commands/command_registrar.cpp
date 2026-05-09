@@ -3,6 +3,7 @@
 #include <memory>
 
 #include "command_manager.hpp"
+#include "implementations/align_time_command.hpp"
 #include "implementations/clear_column_filters_command.hpp"
 #include "implementations/clear_filters_command.hpp"
 #include "implementations/clear_time_offset_command.hpp"
@@ -52,6 +53,7 @@ void register_commands(CommandManager& command_manager, CommandContext context)
 
     command_manager.register_command(std::make_unique<SetTimeFormatCommand>(context));
     command_manager.register_command(std::make_unique<SetTimeOffsetCommand>(context));
+    command_manager.register_command(std::make_unique<AlignTimeCommand>(context));
     command_manager.register_command(std::make_unique<ClearTimeOffsetCommand>(context));
 
     command_manager.register_command(std::make_unique<GoToLineCommand>(context));

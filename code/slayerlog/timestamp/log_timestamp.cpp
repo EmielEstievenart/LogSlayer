@@ -92,6 +92,17 @@ bool add_overflows(std::int64_t lhs, std::int64_t rhs, std::int64_t& output)
     return false;
 }
 
+bool subtract_overflows(std::int64_t lhs, std::int64_t rhs, std::int64_t& output)
+{
+    if ((rhs < 0 && lhs > (std::numeric_limits<std::int64_t>::max)() + rhs) || (rhs > 0 && lhs < (std::numeric_limits<std::int64_t>::min)() + rhs))
+    {
+        return true;
+    }
+
+    output = lhs - rhs;
+    return false;
+}
+
 bool is_leap_year(int year)
 {
     return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
@@ -368,6 +379,29 @@ std::optional<LogTimestamp> add_offset(LogTimestamp timestamp, LogTimestampOffse
     }
 
     return LogTimestamp {seconds, static_cast<std::uint32_t>(nanosecond)};
+}
+
+std::optional<LogTimestampOffset> offset_between(LogTimestamp from, LogTimestamp to)
+{
+    std::int64_t seconds = 0;
+    if (subtract_overflows(to.epoch_seconds, from.epoch_seconds, seconds))
+    {
+        return std::nullopt;
+    }
+
+    std::int64_t nanosecond = static_cast<std::int64_t>(to.nanosecond) - static_cast<std::int64_t>(from.nanosecond);
+    if (seconds > 0 && nanosecond < 0)
+    {
+        --seconds;
+        nanosecond += nanoseconds_per_second;
+    }
+    else if (seconds < 0 && nanosecond > 0)
+    {
+        ++seconds;
+        nanosecond -= nanoseconds_per_second;
+    }
+
+    return LogTimestampOffset {seconds, static_cast<std::int32_t>(nanosecond)};
 }
 
 } // namespace slayerlog

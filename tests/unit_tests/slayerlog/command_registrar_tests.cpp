@@ -362,4 +362,66 @@ TEST(CommandRegistrarTest, SetTimeFormatCommandOpensSourceAndFormatPickers)
     remove_temp_export_file(log_path);
 }
 
+TEST(CommandRegistrarTest, AlignTimeCommandSetsSourceOffsetFromOriginalTimestamp)
+{
+    const auto alpha_log = make_temp_export_path();
+    const auto beta_log  = make_temp_export_path();
+    {
+        std::ofstream output(alpha_log, std::ios::binary | std::ios::trunc);
+        ASSERT_TRUE(output.is_open());
+        output << "2026-04-01T10:00:00 alpha first\n";
+    }
+    {
+        std::ofstream output(beta_log, std::ios::binary | std::ios::trunc);
+        ASSERT_TRUE(output.is_open());
+        output << "2026-04-01T10:05:00 beta second\n";
+    }
+
+    AllProcessedSources processed_sources;
+    LogController controller;
+    controller.text_view_controller().update_viewport_line_count(10);
+    CommandManager command_manager;
+    CommandPaletteModel command_palette_model;
+    CommandPaletteController command_palette_controller(command_palette_model, command_manager);
+    std::string header_text;
+    auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
+    AllTrackedSources tracked_sources;
+    ASSERT_FALSE(tracked_sources.open_source(parse_log_source(alpha_log.string())).has_value());
+    ASSERT_FALSE(tracked_sources.open_source(parse_log_source(beta_log.string())).has_value());
+    ASSERT_FALSE(tracked_sources.set_source_timestamp_offset(0, *parse_log_timestamp_offset("00 00:01:00")).has_value());
+    reload_processed_sources(tracked_sources, header_text, processed_sources, controller, screen);
+    controller.text_view_controller().scroll_to_top();
+    register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen});
+
+    const auto result = command_manager.execute("align-time");
+    ASSERT_TRUE(result.success);
+    EXPECT_FALSE(command_manager.active_command());
+    ASSERT_TRUE(controller.time_alignment_active());
+
+    ASSERT_TRUE(controller.handle_event(processed_sources, ftxui::Event::Return, {}).handled);
+    ASSERT_TRUE(controller.handle_event(processed_sources, ftxui::Event::ArrowDown, {}).handled);
+    ASSERT_TRUE(controller.handle_event(processed_sources, ftxui::Event::Return, {}).handled);
+
+    EXPECT_FALSE(controller.time_alignment_active());
+    const LogEntry* alpha_entry = nullptr;
+    for (int index = 0; index < tracked_sources.line_count(); ++index)
+    {
+        const auto& entry = *tracked_sources.all_lines()[AllLineIndex {index}];
+        if (entry.text.find("alpha first") != std::string::npos)
+        {
+            alpha_entry = &entry;
+            break;
+        }
+    }
+
+    ASSERT_NE(alpha_entry, nullptr);
+    ASSERT_TRUE(alpha_entry->metadata.timestamp.has_value());
+    ASSERT_TRUE(alpha_entry->metadata.offset_timestamp.has_value());
+    EXPECT_EQ(format_log_timestamp_utc(*alpha_entry->metadata.timestamp), "2026-04-01 10:00:00");
+    EXPECT_EQ(format_log_timestamp_utc(*alpha_entry->metadata.offset_timestamp), "2026-04-01 10:05:00");
+
+    remove_temp_export_file(alpha_log);
+    remove_temp_export_file(beta_log);
+}
+
 } // namespace slayerlog

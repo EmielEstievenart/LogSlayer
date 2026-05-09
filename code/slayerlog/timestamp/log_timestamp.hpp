@@ -45,5 +45,6 @@ std::string format_log_timestamp_utc(LogTimestamp timestamp);
 std::optional<LogTimestampOffset> parse_log_timestamp_offset(std::string_view text);
 std::string format_log_timestamp_offset(LogTimestampOffset offset);
 std::optional<LogTimestamp> add_offset(LogTimestamp timestamp, LogTimestampOffset offset);
+std::optional<LogTimestampOffset> offset_between(LogTimestamp from, LogTimestamp to);
 
 } // namespace slayerlog
