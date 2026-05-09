@@ -19,6 +19,8 @@ set(SLAYERLOG_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/watchers/log_watcher.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/log_controller.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/log_controller.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/time_alignment_controller.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/time_alignment_controller.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/log_batch.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/log_batch.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tracked_sources/log_line.hpp

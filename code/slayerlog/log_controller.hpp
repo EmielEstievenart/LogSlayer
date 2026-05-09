@@ -12,7 +12,7 @@
 
 #include "tracked_sources/all_processed_sources.hpp"
 #include "search_pattern.hpp"
-#include "timestamp/log_timestamp.hpp"
+#include "time_alignment_controller.hpp"
 
 namespace slayerlog
 {
@@ -21,12 +21,6 @@ struct LogEventResult
 {
     bool handled      = false;
     bool request_exit = false;
-};
-
-struct TimeAlignmentApplyResult
-{
-    bool success = false;
-    std::string message;
 };
 
 class LogController
@@ -65,7 +59,7 @@ public:
 
     // --- Time alignment ---
 
-    using TimeAlignmentApplyCallback = std::function<TimeAlignmentApplyResult(const LogEntry& source_entry, const LogEntry& destination_entry)>;
+    using TimeAlignmentApplyCallback = TimeAlignmentController::ApplyCallback;
 
     void start_time_alignment(TimeAlignmentApplyCallback apply_callback);
     void cancel_time_alignment();
@@ -91,13 +85,6 @@ private:
     void rebuild_find_matches(const AllProcessedSources& processed_sources);
     void expand_find_matches(const AllProcessedSources& processed_sources, AllLineIndex first_new_entry_index);
     bool entry_matches_find_query(const LogEntry& entry) const;
-    bool handle_time_alignment_event(AllProcessedSources& processed_sources, ftxui::Event event, const std::function<std::optional<TextViewPosition>(const ftxui::Mouse&)>& mouse_to_text_position);
-    void reset_time_alignment();
-    void set_time_alignment_status(std::string message, bool is_error = false);
-    void set_time_alignment_selected_line(const AllProcessedSources& processed_sources, int visible_line_index, bool keep_visible);
-    void move_time_alignment_selection(const AllProcessedSources& processed_sources, int delta);
-    bool confirm_time_alignment_selection(AllProcessedSources& processed_sources);
-    const LogEntry* time_alignment_selected_entry(const AllProcessedSources& processed_sources) const;
 
     TextViewController _text_view_controller;
 
@@ -111,27 +98,7 @@ private:
     std::optional<SearchPattern> _find_pattern;
     IndexedVector<AllLineIndex, FindResultIndex> _find_match_entry_indices;
     std::optional<AllLineIndex> _active_find_entry_index;
-
-    enum class TimeAlignmentPhase
-    {
-        Inactive,
-        SelectSource,
-        SelectDestination,
-    };
-
-    struct TimeAlignmentSource
-    {
-        std::size_t source_index = 0;
-        std::string source_label;
-        LogTimestamp timestamp;
-    };
-
-    TimeAlignmentPhase _time_alignment_phase = TimeAlignmentPhase::Inactive;
-    std::optional<int> _time_alignment_selected_line;
-    std::optional<TimeAlignmentSource> _time_alignment_source;
-    std::string _time_alignment_status;
-    bool _time_alignment_status_is_error = false;
-    TimeAlignmentApplyCallback _time_alignment_apply_callback;
+    TimeAlignmentController _time_alignment_controller;
 };
 
 } // namespace slayerlog
