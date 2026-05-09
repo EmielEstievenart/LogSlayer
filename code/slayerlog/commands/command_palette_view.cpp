@@ -135,13 +135,40 @@ int estimate_result_viewport_col_count(int measured_col_count)
     return 68;
 }
 
+int estimate_result_viewport_line_count(int measured_line_count)
+{
+    if (measured_line_count > 1)
+    {
+        return measured_line_count;
+    }
+
+    return 12;
+}
+
 } // namespace
 
-ftxui::Element CommandPaletteView::render(CommandPaletteController& command_palette_controller, int preferred_result_height)
+ftxui::Element CommandPaletteView::render(CommandPaletteController& command_palette_controller)
 {
     const CommandPaletteModel& command_palette = command_palette_controller.model();
 
-    const int effective_height = std::max(1, preferred_result_height);
+    if (Command* active_command = command_palette_controller.active_command())
+    {
+        ftxui::Element status = active_command->render_help();
+        if (!command_palette.status_message.empty())
+        {
+            status = ftxui::text(command_palette.status_message) | ftxui::color(command_palette.status_is_error ? theme::error_fg : theme::success_fg);
+        }
+
+        return ftxui::center(ftxui::clear_under(ftxui::window(ftxui::text(active_command->palette_title()),
+                                                            ftxui::vbox({
+                                                                active_command->render() | ftxui::flex,
+                                                                ftxui::separator(),
+                                                                std::move(status),
+                                                            }))) |
+                             ftxui::size(ftxui::WIDTH, ftxui::LESS_THAN, 80));
+    }
+
+    const int effective_height = estimate_result_viewport_line_count(_result_text_view.viewport_line_count());
     const int effective_width  = estimate_result_viewport_col_count(_result_text_view.viewport_col_count());
     command_palette_controller.result_text_view_controller().update_viewport_line_count(effective_height);
     command_palette_controller.result_text_view_controller().update_viewport_col_count(effective_width);
@@ -188,7 +215,7 @@ ftxui::Element CommandPaletteView::render(CommandPaletteController& command_pale
         }
     };
 
-    auto results = _result_text_view.render(result_data, draw_results) | ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, effective_height) | ftxui::flex;
+    auto results = _result_text_view.render(result_data, draw_results) | ftxui::flex;
 
     ftxui::Element status = build_palette_help(command_palette.mode);
     if (!command_palette.status_message.empty())

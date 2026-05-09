@@ -12,7 +12,7 @@ namespace slayerlog
 class CommandPaletteView
 {
 public:
-    ftxui::Element render(CommandPaletteController& command_palette_controller, int preferred_result_height);
+    ftxui::Element render(CommandPaletteController& command_palette_controller);
 
 private:
     TextViewView _result_text_view;

@@ -90,18 +90,6 @@ std::pair<std::size_t, std::size_t> command_name_range(std::string_view query)
     return {command_start, command_end};
 }
 
-std::string normalize_command_name(std::string_view name)
-{
-    std::string normalized;
-    normalized.reserve(name.size());
-    for (const char ch : name)
-    {
-        normalized.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
-    }
-
-    return normalized;
-}
-
 bool is_result_scroll_event(ftxui::Event event)
 {
     if (event == ftxui::Event::ArrowLeftCtrl || event == ftxui::Event::ArrowRightCtrl || event == ftxui::Event::PageUp || event == ftxui::Event::PageDown)
@@ -139,8 +127,19 @@ const CommandPaletteModel& CommandPaletteController::model() const
     return _model;
 }
 
+Command* CommandPaletteController::active_command()
+{
+    return _command_manager.active_command();
+}
+
+const Command* CommandPaletteController::active_command() const
+{
+    return _command_manager.active_command();
+}
+
 void CommandPaletteController::open()
 {
+    _command_manager.cancel_active_command();
     _model.open = true;
     _model.mode = CommandPaletteMode::Commands;
     _model.query.clear();
@@ -172,6 +171,7 @@ void CommandPaletteController::open_with_query(std::string query)
 
 void CommandPaletteController::open_history()
 {
+    _command_manager.cancel_active_command();
     _model.open = true;
     _model.mode = CommandPaletteMode::History;
     _model.query.clear();
@@ -309,6 +309,7 @@ void CommandPaletteController::open_delete_filters_picker(std::vector<CommandPal
 
 void CommandPaletteController::close()
 {
+    _command_manager.cancel_active_command();
     _model.open = false;
     _model.mode = CommandPaletteMode::Commands;
     _model.query.clear();
@@ -330,6 +331,29 @@ void CommandPaletteController::close()
 
 bool CommandPaletteController::handle_event(const ftxui::Event& event)
 {
+    if (Command* active_command = _command_manager.active_command())
+    {
+        const CommandEventResult event_result = active_command->handle_event(event);
+        if (event_result.result.has_value())
+        {
+            apply_command_result(*event_result.result);
+        }
+
+        if (event_result.handled)
+        {
+            return true;
+        }
+
+        if (event == ftxui::Event::Escape)
+        {
+            _command_manager.cancel_active_command();
+            close();
+            return true;
+        }
+
+        return true;
+    }
+
     if (event == ftxui::Event::Escape)
     {
         close();
@@ -479,12 +503,7 @@ bool CommandPaletteController::handle_event(const ftxui::Event& event)
             result = execute_command_from_command_mode();
         }
 
-        _model.status_message  = result.message;
-        _model.status_is_error = !result.success;
-        if (result.success && result.close_palette_on_success)
-        {
-            close();
-        }
+        apply_command_result(result);
 
         return true;
     }
@@ -704,19 +723,27 @@ void CommandPaletteController::refresh_hidden_column_preview()
         return;
     }
 
-    const auto [command_start, command_end] = command_name_range(_model.query);
-    if (command_start >= _model.query.size())
+    _model.hidden_column_preview = _command_manager.hidden_column_preview(_model.query);
+}
+
+void CommandPaletteController::apply_command_result(const CommandResult& result)
+{
+    _model.status_message  = result.message;
+    _model.status_is_error = !result.success;
+
+    if (result.success && result.close_palette_on_success)
     {
+        close();
         return;
     }
 
-    const std::string command_name = normalize_command_name(std::string_view(_model.query).substr(command_start, command_end - command_start));
-    if (command_name != "hide-columns")
+    if (result.success)
     {
-        return;
+        if (Command* active_command = _command_manager.active_command(); active_command != nullptr && !active_command->has_active_interaction())
+        {
+            _command_manager.clear_active_command();
+        }
     }
-
-    _model.hidden_column_preview = parse_hidden_column_range(command_arguments_from_query(_model.query));
 }
 
 std::size_t CommandPaletteController::active_match_count() const

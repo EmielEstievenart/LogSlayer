@@ -11,6 +11,7 @@ add_executable(
   slayerlog/command_line_parser_tests.cpp
   slayerlog/command_history_tests.cpp
   slayerlog/command_manager_tests.cpp
+  slayerlog/command_widget_tests.cpp
   slayerlog/log_batch_tests.cpp
   slayerlog/log_timestamp_tests.cpp
   slayerlog/log_model_tests.cpp
@@ -18,52 +19,7 @@ add_executable(
   slayerlog/master_controller_tests.cpp
   slayerlog/toast_component_tests.cpp
   slayerlog/settings_ini_tests.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/commands/command_palette_controller.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/commands/command_palette_controller.hpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/commands/command_palette_model.hpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/commands/command_palette_view.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/commands/command_palette_view.hpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/commands/command_registrar.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/commands/command_registrar.hpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/command_line_parser.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/command_line_parser.hpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/commands/command_history.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/commands/command_history.hpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/commands/command_manager.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/commands/command_manager.hpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/debug_log.hpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/watchers/file_watcher.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/watchers/zstd_file_watcher.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/log_source.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/tracked_sources/tracked_source_base.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/tracked_sources/tracked_source_file.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/tracked_sources/tracked_source_folder.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/tracked_sources/tracked_source_factory.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/tracked_sources/all_tracked_sources.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/log_controller.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/log_batch.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/log_view.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/notifications/ftxui_toast_notification_sink.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/notifications/ftxui_toast_notification_sink.hpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/notifications/notification.cpp
-   ${CMAKE_SOURCE_DIR}/code/slayerlog/notifications/notification.hpp
-   ${CMAKE_SOURCE_DIR}/code/slayerlog/timestamp/log_timestamp.cpp
-   ${CMAKE_SOURCE_DIR}/code/slayerlog/timestamp/source_timestamp_parser.cpp
-   ${CMAKE_SOURCE_DIR}/code/slayerlog/timestamp/timestamp_format_catalog.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/master_controller.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/master_controller.hpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/master_view.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/master_view.hpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/watchers/process_pipe.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/settings_ini.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/settings_ini.hpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/settings_store.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/settings_store.hpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/watchers/ssh_tail_watcher.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/watchers/log_watcher_factory.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/watchers/stream_line_buffer.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/tracked_sources/all_processed_sources.cpp
-  ${CMAKE_SOURCE_DIR}/code/slayerlog/search_pattern.cpp)
+  ${SLAYERLOG_CORE_SOURCES})
 
 target_link_libraries(
   unit_tests

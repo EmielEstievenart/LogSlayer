@@ -123,7 +123,7 @@ TEST(MasterControllerTest, FindShortcutEnterActivatesFindAcrossAllMatches)
     std::string header_text;
     auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
     AllTrackedSources tracked_sources;
-    register_commands(command_manager, model, controller, command_palette_controller, header_text, screen, tracked_sources);
+    register_commands(command_manager, {model, controller, tracked_sources, header_text, screen});
     LogView view;
     MasterController master_controller(model, controller, view, screen, command_palette_controller);
 

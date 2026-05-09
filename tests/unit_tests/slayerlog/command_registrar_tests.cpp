@@ -111,7 +111,7 @@ TEST(CommandRegistrarTest, ExportVisibleTextWritesAllVisibleRenderedLines)
     std::string header_text;
     auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
     AllTrackedSources tracked_sources;
-    register_commands(command_manager, processed_sources, controller, command_palette_controller, header_text, screen, tracked_sources);
+    register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen});
 
     const auto export_path = make_temp_export_path();
     const auto result      = command_manager.execute("export-visible-text " + export_path.string());
@@ -138,7 +138,7 @@ TEST(CommandRegistrarTest, ShowAndHideOriginalTimeCommandsToggleRenderedMessage)
     std::string header_text;
     auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
     AllTrackedSources tracked_sources;
-    register_commands(command_manager, processed_sources, controller, command_palette_controller, header_text, screen, tracked_sources);
+    register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen});
 
     EXPECT_EQ(processed_sources.rendered_line(0), "1 {2026-04-01 10:00:00} INFO  hello");
 
@@ -171,7 +171,7 @@ TEST(CommandRegistrarTest, ShowAndHideIdenticalLinesCommandsToggleCollapsing)
     std::string header_text;
     auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
     AllTrackedSources tracked_sources;
-    register_commands(command_manager, processed_sources, controller, command_palette_controller, header_text, screen, tracked_sources);
+    register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen});
 
     ASSERT_EQ(processed_sources.line_count(), 2);
     EXPECT_EQ(processed_sources.rendered_line(1), "  hiding 1 identical messages above");
@@ -213,7 +213,7 @@ TEST(CommandRegistrarTest, OpenFileCommandShowsToastWhenSourceAlreadyOpen)
     AllTrackedSources tracked_sources;
     ASSERT_FALSE(tracked_sources.open_source(parse_log_source(log_path.string())).has_value());
     auto sink = std::make_shared<RecordingNotificationSink>();
-    register_commands(command_manager, processed_sources, controller, command_palette_controller, header_text, screen, tracked_sources, Notifier(sink));
+    register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen, Notifier(sink)});
 
     const auto result = command_manager.execute("open-file " + log_path.string());
 
@@ -250,7 +250,7 @@ TEST(CommandRegistrarTest, OpenFolderCommandPreflightsAlreadyOpenSourceBeforeSta
     std::mutex model_mutex;
     std::vector<std::thread> background_tasks;
     auto sink = std::make_shared<RecordingNotificationSink>();
-    register_commands(command_manager, processed_sources, controller, command_palette_controller, header_text, screen, tracked_sources, Notifier(sink), &model_mutex, &background_tasks);
+    register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen, Notifier(sink), &model_mutex, &background_tasks});
 
     const auto result = command_manager.execute("open-folder " + folder_path.string());
 
@@ -285,30 +285,23 @@ TEST(CommandRegistrarTest, DeleteFiltersCommandOpensPickerAndRemovesSelectedFilt
     std::string header_text;
     auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
     AllTrackedSources tracked_sources;
-    register_commands(command_manager, processed_sources, controller, command_palette_controller, header_text, screen, tracked_sources);
+    register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen});
 
     const auto result = command_manager.execute("delete-filters");
 
     EXPECT_TRUE(result.success);
     EXPECT_FALSE(result.close_palette_on_success);
     EXPECT_EQ(result.message, "Mark filters to delete and press Enter");
-    ASSERT_TRUE(command_palette_controller.is_open());
-    EXPECT_EQ(command_palette_controller.model().mode, CommandPaletteMode::DeleteFilters);
-    ASSERT_EQ(command_palette_controller.model().filter_picker_entries.size(), 3U);
-    EXPECT_EQ(command_palette_controller.model().filter_picker_entries[0].label, "show");
-    EXPECT_EQ(command_palette_controller.model().filter_picker_entries[1].label, "gamma");
-    EXPECT_EQ(command_palette_controller.model().filter_picker_entries[2].label, "beta");
-    EXPECT_TRUE(command_palette_controller.model().filter_picker_entries[0].include);
-    EXPECT_TRUE(command_palette_controller.model().filter_picker_entries[1].include);
-    EXPECT_FALSE(command_palette_controller.model().filter_picker_entries[2].include);
+    ASSERT_NE(command_manager.active_command(), nullptr);
 
-    ASSERT_TRUE(command_palette_controller.handle_event(ftxui::Event::Character(" ")));
-    ASSERT_TRUE(command_palette_controller.handle_event(ftxui::Event::ArrowDown));
-    ASSERT_TRUE(command_palette_controller.handle_event(ftxui::Event::ArrowDown));
-    ASSERT_TRUE(command_palette_controller.handle_event(ftxui::Event::Character(" ")));
-    ASSERT_TRUE(command_palette_controller.handle_event(ftxui::Event::Return));
+    ASSERT_TRUE(command_manager.active_command()->handle_event(ftxui::Event::Character(" ")).handled);
+    ASSERT_TRUE(command_manager.active_command()->handle_event(ftxui::Event::ArrowDown).handled);
+    ASSERT_TRUE(command_manager.active_command()->handle_event(ftxui::Event::ArrowDown).handled);
+    ASSERT_TRUE(command_manager.active_command()->handle_event(ftxui::Event::Character(" ")).handled);
+    const auto delete_result = command_manager.active_command()->handle_event(ftxui::Event::Return);
 
-    EXPECT_FALSE(command_palette_controller.is_open());
+    ASSERT_TRUE(delete_result.result.has_value());
+    EXPECT_TRUE(delete_result.result->success);
     EXPECT_EQ(processed_sources.include_filters().size(), 1U);
     EXPECT_EQ(processed_sources.include_filters()[0], "gamma");
     EXPECT_TRUE(processed_sources.exclude_filters().empty());
@@ -325,7 +318,7 @@ TEST(CommandRegistrarTest, DeleteFiltersCommandFailsWhenNoFiltersExist)
     std::string header_text;
     auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
     AllTrackedSources tracked_sources;
-    register_commands(command_manager, processed_sources, controller, command_palette_controller, header_text, screen, tracked_sources);
+    register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen});
 
     const auto result = command_manager.execute("delete-filters");
 
@@ -351,21 +344,20 @@ TEST(CommandRegistrarTest, SetTimeFormatCommandOpensSourceAndFormatPickers)
     auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
     AllTrackedSources tracked_sources;
     ASSERT_FALSE(tracked_sources.open_source(parse_log_source(log_path.string())).has_value());
-    register_commands(command_manager, processed_sources, controller, command_palette_controller, header_text, screen, tracked_sources);
+    register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen});
 
     const auto result = command_manager.execute("set-time-format");
 
     EXPECT_TRUE(result.success);
     EXPECT_FALSE(result.close_palette_on_success);
     EXPECT_EQ(result.message, "Select a source to configure");
-    ASSERT_TRUE(command_palette_controller.is_open());
-    EXPECT_EQ(command_palette_controller.model().mode, CommandPaletteMode::SelectTimestampSource);
+    ASSERT_NE(command_manager.active_command(), nullptr);
 
-    ASSERT_TRUE(command_palette_controller.handle_event(ftxui::Event::Return));
-    ASSERT_TRUE(command_palette_controller.is_open());
-    EXPECT_EQ(command_palette_controller.model().mode, CommandPaletteMode::SelectTimestampFormat);
-
-    EXPECT_FALSE(command_palette_controller.model().timestamp_formats.empty());
+    const auto source_result = command_manager.active_command()->handle_event(ftxui::Event::Return);
+    ASSERT_TRUE(source_result.result.has_value());
+    EXPECT_TRUE(source_result.result->success);
+    EXPECT_FALSE(source_result.result->close_palette_on_success);
+    EXPECT_NE(source_result.result->message.find("Select timestamp format for "), std::string::npos);
 
     remove_temp_export_file(log_path);
 }

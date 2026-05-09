@@ -2,7 +2,9 @@
 
 #include <chrono>
 #include <filesystem>
+#include <memory>
 #include <string>
+#include <utility>
 
 #include <ftxui/component/event.hpp>
 
@@ -15,6 +17,59 @@ namespace slayerlog
 
 namespace
 {
+
+class ActivePaletteTestCommand final : public Command
+{
+public:
+    const CommandDescriptor& descriptor() const override
+    {
+        static const CommandDescriptor descriptor {"interactive", "Interactive", "interactive"};
+        return descriptor;
+    }
+
+    CommandResult execute(std::string_view) override
+    {
+        active = true;
+        return {true, "started", false};
+    }
+
+    bool has_active_interaction() const override
+    {
+        return active;
+    }
+
+    CommandEventResult handle_event(const ftxui::Event& event) override
+    {
+        if (event == ftxui::Event::Return)
+        {
+            active = false;
+            return {true, CommandResult {true, "finished"}};
+        }
+
+        if (event == ftxui::Event::Character("f"))
+        {
+            return {true, CommandResult {false, "invalid", false}};
+        }
+
+        if (event.is_character())
+        {
+            last_character = event.character();
+            return {true, std::nullopt};
+        }
+
+        return {};
+    }
+
+    void cancel() override
+    {
+        cancelled = true;
+        active    = false;
+    }
+
+    bool active = false;
+    bool cancelled = false;
+    std::string last_character;
+};
 
 std::filesystem::path make_temp_settings_path()
 {
@@ -289,7 +344,7 @@ TEST(CommandPaletteControllerTest, OpenResetsResultViewportScrollOffsets)
 TEST(CommandPaletteControllerTest, HideColumnsPreviewActivatesForValidRange)
 {
     CommandManager manager;
-    manager.register_command({"hide-columns", "Hide columns", "hide-columns <xx-yy>"}, [](std::string_view) { return CommandResult {true, "ok"}; });
+    manager.register_command({"hide-columns", "Hide columns", "hide-columns <xx-yy>"}, [](std::string_view) { return CommandResult {true, "ok"}; }, [](std::string_view arguments) { return parse_hidden_column_range(arguments); });
 
     CommandPaletteModel model;
     CommandPaletteController controller(model, manager);
@@ -304,7 +359,7 @@ TEST(CommandPaletteControllerTest, HideColumnsPreviewActivatesForValidRange)
 TEST(CommandPaletteControllerTest, HideColumnsPreviewClearsForInvalidRangeAndOnClose)
 {
     CommandManager manager;
-    manager.register_command({"hide-columns", "Hide columns", "hide-columns <xx-yy>"}, [](std::string_view) { return CommandResult {true, "ok"}; });
+    manager.register_command({"hide-columns", "Hide columns", "hide-columns <xx-yy>"}, [](std::string_view) { return CommandResult {true, "ok"}; }, [](std::string_view arguments) { return parse_hidden_column_range(arguments); });
 
     CommandPaletteModel model;
     CommandPaletteController controller(model, manager);
@@ -511,6 +566,113 @@ TEST(CommandPaletteControllerTest, HistoryModeReturnExecutesTypedQueryWhenNoHist
     EXPECT_FALSE(controller.is_open());
     EXPECT_EQ(executed_arguments, "fresh");
     EXPECT_EQ(history.entries()[0], "beta fresh");
+
+    remove_temp_settings_file(settings_path);
+}
+
+TEST(CommandPaletteControllerTest, ActiveCommandReceivesEventsBeforeQueryEditing)
+{
+    CommandManager manager;
+    auto command = std::make_unique<ActivePaletteTestCommand>();
+    ActivePaletteTestCommand* command_ptr = command.get();
+    manager.register_command(std::move(command));
+
+    CommandPaletteModel model;
+    CommandPaletteController controller(model, manager);
+    controller.open();
+
+    ASSERT_TRUE(controller.handle_event(ftxui::Event::Character("interactive")));
+    ASSERT_TRUE(controller.handle_event(ftxui::Event::Return));
+    ASSERT_TRUE(manager.active_command() != nullptr);
+
+    ASSERT_TRUE(controller.handle_event(ftxui::Event::Character("z")));
+
+    EXPECT_EQ(command_ptr->last_character, "z");
+    EXPECT_EQ(controller.model().query, "interactive");
+}
+
+TEST(CommandPaletteControllerTest, ActiveCommandResultUpdatesStatusAndClosesOnSuccess)
+{
+    CommandManager manager;
+    manager.register_command(std::make_unique<ActivePaletteTestCommand>());
+
+    CommandPaletteModel model;
+    CommandPaletteController controller(model, manager);
+    controller.open();
+
+    ASSERT_TRUE(controller.handle_event(ftxui::Event::Character("interactive")));
+    ASSERT_TRUE(controller.handle_event(ftxui::Event::Return));
+    ASSERT_TRUE(controller.is_open());
+
+    ASSERT_TRUE(controller.handle_event(ftxui::Event::Return));
+
+    EXPECT_FALSE(controller.is_open());
+    EXPECT_EQ(manager.active_command(), nullptr);
+    EXPECT_EQ(controller.model().status_message, "finished");
+    EXPECT_FALSE(controller.model().status_is_error);
+}
+
+TEST(CommandPaletteControllerTest, ActiveCommandValidationFailureKeepsPaletteOpen)
+{
+    CommandManager manager;
+    manager.register_command(std::make_unique<ActivePaletteTestCommand>());
+
+    CommandPaletteModel model;
+    CommandPaletteController controller(model, manager);
+    controller.open();
+
+    ASSERT_TRUE(controller.handle_event(ftxui::Event::Character("interactive")));
+    ASSERT_TRUE(controller.handle_event(ftxui::Event::Return));
+    ASSERT_TRUE(controller.handle_event(ftxui::Event::Character("f")));
+
+    EXPECT_TRUE(controller.is_open());
+    EXPECT_NE(manager.active_command(), nullptr);
+    EXPECT_EQ(controller.model().status_message, "invalid");
+    EXPECT_TRUE(controller.model().status_is_error);
+}
+
+TEST(CommandPaletteControllerTest, ActiveCommandCancellationOnEscape)
+{
+    CommandManager manager;
+    auto command = std::make_unique<ActivePaletteTestCommand>();
+    ActivePaletteTestCommand* command_ptr = command.get();
+    manager.register_command(std::move(command));
+
+    CommandPaletteModel model;
+    CommandPaletteController controller(model, manager);
+    controller.open();
+
+    ASSERT_TRUE(controller.handle_event(ftxui::Event::Character("interactive")));
+    ASSERT_TRUE(controller.handle_event(ftxui::Event::Return));
+    ASSERT_TRUE(controller.handle_event(ftxui::Event::Escape));
+
+    EXPECT_FALSE(controller.is_open());
+    EXPECT_EQ(manager.active_command(), nullptr);
+    EXPECT_TRUE(command_ptr->cancelled);
+}
+
+TEST(CommandPaletteControllerTest, CtrlRIgnoredWhileActiveCommandOwnsUi)
+{
+    const auto settings_path = make_temp_settings_path();
+    SettingsStore settings_store(settings_path);
+    CommandHistory history(settings_store);
+    std::string error_message;
+    ASSERT_TRUE(history.load(error_message));
+    ASSERT_TRUE(history.record_command("interactive", error_message));
+
+    CommandManager manager;
+    manager.register_command(std::make_unique<ActivePaletteTestCommand>());
+
+    CommandPaletteModel model;
+    CommandPaletteController controller(model, manager, history);
+    controller.open();
+
+    ASSERT_TRUE(controller.handle_event(ftxui::Event::Character("interactive")));
+    ASSERT_TRUE(controller.handle_event(ftxui::Event::Return));
+    ASSERT_TRUE(controller.handle_event(ftxui::Event::CtrlR));
+
+    EXPECT_EQ(controller.model().mode, CommandPaletteMode::Commands);
+    EXPECT_NE(manager.active_command(), nullptr);
 
     remove_temp_settings_file(settings_path);
 }

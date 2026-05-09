@@ -160,7 +160,7 @@ int main(int argc, char** argv)
 
     if (config.show_help)
     {
-        slayerlog::register_commands(command_manager, processed_sources, controller, command_palette_controller, header_text, screen, tracked_sources);
+        slayerlog::register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen});
         std::cout << slayerlog::build_help_text(command_manager);
         return 0;
     }
@@ -201,7 +201,7 @@ int main(int argc, char** argv)
     slayerlog::Notifier notifier(std::make_shared<slayerlog::FtxuiToastNotificationSink>(toast_host));
     tracked_sources.set_notifier(notifier);
 
-    slayerlog::register_commands(command_manager, processed_sources, controller, command_palette_controller, header_text, screen, tracked_sources, notifier, &model_mutex, &background_tasks);
+    slayerlog::register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen, notifier, &model_mutex, &background_tasks});
 
     screen.Loop(toast_host);
     SLAYERLOG_LOG_INFO("Screen loop exited");

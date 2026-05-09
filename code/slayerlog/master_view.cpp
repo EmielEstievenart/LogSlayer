@@ -17,13 +17,9 @@ ftxui::Element MasterView::render(const AllProcessedSources& processed_sources, 
         return base_view;
     }
 
-    const int log_viewport_height       = controller.text_view_controller().viewport_line_count();
-    const int palette_viewport_height   = (log_viewport_height * 2) / 3;
-    const int preferred_palette_height  = palette_viewport_height > 0 ? palette_viewport_height : 1;
-
     return ftxui::dbox({
         std::move(base_view),
-        _command_palette_view.render(command_palette_controller, preferred_palette_height),
+        _command_palette_view.render(command_palette_controller),
     });
 }
 

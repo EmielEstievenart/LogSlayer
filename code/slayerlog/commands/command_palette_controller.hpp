@@ -26,6 +26,8 @@ public:
 
     bool is_open() const;
     const CommandPaletteModel& model() const;
+    Command* active_command();
+    const Command* active_command() const;
 
     void open();
     void open_with_query(std::string query);
@@ -47,6 +49,7 @@ private:
     void autocomplete_selected_command();
     void refresh_matches();
     void refresh_hidden_column_preview();
+    void apply_command_result(const CommandResult& result);
     void rebuild_result_lines();
     void ensure_selected_result_visible();
     std::size_t active_match_count() const;
