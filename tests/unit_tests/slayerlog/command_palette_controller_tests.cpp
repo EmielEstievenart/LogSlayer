@@ -316,6 +316,27 @@ TEST(CommandPaletteControllerTest, ArrowSelectionKeepsSelectedResultVisible)
     EXPECT_GT(controller.result_text_view_controller().first_visible_line(), 0);
 }
 
+TEST(CommandPaletteControllerTest, PageSelectionUsesCommandResultSelectorStep)
+{
+    CommandManager manager;
+    for (int index = 0; index < 10; ++index)
+    {
+        const std::string name = "command-" + std::to_string(index);
+        manager.register_command({name, "summary", name + " <argument>"}, [](std::string_view) { return CommandResult {true, "ok"}; });
+    }
+
+    CommandPaletteModel model;
+    CommandPaletteController controller(model, manager);
+    controller.open();
+    controller.result_text_view_controller().update_viewport_line_count(9);
+
+    ASSERT_TRUE(controller.handle_event(ftxui::Event::PageDown));
+
+    EXPECT_EQ(controller.model().selected_index, 4);
+    ASSERT_TRUE(controller.result_text_view_component().selected_line().has_value());
+    EXPECT_EQ(*controller.result_text_view_component().selected_line(), 8);
+}
+
 TEST(CommandPaletteControllerTest, OpenResetsResultViewportScrollOffsets)
 {
     CommandManager manager;
@@ -331,6 +352,7 @@ TEST(CommandPaletteControllerTest, OpenResetsResultViewportScrollOffsets)
     controller.result_text_view_controller().update_viewport_line_count(3);
     controller.result_text_view_controller().update_viewport_col_count(8);
 
+    ASSERT_TRUE(controller.handle_event(ftxui::Event::PageDown));
     ASSERT_TRUE(controller.handle_event(ftxui::Event::PageDown));
     ASSERT_TRUE(controller.handle_event(ftxui::Event::ArrowRightCtrl));
     EXPECT_GT(controller.result_text_view_controller().first_visible_line(), 0);

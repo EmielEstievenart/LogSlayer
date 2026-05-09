@@ -1,5 +1,6 @@
 #include "command_palette_controller.hpp"
 #include <ftxui/component/event.hpp>
+#include <ftxui/dom/canvas.hpp>
 
 #include <algorithm>
 #include <cctype>
@@ -92,7 +93,7 @@ std::pair<std::size_t, std::size_t> command_name_range(std::string_view query)
 
 bool is_result_scroll_event(ftxui::Event event)
 {
-    if (event == ftxui::Event::ArrowLeftCtrl || event == ftxui::Event::ArrowRightCtrl || event == ftxui::Event::PageUp || event == ftxui::Event::PageDown)
+    if (event == ftxui::Event::ArrowUp || event == ftxui::Event::ArrowDown || event == ftxui::Event::ArrowLeftCtrl || event == ftxui::Event::ArrowRightCtrl || event == ftxui::Event::PageUp || event == ftxui::Event::PageDown)
     {
         return true;
     }
@@ -102,18 +103,20 @@ bool is_result_scroll_event(ftxui::Event event)
         return false;
     }
 
-    return event.mouse().button == ftxui::Mouse::WheelUp || event.mouse().button == ftxui::Mouse::WheelDown;
+    return event.mouse().button == ftxui::Mouse::WheelUp || event.mouse().button == ftxui::Mouse::WheelDown || event.mouse().button == ftxui::Mouse::Left;
 }
 
 } // namespace
 
 CommandPaletteController::CommandPaletteController(CommandPaletteModel& model, CommandManager& command_manager) : _model(model), _command_manager(command_manager)
 {
+    initialize_result_text_view();
     refresh_matches();
 }
 
 CommandPaletteController::CommandPaletteController(CommandPaletteModel& model, CommandManager& command_manager, CommandHistory& command_history) : _model(model), _command_manager(command_manager), _command_history(&command_history)
 {
+    initialize_result_text_view();
     refresh_matches();
 }
 
@@ -362,8 +365,7 @@ bool CommandPaletteController::handle_event(const ftxui::Event& event)
 
     if (is_result_scroll_event(event))
     {
-        const auto result = _result_text_view_controller.parse_event(event);
-        if (result.handled)
+        if (_result_text_view != nullptr && _result_text_view->handle_event(event))
         {
             return true;
         }
@@ -383,18 +385,6 @@ bool CommandPaletteController::handle_event(const ftxui::Event& event)
         _model.status_message.clear();
         _model.status_is_error = false;
         refresh_matches();
-        return true;
-    }
-
-    if (event == ftxui::Event::ArrowUp)
-    {
-        move_selection(-1);
-        return true;
-    }
-
-    if (event == ftxui::Event::ArrowDown)
-    {
-        move_selection(1);
         return true;
     }
 
@@ -562,6 +552,58 @@ void CommandPaletteController::autocomplete_selected_command()
     refresh_matches();
 }
 
+void CommandPaletteController::initialize_result_text_view()
+{
+    TextViewComponentOption option;
+    option.total_line_count = 0;
+    option.max_line_width   = 0;
+    option.line_at          = [this](int index) -> const std::string& { return _result_lines.at(static_cast<std::size_t>(index)); };
+    option.draw_content     = [this](ftxui::Canvas& canvas, int first_line, int line_count, int first_col, int col_count)
+    {
+        int selected_entry_index = -1;
+        if (_result_text_view != nullptr)
+        {
+            const auto selected_line = _result_text_view->selected_line();
+            if (selected_line.has_value() && *selected_line >= 0 && static_cast<std::size_t>(*selected_line) < _result_line_to_entry_index.size())
+            {
+                selected_entry_index = _result_line_to_entry_index[static_cast<std::size_t>(*selected_line)];
+            }
+        }
+
+        const int max_line_count = std::max(0, std::min(line_count, static_cast<int>(_result_lines.size()) - first_line));
+        for (int row = 0; row < max_line_count; ++row)
+        {
+            const int line_index = first_line + row;
+            if (line_index < 0 || line_index >= static_cast<int>(_result_lines.size()))
+            {
+                continue;
+            }
+
+            const auto& line = _result_lines[static_cast<std::size_t>(line_index)];
+            if (first_col >= static_cast<int>(line.size()))
+            {
+                continue;
+            }
+
+            const int entry_index = static_cast<std::size_t>(line_index) < _result_line_to_entry_index.size() ? _result_line_to_entry_index[static_cast<std::size_t>(line_index)] : -1;
+            const bool selected  = selected_entry_index >= 0 && entry_index == selected_entry_index;
+            const auto count     = static_cast<std::size_t>(std::min(col_count, static_cast<int>(line.size()) - first_col));
+
+            if (selected)
+            {
+                canvas.DrawText(0, row * 4, line.substr(static_cast<std::size_t>(first_col), count), [](ftxui::Cell& cell) { cell.inverted = true; });
+            }
+            else
+            {
+                canvas.DrawText(0, row * 4, line.substr(static_cast<std::size_t>(first_col), count));
+            }
+        }
+    };
+    option.selectable               = true;
+    option.on_selected_line_changed = [this](int line_index) { sync_selected_index_from_result_line(line_index); };
+    _result_text_view               = std::make_shared<TextViewComponent>(std::move(option));
+}
+
 void CommandPaletteController::refresh_matches()
 {
     if (_model.mode == CommandPaletteMode::History)
@@ -669,12 +711,22 @@ void CommandPaletteController::refresh_matches()
 
 TextViewController& CommandPaletteController::result_text_view_controller()
 {
-    return _result_text_view_controller;
+    return _result_text_view->controller();
 }
 
 const TextViewController& CommandPaletteController::result_text_view_controller() const
 {
-    return _result_text_view_controller;
+    return _result_text_view->controller();
+}
+
+TextViewComponent& CommandPaletteController::result_text_view_component()
+{
+    return *_result_text_view;
+}
+
+const TextViewComponent& CommandPaletteController::result_text_view_component() const
+{
+    return *_result_text_view;
 }
 
 const std::vector<std::string>& CommandPaletteController::result_lines() const
@@ -911,10 +963,14 @@ void CommandPaletteController::rebuild_result_lines()
         max_line_width = std::max(max_line_width, static_cast<int>(line.size()));
     }
 
-    _result_text_view_controller.set_content(static_cast<int>(_result_lines.size()), max_line_width,
-                                             [this](int index) -> const std::string& { return _result_lines[static_cast<std::size_t>(index)]; });
-    _result_text_view_controller.scroll_to_top();
-    _result_text_view_controller.scroll_left((std::numeric_limits<int>::max)());
+    const int selected_index = _model.selected_index;
+    _result_text_view->set_selector_step(static_cast<int>(result_selector_step()));
+    _result_text_view->set_selectable(result_selectable());
+    _result_text_view->update_content_size(static_cast<int>(_result_lines.size()), max_line_width);
+    _model.selected_index = selected_index;
+    _result_text_view->controller().scroll_to_top();
+    _result_text_view->controller().scroll_left((std::numeric_limits<int>::max)());
+    sync_result_text_view_selection();
 }
 
 void CommandPaletteController::ensure_selected_result_visible()
@@ -925,22 +981,63 @@ void CommandPaletteController::ensure_selected_result_visible()
         return;
     }
 
-    const int viewport_lines = std::max(1, _result_text_view_controller.viewport_line_count());
-    const int visible_first  = _result_text_view_controller.first_visible_line();
+    auto& text_view_controller = _result_text_view->controller();
+    const int viewport_lines = std::max(1, text_view_controller.viewport_line_count());
+    const int visible_first  = text_view_controller.first_visible_line();
     const int visible_last   = visible_first + viewport_lines - 1;
     const int selected_first = selected_range->first;
     const int selected_last  = selected_range->second - 1;
 
     if (selected_first < visible_first)
     {
-        _result_text_view_controller.scroll_up(visible_first - selected_first);
+        text_view_controller.scroll_up(visible_first - selected_first);
         return;
     }
 
     if (selected_last > visible_last)
     {
-        _result_text_view_controller.scroll_down(selected_last - visible_last);
+        text_view_controller.scroll_down(selected_last - visible_last);
     }
+}
+
+void CommandPaletteController::sync_result_text_view_selection()
+{
+    if (_result_text_view == nullptr || !result_selectable())
+    {
+        return;
+    }
+
+    const auto selected_range = selected_result_line_range();
+    if (selected_range.has_value())
+    {
+        _result_text_view->set_selected_line(selected_range->first, true);
+    }
+}
+
+void CommandPaletteController::sync_selected_index_from_result_line(int line_index)
+{
+    if (line_index < 0 || static_cast<std::size_t>(line_index) >= _result_line_to_entry_index.size())
+    {
+        return;
+    }
+
+    const int entry_index = _result_line_to_entry_index[static_cast<std::size_t>(line_index)];
+    if (entry_index < 0)
+    {
+        return;
+    }
+
+    _model.selected_index = entry_index;
+}
+
+std::size_t CommandPaletteController::result_selector_step() const
+{
+    return _model.mode == CommandPaletteMode::Commands ? 2U : 1U;
+}
+
+bool CommandPaletteController::result_selectable() const
+{
+    return _model.mode != CommandPaletteMode::EnterTimestampOffset && active_match_count() > 0;
 }
 
 bool CommandPaletteController::copy_selected_history_entry_to_query()

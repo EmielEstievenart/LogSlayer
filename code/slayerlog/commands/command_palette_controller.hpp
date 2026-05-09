@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -9,7 +10,7 @@
 
 #include <ftxui/component/event.hpp>
 
-#include <ftxui_components/text_view_controller.hpp>
+#include <ftxui_components/text_view_component.hpp>
 
 #include "command_history.hpp"
 #include "command_manager.hpp"
@@ -42,16 +43,23 @@ public:
 
     TextViewController& result_text_view_controller();
     const TextViewController& result_text_view_controller() const;
+    TextViewComponent& result_text_view_component();
+    const TextViewComponent& result_text_view_component() const;
     const std::vector<std::string>& result_lines() const;
     std::optional<std::pair<int, int>> selected_result_line_range() const;
 
 private:
     void autocomplete_selected_command();
+    void initialize_result_text_view();
     void refresh_matches();
     void refresh_hidden_column_preview();
     void apply_command_result(const CommandResult& result);
     void rebuild_result_lines();
     void ensure_selected_result_visible();
+    void sync_result_text_view_selection();
+    void sync_selected_index_from_result_line(int line_index);
+    std::size_t result_selector_step() const;
+    bool result_selectable() const;
     std::size_t active_match_count() const;
     void move_selection(int delta);
     bool copy_selected_history_entry_to_query();
@@ -73,7 +81,7 @@ private:
     std::function<CommandResult(std::size_t selected_index)> _timestamp_format_selection_handler;
     std::function<CommandResult(std::string_view offset_text)> _timestamp_offset_input_handler;
     std::function<CommandResult(const std::vector<CommandPaletteModel::FilterPickerEntry>& selected_filters)> _delete_filters_selection_handler;
-    TextViewController _result_text_view_controller;
+    std::shared_ptr<TextViewComponent> _result_text_view;
     std::vector<std::string> _result_lines;
     std::vector<int> _result_line_to_entry_index;
 };

@@ -125,29 +125,33 @@ ftxui::Element build_palette_help(CommandPaletteMode mode)
     });
 }
 
-int estimate_result_viewport_col_count(int measured_col_count)
+int result_view_height(int screen_height)
 {
-    if (measured_col_count > 1)
-    {
-        return measured_col_count;
-    }
-
-    return 68;
+    const int available_height = std::max(12, screen_height - 8);
+    return std::max(12, (available_height * 4) / 5);
 }
 
-int estimate_result_viewport_line_count(int measured_line_count)
+ftxui::Element center_in_overlay(ftxui::Element content, int screen_height)
 {
-    if (measured_line_count > 1)
-    {
-        return measured_line_count;
-    }
+    auto horizontal_padding = []() { return ftxui::filler() | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 2); };
 
-    return 12;
+    return ftxui::vbox({
+               ftxui::filler(),
+               ftxui::hbox({
+                   ftxui::filler(),
+                   horizontal_padding(),
+                   std::move(content),
+                   horizontal_padding(),
+                   ftxui::filler(),
+               }),
+               ftxui::filler(),
+           }) |
+           ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, std::max(1, screen_height));
 }
 
 } // namespace
 
-ftxui::Element CommandPaletteView::render(CommandPaletteController& command_palette_controller)
+ftxui::Element CommandPaletteView::render(CommandPaletteController& command_palette_controller, int screen_height)
 {
     const CommandPaletteModel& command_palette = command_palette_controller.model();
 
@@ -159,63 +163,21 @@ ftxui::Element CommandPaletteView::render(CommandPaletteController& command_pale
             status = ftxui::text(command_palette.status_message) | ftxui::color(command_palette.status_is_error ? theme::error_fg : theme::success_fg);
         }
 
-        return ftxui::center(ftxui::clear_under(ftxui::window(ftxui::text(active_command->palette_title()),
-                                                            ftxui::vbox({
-                                                                active_command->render() | ftxui::flex,
-                                                                ftxui::separator(),
-                                                                std::move(status),
-                                                            }))) |
-                             ftxui::size(ftxui::WIDTH, ftxui::LESS_THAN, 80));
+        auto palette = ftxui::clear_under(ftxui::window(ftxui::text(active_command->palette_title()),
+                                                        ftxui::vbox({
+                                                            active_command->render() | ftxui::flex,
+                                                            ftxui::separator(),
+                                                            std::move(status),
+                                                        }))) |
+                       ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 120) |
+                       ftxui::size(ftxui::HEIGHT, ftxui::LESS_THAN, std::max(12, screen_height - 4));
+        return center_in_overlay(std::move(palette), screen_height);
     }
 
-    const int effective_height = estimate_result_viewport_line_count(_result_text_view.viewport_line_count());
-    const int effective_width  = estimate_result_viewport_col_count(_result_text_view.viewport_col_count());
-    command_palette_controller.result_text_view_controller().update_viewport_line_count(effective_height);
-    command_palette_controller.result_text_view_controller().update_viewport_col_count(effective_width);
-
-    auto result_data                         = command_palette_controller.result_text_view_controller().render_data();
-    const std::vector<std::string> result_lines = command_palette_controller.result_lines();
-
-    if (const auto selected_range = command_palette_controller.selected_result_line_range(); selected_range.has_value())
-    {
-        for (int line_index = selected_range->first; line_index < selected_range->second; ++line_index)
-        {
-            if (line_index < 0 || line_index >= static_cast<int>(result_lines.size()))
-            {
-                continue;
-            }
-
-            TextViewRangeDecoration decoration;
-            decoration.line_index     = line_index;
-            decoration.col_start      = 0;
-            decoration.col_end        = static_cast<int>(result_lines[static_cast<std::size_t>(line_index)].size());
-            decoration.style.inverted = true;
-            result_data.range_decorations.push_back(std::move(decoration));
-        }
-    }
-
-    const auto draw_results = [result_lines](ftxui::Canvas& canvas, int first_line, int line_count, int first_col, int col_count)
-    {
-        const int max_line_count = std::max(0, std::min(line_count, static_cast<int>(result_lines.size()) - first_line));
-        for (int row = 0; row < max_line_count; ++row)
-        {
-            const int line_index = first_line + row;
-            if (line_index < 0 || line_index >= static_cast<int>(result_lines.size()))
-            {
-                continue;
-            }
-
-            const auto& line = result_lines[static_cast<std::size_t>(line_index)];
-            if (first_col >= static_cast<int>(line.size()))
-            {
-                continue;
-            }
-
-            canvas.DrawText(0, row * 4, line.substr(static_cast<std::size_t>(first_col), static_cast<std::size_t>(col_count)));
-        }
-    };
-
-    auto results = _result_text_view.render(result_data, draw_results) | ftxui::flex;
+    auto results = command_palette_controller.result_text_view_component().Render() |
+                   ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, result_view_height(screen_height)) |
+                   ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 116) |
+                   ftxui::flex;
 
     ftxui::Element status = build_palette_help(command_palette.mode);
     if (!command_palette.status_message.empty())
@@ -265,7 +227,10 @@ ftxui::Element CommandPaletteView::render(CommandPaletteController& command_pale
     body.push_back(ftxui::separator());
     body.push_back(status);
 
-    return ftxui::center(ftxui::clear_under(ftxui::window(ftxui::text(title), ftxui::vbox(std::move(body))) | ftxui::size(ftxui::WIDTH, ftxui::LESS_THAN, 80)));
+    auto palette = ftxui::clear_under(ftxui::window(ftxui::text(title), ftxui::vbox(std::move(body))) |
+                                      ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 120) |
+                                      ftxui::size(ftxui::HEIGHT, ftxui::LESS_THAN, std::max(12, screen_height - 4)));
+    return center_in_overlay(std::move(palette), screen_height);
 }
 
 } // namespace slayerlog

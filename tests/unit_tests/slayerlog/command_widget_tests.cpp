@@ -1,9 +1,12 @@
 #include <gtest/gtest.h>
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <ftxui/component/event.hpp>
+
+#include <ftxui_components/text_view_component.hpp>
 
 #include "command_widgets/editable_text.hpp"
 #include "command_widgets/multi_select_list.hpp"
@@ -80,6 +83,72 @@ TEST(MultiSelectListTest, TogglesMultipleSelections)
     EXPECT_EQ(selected[0], 0U);
     EXPECT_EQ(selected[1], 2U);
     EXPECT_TRUE(list.handle_event(ftxui::Event::Return));
+}
+
+TEST(TextViewComponentTest, SelectorStepSnapsViewportPageJumps)
+{
+    std::vector<std::string> lines;
+    for (int index = 0; index < 15; ++index)
+    {
+        lines.push_back("line " + std::to_string(index));
+    }
+
+    TextViewComponentOption option;
+    option.total_line_count = static_cast<int>(lines.size());
+    option.max_line_width   = 7;
+    option.line_at          = [&lines](int line_index) -> const std::string& { return lines.at(static_cast<std::size_t>(line_index)); };
+    option.selectable       = true;
+    option.selector_step    = 3;
+
+    TextViewComponent view(std::move(option));
+    view.controller().update_viewport_line_count(9);
+
+    ASSERT_EQ(view.selected_line(), 0);
+
+    ASSERT_TRUE(view.handle_event(ftxui::Event::PageDown));
+    EXPECT_EQ(view.selected_line(), 9);
+
+    ASSERT_TRUE(view.handle_event(ftxui::Event::PageUp));
+    EXPECT_EQ(view.selected_line(), 0);
+
+    ASSERT_TRUE(view.handle_event(ftxui::Event::ArrowDown));
+    EXPECT_EQ(view.selected_line(), 3);
+
+    view.set_selected_line(12, true);
+    ASSERT_TRUE(view.handle_event(ftxui::Event::PageUp));
+    EXPECT_EQ(view.selected_line(), 3);
+
+    ASSERT_TRUE(view.handle_event(ftxui::Event::PageDown));
+    EXPECT_EQ(view.selected_line(), 12);
+
+    ASSERT_TRUE(view.handle_event(ftxui::Event::End));
+    EXPECT_EQ(view.selected_line(), 12);
+}
+
+TEST(TextViewComponentTest, SelectorStepKeepsFullSelectedBlockVisible)
+{
+    std::vector<std::string> lines;
+    for (int index = 0; index < 16; ++index)
+    {
+        lines.push_back("line " + std::to_string(index));
+    }
+
+    TextViewComponentOption option;
+    option.total_line_count = static_cast<int>(lines.size());
+    option.max_line_width   = 7;
+    option.line_at          = [&lines](int line_index) -> const std::string& { return lines.at(static_cast<std::size_t>(line_index)); };
+    option.selectable       = true;
+    option.selector_step    = 2;
+
+    TextViewComponent view(std::move(option));
+    view.controller().update_viewport_line_count(5);
+
+    view.set_selected_line(14, true);
+
+    const int visible_first = view.controller().first_visible_line();
+    const int visible_last  = visible_first + view.controller().viewport_line_count() - 1;
+    EXPECT_LE(visible_first, 14);
+    EXPECT_GE(visible_last, 15);
 }
 
 TEST(TextInputPanelTest, EditsInputAndAcceptsPreviewState)

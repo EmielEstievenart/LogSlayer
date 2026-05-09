@@ -19,7 +19,7 @@ ftxui::Element MasterView::render(const AllProcessedSources& processed_sources, 
 
     return ftxui::dbox({
         std::move(base_view),
-        _command_palette_view.render(command_palette_controller),
+        _command_palette_view.render(command_palette_controller, screen_height),
     });
 }
 
