@@ -18,6 +18,7 @@ enum class CommandPaletteMode
     CloseOpenFile,
     SelectTimestampSource,
     SelectTimestampFormat,
+    EnterTimestampOffset,
     DeleteFilters,
 };
 
@@ -40,6 +41,9 @@ struct CommandPaletteModel
     std::vector<std::string> open_files;
     std::vector<std::string> timestamp_formats;
     std::vector<FilterPickerEntry> filter_picker_entries;
+    std::string timestamp_offset_source_label;
+    std::string timestamp_offset_preview;
+    bool timestamp_offset_preview_is_error = false;
     int selected_index = 0;
     std::string status_message;
     bool status_is_error = false;

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 
 namespace slayerlog
 {
@@ -11,6 +12,12 @@ struct LogTimestamp
 {
     std::int64_t epoch_seconds = 0;
     std::uint32_t nanosecond   = 0;
+};
+
+struct LogTimestampOffset
+{
+    std::int64_t seconds = 0;
+    std::int32_t nanosecond = 0;
 };
 
 struct LogCivilTime
@@ -35,5 +42,8 @@ std::optional<LogTimestamp> make_log_timestamp_utc(int year, unsigned month, uns
                                                     std::optional<int> utc_offset_minutes = std::nullopt);
 LogCivilTime to_utc_civil_time(LogTimestamp timestamp);
 std::string format_log_timestamp_utc(LogTimestamp timestamp);
+std::optional<LogTimestampOffset> parse_log_timestamp_offset(std::string_view text);
+std::string format_log_timestamp_offset(LogTimestampOffset offset);
+std::optional<LogTimestamp> add_offset(LogTimestamp timestamp, LogTimestampOffset offset);
 
 } // namespace slayerlog

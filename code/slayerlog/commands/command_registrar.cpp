@@ -337,7 +337,7 @@ CommandResult close_open_file_command(CommandPaletteController& command_palette_
 }
 
 CommandResult set_time_format_command(CommandPaletteController& command_palette_controller, AllTrackedSources& tracked_sources, std::string& header_text, AllProcessedSources& processed_sources, LogController& controller,
-                                      ftxui::ScreenInteractive& screen)
+                                       ftxui::ScreenInteractive& screen)
 {
     const auto labels = tracked_sources.source_labels();
     if (labels.empty())
@@ -382,6 +382,80 @@ CommandResult set_time_format_command(CommandPaletteController& command_palette_
                                                             });
 
     return CommandResult {true, "Select a source to configure", false};
+}
+
+CommandResult set_time_offset_command(CommandPaletteController& command_palette_controller, AllTrackedSources& tracked_sources, std::string& header_text, AllProcessedSources& processed_sources, LogController& controller,
+                                      ftxui::ScreenInteractive& screen)
+{
+    const auto labels = tracked_sources.source_labels();
+    if (labels.empty())
+    {
+        return CommandResult {false, "No open sources to configure"};
+    }
+
+    command_palette_controller.open_timestamp_source_picker(labels,
+                                                            [&, labels](std::size_t source_index) -> CommandResult
+                                                            {
+                                                                if (source_index >= labels.size())
+                                                                {
+                                                                    return CommandResult {false, "Invalid source selection"};
+                                                                }
+
+                                                                command_palette_controller.open_timestamp_offset_input(labels[source_index],
+                                                                                                                       [&, source_index, labels](std::string_view offset_text) -> CommandResult
+                                                                                                                       {
+                                                                                                                           const auto offset = parse_log_timestamp_offset(offset_text);
+                                                                                                                           if (!offset.has_value())
+                                                                                                                           {
+                                                                                                                               return CommandResult {false, "Invalid offset: expected DD hh:mm:ss[.fraction]", false};
+                                                                                                                           }
+
+                                                                                                                           const auto error = tracked_sources.set_source_timestamp_offset(source_index, *offset);
+                                                                                                                           if (error.has_value())
+                                                                                                                           {
+                                                                                                                               SLAYERLOG_LOG_ERROR("set-time-offset failed source_index=" << source_index << " error=" << *error);
+                                                                                                                               return CommandResult {false, *error, false};
+                                                                                                                           }
+
+                                                                                                                           reload_processed_sources(tracked_sources, header_text, processed_sources, controller, screen);
+                                                                                                                           return CommandResult {true, "Set time offset for " + labels[source_index] + ": " + format_log_timestamp_offset(*offset)};
+                                                                                                                       });
+
+                                                                return CommandResult {true, "Enter timestamp offset for " + labels[source_index], false};
+                                                            });
+
+    return CommandResult {true, "Select a source to offset", false};
+}
+
+CommandResult clear_time_offset_command(CommandPaletteController& command_palette_controller, AllTrackedSources& tracked_sources, std::string& header_text, AllProcessedSources& processed_sources, LogController& controller,
+                                        ftxui::ScreenInteractive& screen)
+{
+    const auto labels = tracked_sources.source_labels();
+    if (labels.empty())
+    {
+        return CommandResult {false, "No open sources to configure"};
+    }
+
+    command_palette_controller.open_timestamp_source_picker(labels,
+                                                            [&, labels](std::size_t source_index) -> CommandResult
+                                                            {
+                                                                if (source_index >= labels.size())
+                                                                {
+                                                                    return CommandResult {false, "Invalid source selection"};
+                                                                }
+
+                                                                const auto error = tracked_sources.clear_source_timestamp_offset(source_index);
+                                                                if (error.has_value())
+                                                                {
+                                                                    SLAYERLOG_LOG_ERROR("clear-time-offset failed source_index=" << source_index << " error=" << *error);
+                                                                    return CommandResult {false, *error};
+                                                                }
+
+                                                                reload_processed_sources(tracked_sources, header_text, processed_sources, controller, screen);
+                                                                return CommandResult {true, "Cleared time offset for " + labels[source_index]};
+                                                            });
+
+    return CommandResult {true, "Select a source to clear offset", false};
 }
 
 std::vector<CommandPaletteModel::FilterPickerEntry> build_filter_picker_entries(const AllProcessedSources& processed_sources)
@@ -711,8 +785,8 @@ void register_commands(CommandManager& command_manager, AllProcessedSources& pro
                                       });
 
     command_manager.register_command({"set-time-format",
-                                       "Set timestamp parser for one source",
-                                       "set-time-format",
+                                        "Set timestamp parser for one source",
+                                        "set-time-format",
                                        {
                                            "Opens a source picker, then a timestamp format picker.",
                                            "Confirm each selection with Enter. All lines from that source are reparsed and all tracked lines are re-sorted.",
@@ -724,7 +798,41 @@ void register_commands(CommandManager& command_manager, AllProcessedSources& pro
                                               return CommandResult {false, "Usage: set-time-format"};
                                           }
 
-                                          return set_time_format_command(command_palette_controller, tracked_sources, header_text, processed_sources, controller, screen);
+                                           return set_time_format_command(command_palette_controller, tracked_sources, header_text, processed_sources, controller, screen);
+                                       });
+
+    command_manager.register_command({"set-time-offset",
+                                       "Set timestamp offset for one source",
+                                       "set-time-offset",
+                                       {
+                                           "Opens a source picker, then an offset input prompt.",
+                                           "Offset format is DD hh:mm:ss[.fraction], with an optional leading + or - sign.",
+                                           "Example: set-time-offset, then enter 20 02:10:10.005",
+                                       }},
+                                      [&](std::string_view arguments)
+                                      {
+                                          if (!trim_text(arguments).empty())
+                                          {
+                                              return CommandResult {false, "Usage: set-time-offset"};
+                                          }
+
+                                          return set_time_offset_command(command_palette_controller, tracked_sources, header_text, processed_sources, controller, screen);
+                                      });
+
+    command_manager.register_command({"clear-time-offset",
+                                       "Clear timestamp offset for one source",
+                                       "clear-time-offset",
+                                       {
+                                           "Opens a source picker and clears that source's active timestamp offset.",
+                                       }},
+                                      [&](std::string_view arguments)
+                                      {
+                                          if (!trim_text(arguments).empty())
+                                          {
+                                              return CommandResult {false, "Usage: clear-time-offset"};
+                                          }
+
+                                          return clear_time_offset_command(command_palette_controller, tracked_sources, header_text, processed_sources, controller, screen);
                                       });
 
     command_manager.register_command({"go-to-line",

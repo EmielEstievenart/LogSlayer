@@ -3,6 +3,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -32,6 +33,7 @@ public:
     void open_close_open_file_picker(std::vector<std::string> open_files, std::function<CommandResult(std::size_t selected_index)> on_confirm);
     void open_timestamp_source_picker(std::vector<std::string> sources, std::function<CommandResult(std::size_t selected_index)> on_confirm);
     void open_timestamp_format_picker(std::vector<std::string> formats, std::function<CommandResult(std::size_t selected_index)> on_confirm);
+    void open_timestamp_offset_input(std::string source_label, std::function<CommandResult(std::string_view offset_text)> on_confirm);
     void open_delete_filters_picker(std::vector<CommandPaletteModel::FilterPickerEntry> filters, std::function<CommandResult(const std::vector<CommandPaletteModel::FilterPickerEntry>& selected_filters)> on_confirm);
     void close();
     bool handle_event(const ftxui::Event& event);
@@ -55,7 +57,9 @@ private:
     CommandResult execute_close_open_file_selection();
     CommandResult execute_timestamp_source_selection();
     CommandResult execute_timestamp_format_selection();
+    CommandResult execute_timestamp_offset_input();
     CommandResult execute_delete_filters_selection();
+    void refresh_timestamp_offset_preview();
     bool record_successful_command(std::string_view command_line);
 
     CommandPaletteModel& _model;
@@ -64,6 +68,7 @@ private:
     std::function<CommandResult(std::size_t selected_index)> _close_open_file_selection_handler;
     std::function<CommandResult(std::size_t selected_index)> _timestamp_source_selection_handler;
     std::function<CommandResult(std::size_t selected_index)> _timestamp_format_selection_handler;
+    std::function<CommandResult(std::string_view offset_text)> _timestamp_offset_input_handler;
     std::function<CommandResult(const std::vector<CommandPaletteModel::FilterPickerEntry>& selected_filters)> _delete_filters_selection_handler;
     TextViewController _result_text_view_controller;
     std::vector<std::string> _result_lines;

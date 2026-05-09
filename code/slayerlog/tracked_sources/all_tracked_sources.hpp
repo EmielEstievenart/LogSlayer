@@ -40,6 +40,8 @@ public:
     std::shared_ptr<const TimestampFormatCatalog> timestamp_format_catalog() const;
     void set_notifier(Notifier notifier);
     std::optional<std::string> set_source_timestamp_format(std::size_t source_index, const std::string& format);
+    std::optional<std::string> set_source_timestamp_offset(std::size_t source_index, LogTimestampOffset offset);
+    std::optional<std::string> clear_source_timestamp_offset(std::size_t source_index);
 
 private:
     void rebuild_source_labels();

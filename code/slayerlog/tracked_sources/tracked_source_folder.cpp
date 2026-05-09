@@ -181,9 +181,58 @@ void TrackedSourceFolder::set_timestamp_format(std::string format)
         if (child.second.tracked_source != nullptr)
         {
             child.second.tracked_source->set_timestamp_format(formats->formats().front());
+            if (timestamp_offset().has_value())
+            {
+                (void)child.second.tracked_source->set_timestamp_offset(*timestamp_offset());
+            }
         }
     }
 
+    rebuild_entries_from_children();
+}
+
+std::optional<std::string> TrackedSourceFolder::set_timestamp_offset(LogTimestampOffset offset)
+{
+    const auto base_error = TrackedSourceBase::set_timestamp_offset(offset);
+    if (base_error.has_value())
+    {
+        return base_error;
+    }
+
+    for (auto& child : _children)
+    {
+        if (child.second.tracked_source == nullptr)
+        {
+            continue;
+        }
+
+        const auto child_error = child.second.tracked_source->set_timestamp_offset(offset);
+        if (child_error.has_value())
+        {
+            return child_error;
+        }
+    }
+
+    rebuild_entries_from_children();
+    return std::nullopt;
+}
+
+void TrackedSourceFolder::clear_timestamp_offset()
+{
+    TrackedSourceBase::clear_timestamp_offset();
+    for (auto& child : _children)
+    {
+        if (child.second.tracked_source != nullptr)
+        {
+            child.second.tracked_source->clear_timestamp_offset();
+        }
+    }
+
+    rebuild_entries_from_children();
+}
+
+void TrackedSourceFolder::rebuild_entries_from_children()
+{
     std::vector<LogBatchSourceRange> source_ranges;
     source_ranges.reserve(_active_file_order.size());
     for (std::size_t source_index = 0; source_index < _active_file_order.size(); ++source_index)
@@ -242,6 +291,10 @@ void TrackedSourceFolder::refresh_active_children()
 
         ChildState child;
         child.tracked_source = std::make_unique<TrackedSourceFile>(parse_log_source(file_path.string()), file_path.filename().string(), timestamp_formats());
+        if (timestamp_offset().has_value())
+        {
+            (void)child.tracked_source->set_timestamp_offset(*timestamp_offset());
+        }
 
         _children.emplace(path_key, std::move(child));
     }

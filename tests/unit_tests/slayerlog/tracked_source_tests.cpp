@@ -221,6 +221,26 @@ TEST(TrackedSourceTest, SetTimestampFormatReparsesExistingFileEntries)
     EXPECT_EQ(tracked_source.entries()[1]->metadata.sequence_number, 1U);
 }
 
+TEST(TrackedSourceTest, TimestampOffsetReappliesFromOriginalTimestamp)
+{
+    auto formats = std::make_shared<const TimestampFormatCatalog>(std::vector<std::string> {"YYYY-MM-DDThh:mm:ss.fff"});
+    TrackedSourceFile tracked_source(parse_log_source("alpha.log"), "alpha.log", formats);
+    tracked_source.add_entries_from_raw_strings({"2026-04-01T10:00:00.250 first"});
+    ASSERT_EQ(tracked_source.entries().size(), 1U);
+    ASSERT_TRUE(tracked_source.entries()[0]->metadata.timestamp.has_value());
+
+    ASSERT_FALSE(tracked_source.set_timestamp_offset(*parse_log_timestamp_offset("00 00:00:10.500")).has_value());
+    ASSERT_TRUE(tracked_source.entries()[0]->metadata.offset_timestamp.has_value());
+    EXPECT_EQ(format_log_timestamp_utc(*tracked_source.entries()[0]->metadata.offset_timestamp), "2026-04-01 10:00:10.75");
+
+    ASSERT_FALSE(tracked_source.set_timestamp_offset(*parse_log_timestamp_offset("00 00:00:20.000")).has_value());
+    ASSERT_TRUE(tracked_source.entries()[0]->metadata.offset_timestamp.has_value());
+    EXPECT_EQ(format_log_timestamp_utc(*tracked_source.entries()[0]->metadata.offset_timestamp), "2026-04-01 10:00:20.25");
+
+    tracked_source.clear_timestamp_offset();
+    EXPECT_FALSE(tracked_source.entries()[0]->metadata.offset_timestamp.has_value());
+}
+
 TEST(TrackedSourceTest, FilePollReadsZstdFileOnce)
 {
     ScopedTestFolder folder;

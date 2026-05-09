@@ -593,6 +593,58 @@ TEST(CommandPaletteControllerTest, TimestampPickersSelectAndExecuteHandlers)
     EXPECT_EQ(controller.model().status_message, "format set");
 }
 
+TEST(CommandPaletteControllerTest, TimestampOffsetInputShowsPreviewAndExecutesHandler)
+{
+    CommandManager manager;
+    CommandPaletteModel model;
+    CommandPaletteController controller(model, manager);
+
+    std::string confirmed_offset;
+    controller.open_timestamp_offset_input("alpha.log",
+                                           [&](std::string_view offset_text)
+                                           {
+                                               confirmed_offset = std::string(offset_text);
+                                               return CommandResult {true, "offset set"};
+                                           });
+
+    ASSERT_TRUE(controller.is_open());
+    EXPECT_EQ(controller.model().mode, CommandPaletteMode::EnterTimestampOffset);
+
+    ASSERT_TRUE(controller.handle_event(ftxui::Event::Character("20 02:10:10.005")));
+
+    EXPECT_EQ(controller.model().timestamp_offset_preview, "Applies offset: +20d 02:10:10.005");
+    EXPECT_FALSE(controller.model().timestamp_offset_preview_is_error);
+
+    ASSERT_TRUE(controller.handle_event(ftxui::Event::Return));
+
+    EXPECT_EQ(confirmed_offset, "20 02:10:10.005");
+    EXPECT_FALSE(controller.is_open());
+    EXPECT_EQ(controller.model().status_message, "offset set");
+}
+
+TEST(CommandPaletteControllerTest, TimestampOffsetInputRejectsInvalidOffset)
+{
+    CommandManager manager;
+    CommandPaletteModel model;
+    CommandPaletteController controller(model, manager);
+
+    bool handler_called = false;
+    controller.open_timestamp_offset_input("alpha.log",
+                                           [&](std::string_view)
+                                           {
+                                               handler_called = true;
+                                               return CommandResult {true, "offset set"};
+                                           });
+
+    ASSERT_TRUE(controller.handle_event(ftxui::Event::Character("bad")));
+    EXPECT_TRUE(controller.model().timestamp_offset_preview_is_error);
+    ASSERT_TRUE(controller.handle_event(ftxui::Event::Return));
+
+    EXPECT_TRUE(controller.is_open());
+    EXPECT_FALSE(handler_called);
+    EXPECT_TRUE(controller.model().status_is_error);
+}
+
 TEST(CommandPaletteControllerTest, DeleteFiltersPickerTogglesMultipleSelectionsAndExecutesHandler)
 {
     CommandManager manager;

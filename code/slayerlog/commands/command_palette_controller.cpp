@@ -9,6 +9,8 @@
 #include <string_view>
 #include <utility>
 
+#include "timestamp/log_timestamp.hpp"
+
 namespace slayerlog
 {
 
@@ -145,9 +147,13 @@ void CommandPaletteController::open()
     _model.open_files.clear();
     _model.timestamp_formats.clear();
     _model.filter_picker_entries.clear();
+    _model.timestamp_offset_source_label.clear();
+    _model.timestamp_offset_preview.clear();
+    _model.timestamp_offset_preview_is_error = false;
     _close_open_file_selection_handler  = {};
     _timestamp_source_selection_handler = {};
     _timestamp_format_selection_handler = {};
+    _timestamp_offset_input_handler     = {};
     _delete_filters_selection_handler   = {};
     _model.cursor_position              = 0;
     _model.selected_index               = 0;
@@ -172,9 +178,13 @@ void CommandPaletteController::open_history()
     _model.open_files.clear();
     _model.timestamp_formats.clear();
     _model.filter_picker_entries.clear();
+    _model.timestamp_offset_source_label.clear();
+    _model.timestamp_offset_preview.clear();
+    _model.timestamp_offset_preview_is_error = false;
     _close_open_file_selection_handler  = {};
     _timestamp_source_selection_handler = {};
     _timestamp_format_selection_handler = {};
+    _timestamp_offset_input_handler     = {};
     _delete_filters_selection_handler   = {};
     _model.cursor_position              = 0;
     _model.selected_index               = 0;
@@ -191,9 +201,13 @@ void CommandPaletteController::open_close_open_file_picker(std::vector<std::stri
     _model.open_files = std::move(open_files);
     _model.timestamp_formats.clear();
     _model.filter_picker_entries.clear();
+    _model.timestamp_offset_source_label.clear();
+    _model.timestamp_offset_preview.clear();
+    _model.timestamp_offset_preview_is_error = false;
     _close_open_file_selection_handler  = std::move(on_confirm);
     _timestamp_source_selection_handler = {};
     _timestamp_format_selection_handler = {};
+    _timestamp_offset_input_handler     = {};
     _delete_filters_selection_handler   = {};
     _model.cursor_position              = 0;
     _model.selected_index               = 0;
@@ -210,9 +224,13 @@ void CommandPaletteController::open_timestamp_source_picker(std::vector<std::str
     _model.open_files = std::move(sources);
     _model.timestamp_formats.clear();
     _model.filter_picker_entries.clear();
+    _model.timestamp_offset_source_label.clear();
+    _model.timestamp_offset_preview.clear();
+    _model.timestamp_offset_preview_is_error = false;
     _close_open_file_selection_handler  = {};
     _timestamp_source_selection_handler = std::move(on_confirm);
     _timestamp_format_selection_handler = {};
+    _timestamp_offset_input_handler     = {};
     _delete_filters_selection_handler   = {};
     _model.cursor_position              = 0;
     _model.selected_index               = 0;
@@ -229,14 +247,40 @@ void CommandPaletteController::open_timestamp_format_picker(std::vector<std::str
     _model.open_files.clear();
     _model.timestamp_formats = std::move(formats);
     _model.filter_picker_entries.clear();
+    _model.timestamp_offset_source_label.clear();
+    _model.timestamp_offset_preview.clear();
+    _model.timestamp_offset_preview_is_error = false;
     _close_open_file_selection_handler  = {};
     _timestamp_source_selection_handler = {};
     _timestamp_format_selection_handler = std::move(on_confirm);
+    _timestamp_offset_input_handler     = {};
     _delete_filters_selection_handler   = {};
     _model.cursor_position              = 0;
     _model.selected_index               = 0;
     _model.status_message.clear();
     _model.status_is_error = false;
+    refresh_matches();
+}
+
+void CommandPaletteController::open_timestamp_offset_input(std::string source_label, std::function<CommandResult(std::string_view offset_text)> on_confirm)
+{
+    _model.open = true;
+    _model.mode = CommandPaletteMode::EnterTimestampOffset;
+    _model.query.clear();
+    _model.open_files.clear();
+    _model.timestamp_formats.clear();
+    _model.filter_picker_entries.clear();
+    _model.timestamp_offset_source_label = std::move(source_label);
+    _close_open_file_selection_handler  = {};
+    _timestamp_source_selection_handler = {};
+    _timestamp_format_selection_handler = {};
+    _timestamp_offset_input_handler     = std::move(on_confirm);
+    _delete_filters_selection_handler   = {};
+    _model.cursor_position              = 0;
+    _model.selected_index               = 0;
+    _model.status_message.clear();
+    _model.status_is_error = false;
+    refresh_timestamp_offset_preview();
     refresh_matches();
 }
 
@@ -248,9 +292,13 @@ void CommandPaletteController::open_delete_filters_picker(std::vector<CommandPal
     _model.open_files.clear();
     _model.timestamp_formats.clear();
     _model.filter_picker_entries       = std::move(filters);
+    _model.timestamp_offset_source_label.clear();
+    _model.timestamp_offset_preview.clear();
+    _model.timestamp_offset_preview_is_error = false;
     _close_open_file_selection_handler  = {};
     _timestamp_source_selection_handler = {};
     _timestamp_format_selection_handler = {};
+    _timestamp_offset_input_handler     = {};
     _delete_filters_selection_handler   = std::move(on_confirm);
     _model.cursor_position              = 0;
     _model.selected_index               = 0;
@@ -267,9 +315,13 @@ void CommandPaletteController::close()
     _model.open_files.clear();
     _model.timestamp_formats.clear();
     _model.filter_picker_entries.clear();
+    _model.timestamp_offset_source_label.clear();
+    _model.timestamp_offset_preview.clear();
+    _model.timestamp_offset_preview_is_error = false;
     _close_open_file_selection_handler  = {};
     _timestamp_source_selection_handler = {};
     _timestamp_format_selection_handler = {};
+    _timestamp_offset_input_handler     = {};
     _delete_filters_selection_handler   = {};
     _model.cursor_position              = 0;
     _model.selected_index               = 0;
@@ -298,8 +350,9 @@ bool CommandPaletteController::handle_event(const ftxui::Event& event)
     const bool timestamp_format_mode      = _model.mode == CommandPaletteMode::SelectTimestampFormat;
     const bool single_selection_mode      = close_open_file_mode || timestamp_source_mode || timestamp_format_mode;
     const bool delete_filters_mode        = _model.mode == CommandPaletteMode::DeleteFilters;
+    const bool timestamp_offset_mode      = _model.mode == CommandPaletteMode::EnterTimestampOffset;
 
-    if (_command_history != nullptr && event == ftxui::Event::CtrlR && !single_selection_mode && !delete_filters_mode)
+    if (_command_history != nullptr && event == ftxui::Event::CtrlR && !single_selection_mode && !delete_filters_mode && !timestamp_offset_mode)
     {
         _model.mode           = _model.mode == CommandPaletteMode::Commands ? CommandPaletteMode::History : CommandPaletteMode::Commands;
         _model.selected_index = 0;
@@ -413,6 +466,10 @@ bool CommandPaletteController::handle_event(const ftxui::Event& event)
         {
             result = execute_timestamp_format_selection();
         }
+        else if (_model.mode == CommandPaletteMode::EnterTimestampOffset)
+        {
+            result = execute_timestamp_offset_input();
+        }
         else if (_model.mode == CommandPaletteMode::DeleteFilters)
         {
             result = execute_delete_filters_selection();
@@ -434,6 +491,11 @@ bool CommandPaletteController::handle_event(const ftxui::Event& event)
 
     if (event == ftxui::Event::Tab)
     {
+        if (_model.mode == CommandPaletteMode::EnterTimestampOffset)
+        {
+            return true;
+        }
+
         if (_model.mode == CommandPaletteMode::History)
         {
             copy_selected_history_entry_to_query();
@@ -489,6 +551,9 @@ void CommandPaletteController::refresh_matches()
         _model.open_files.clear();
         _model.timestamp_formats.clear();
         _model.filter_picker_entries.clear();
+        _model.timestamp_offset_source_label.clear();
+        _model.timestamp_offset_preview.clear();
+        _model.timestamp_offset_preview_is_error = false;
         if (_command_history != nullptr)
         {
             _model.matching_history_entries = _command_history->matching_entries(_model.query);
@@ -504,6 +569,9 @@ void CommandPaletteController::refresh_matches()
         _model.open_files.clear();
         _model.timestamp_formats.clear();
         _model.filter_picker_entries.clear();
+        _model.timestamp_offset_source_label.clear();
+        _model.timestamp_offset_preview.clear();
+        _model.timestamp_offset_preview_is_error = false;
         _model.matching_commands = _command_manager.matching_commands(_model.query);
     }
     else if (_model.mode == CommandPaletteMode::CloseOpenFile)
@@ -512,6 +580,9 @@ void CommandPaletteController::refresh_matches()
         _model.matching_commands.clear();
         _model.timestamp_formats.clear();
         _model.filter_picker_entries.clear();
+        _model.timestamp_offset_source_label.clear();
+        _model.timestamp_offset_preview.clear();
+        _model.timestamp_offset_preview_is_error = false;
     }
     else if (_model.mode == CommandPaletteMode::SelectTimestampSource)
     {
@@ -519,6 +590,9 @@ void CommandPaletteController::refresh_matches()
         _model.matching_commands.clear();
         _model.timestamp_formats.clear();
         _model.filter_picker_entries.clear();
+        _model.timestamp_offset_source_label.clear();
+        _model.timestamp_offset_preview.clear();
+        _model.timestamp_offset_preview_is_error = false;
     }
     else if (_model.mode == CommandPaletteMode::SelectTimestampFormat)
     {
@@ -526,6 +600,18 @@ void CommandPaletteController::refresh_matches()
         _model.matching_commands.clear();
         _model.open_files.clear();
         _model.filter_picker_entries.clear();
+        _model.timestamp_offset_source_label.clear();
+        _model.timestamp_offset_preview.clear();
+        _model.timestamp_offset_preview_is_error = false;
+    }
+    else if (_model.mode == CommandPaletteMode::EnterTimestampOffset)
+    {
+        _model.matching_history_entries.clear();
+        _model.matching_commands.clear();
+        _model.open_files.clear();
+        _model.timestamp_formats.clear();
+        _model.filter_picker_entries.clear();
+        refresh_timestamp_offset_preview();
     }
     else if (_model.mode == CommandPaletteMode::DeleteFilters)
     {
@@ -533,6 +619,9 @@ void CommandPaletteController::refresh_matches()
         _model.matching_commands.clear();
         _model.open_files.clear();
         _model.timestamp_formats.clear();
+        _model.timestamp_offset_source_label.clear();
+        _model.timestamp_offset_preview.clear();
+        _model.timestamp_offset_preview_is_error = false;
     }
     else
     {
@@ -540,6 +629,9 @@ void CommandPaletteController::refresh_matches()
         _model.matching_commands.clear();
         _model.open_files.clear();
         _model.timestamp_formats.clear();
+        _model.timestamp_offset_source_label.clear();
+        _model.timestamp_offset_preview.clear();
+        _model.timestamp_offset_preview_is_error = false;
     }
 
     if (active_match_count() == 0)
@@ -738,6 +830,20 @@ void CommandPaletteController::rebuild_result_lines()
             }
         }
     }
+    else if (_model.mode == CommandPaletteMode::EnterTimestampOffset)
+    {
+        push_line("Source: " + _model.timestamp_offset_source_label, -1);
+        push_line("Expected: DD hh:mm:ss[.fraction]", -1);
+        push_line("Example: 20 02:10:10.005", -1);
+        if (_model.timestamp_offset_preview.empty())
+        {
+            push_line("Enter an offset", -1);
+        }
+        else
+        {
+            push_line(_model.timestamp_offset_preview, -1);
+        }
+    }
     else if (_model.mode == CommandPaletteMode::DeleteFilters)
     {
         if (_model.filter_picker_entries.empty())
@@ -928,6 +1034,48 @@ CommandResult CommandPaletteController::execute_timestamp_format_selection()
 
     auto handler = _timestamp_format_selection_handler;
     return handler(static_cast<std::size_t>(_model.selected_index));
+}
+
+CommandResult CommandPaletteController::execute_timestamp_offset_input()
+{
+    if (_timestamp_offset_input_handler == nullptr)
+    {
+        return {false, "No timestamp offset handler is configured."};
+    }
+
+    if (!parse_log_timestamp_offset(_model.query).has_value())
+    {
+        refresh_timestamp_offset_preview();
+        return {false, _model.timestamp_offset_preview.empty() ? "Invalid offset: expected DD hh:mm:ss[.fraction]" : _model.timestamp_offset_preview, false};
+    }
+
+    return _timestamp_offset_input_handler(_model.query);
+}
+
+void CommandPaletteController::refresh_timestamp_offset_preview()
+{
+    if (_model.mode != CommandPaletteMode::EnterTimestampOffset)
+    {
+        return;
+    }
+
+    if (_model.query.empty())
+    {
+        _model.timestamp_offset_preview = "Enter offset as DD hh:mm:ss[.fraction]";
+        _model.timestamp_offset_preview_is_error = false;
+        return;
+    }
+
+    const auto offset = parse_log_timestamp_offset(_model.query);
+    if (!offset.has_value())
+    {
+        _model.timestamp_offset_preview = "Invalid offset: expected DD hh:mm:ss[.fraction]";
+        _model.timestamp_offset_preview_is_error = true;
+        return;
+    }
+
+    _model.timestamp_offset_preview = "Applies offset: " + format_log_timestamp_offset(*offset);
+    _model.timestamp_offset_preview_is_error = false;
 }
 
 CommandResult CommandPaletteController::execute_delete_filters_selection()

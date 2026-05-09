@@ -237,6 +237,34 @@ TEST(AllTrackedSourcesTest, SetSourceTimestampFormatReparsesAndResortsAllLines)
                                            }));
 }
 
+TEST(AllTrackedSourcesTest, SetSourceTimestampOffsetResortsByOffsetTimestamp)
+{
+    const auto root      = make_unique_test_path("");
+    const auto alpha_log = root / "alpha.log";
+    const auto beta_log  = root / "beta.log";
+    ScopedTestFile alpha_file(alpha_log);
+    ScopedTestFile beta_file(beta_log);
+    alpha_file.write("2026-04-01T10:00:00 alpha first\n");
+    beta_file.write("2026-04-01T10:05:00 beta second\n");
+
+    AllTrackedSources tracked_sources;
+    ASSERT_FALSE(tracked_sources.open_source(parse_log_source(alpha_log.string())).has_value());
+    ASSERT_FALSE(tracked_sources.open_source(parse_log_source(beta_log.string())).has_value());
+
+    ASSERT_FALSE(tracked_sources.set_source_timestamp_offset(1, *parse_log_timestamp_offset("-00 00:10:00")).has_value());
+
+    EXPECT_EQ(all_texts(tracked_sources), (std::vector<std::string> {
+                                               "2026-04-01T10:05:00 beta second",
+                                               "2026-04-01T10:00:00 alpha first",
+                                           }));
+
+    ASSERT_FALSE(tracked_sources.clear_source_timestamp_offset(1).has_value());
+    EXPECT_EQ(all_texts(tracked_sources), (std::vector<std::string> {
+                                               "2026-04-01T10:00:00 alpha first",
+                                               "2026-04-01T10:05:00 beta second",
+                                           }));
+}
+
 TEST(AllTrackedSourcesTest, RebuildAllLinesReportsProgressThroughNotifier)
 {
     const auto path = make_unique_test_path();

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -20,6 +21,8 @@ public:
 
     bool poll() override;
     void set_timestamp_format(std::string format) override;
+    std::optional<std::string> set_timestamp_offset(LogTimestampOffset offset) override;
+    void clear_timestamp_offset() override;
     void finish_open_notification(std::string title, std::string message, NotificationLevel level, float progress);
 
 private:
@@ -30,6 +33,7 @@ private:
 
     void refresh_active_children();
     void remove_inactive_children();
+    void rebuild_entries_from_children();
 
     std::unordered_map<std::string, ChildState> _children;
     std::vector<std::string> _active_file_order;

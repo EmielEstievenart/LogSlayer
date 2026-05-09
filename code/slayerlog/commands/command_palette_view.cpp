@@ -80,6 +80,19 @@ ftxui::Element build_palette_help(CommandPaletteMode mode)
         });
     }
 
+    if (mode == CommandPaletteMode::EnterTimestampOffset)
+    {
+        return ftxui::hbox({
+            theme::key_hint("Enter", "apply"),
+            sep(),
+            theme::key_hint("PgUp/PgDn", "scroll"),
+            sep(),
+            theme::key_hint("Ctrl+Left/Right", "h-scroll"),
+            sep(),
+            theme::key_hint("Esc", "cancel"),
+        });
+    }
+
     if (mode == CommandPaletteMode::DeleteFilters)
     {
         return ftxui::hbox({
@@ -182,11 +195,16 @@ ftxui::Element CommandPaletteView::render(CommandPaletteController& command_pale
     {
         status = ftxui::text(command_palette.status_message) | ftxui::color(command_palette.status_is_error ? theme::error_fg : theme::success_fg);
     }
+    else if (command_palette.mode == CommandPaletteMode::EnterTimestampOffset && !command_palette.timestamp_offset_preview.empty())
+    {
+        status = ftxui::text(command_palette.timestamp_offset_preview) | ftxui::color(command_palette.timestamp_offset_preview_is_error ? theme::error_fg : theme::success_fg);
+    }
 
     const std::string title = command_palette.mode == CommandPaletteMode::History                 ? "Command History"
                               : command_palette.mode == CommandPaletteMode::CloseOpenFile         ? "Close Open File"
                               : command_palette.mode == CommandPaletteMode::SelectTimestampSource ? "Select Log Source"
                               : command_palette.mode == CommandPaletteMode::SelectTimestampFormat ? "Select Timestamp Format"
+                              : command_palette.mode == CommandPaletteMode::EnterTimestampOffset  ? "Set Timestamp Offset"
                               : command_palette.mode == CommandPaletteMode::DeleteFilters         ? "Delete Filters"
                                                                                                    : "Command Palette";
 
@@ -202,6 +220,10 @@ ftxui::Element CommandPaletteView::render(CommandPaletteController& command_pale
     else if (command_palette.mode == CommandPaletteMode::SelectTimestampFormat)
     {
         body.push_back(ftxui::text("Select timestamp format") | ftxui::color(theme::muted));
+    }
+    else if (command_palette.mode == CommandPaletteMode::EnterTimestampOffset)
+    {
+        body.push_back(render_command_palette_query(command_palette));
     }
     else if (command_palette.mode == CommandPaletteMode::DeleteFilters)
     {

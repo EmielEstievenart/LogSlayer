@@ -171,4 +171,36 @@ TEST(LogTimestampTest, SupportsNegativeEpochSeconds)
     EXPECT_EQ(format_log_timestamp_utc(*timestamp), "1969-12-31 23:59:59.5");
 }
 
+TEST(LogTimestampTest, ParsesTimestampOffsetWithFraction)
+{
+    const auto offset = parse_log_timestamp_offset("20 02:10:10.005");
+
+    ASSERT_TRUE(offset.has_value());
+    EXPECT_EQ(offset->seconds, 20 * 86400 + 2 * 3600 + 10 * 60 + 10);
+    EXPECT_EQ(offset->nanosecond, 5000000);
+    EXPECT_EQ(format_log_timestamp_offset(*offset), "+20d 02:10:10.005");
+}
+
+TEST(LogTimestampTest, ParsesNegativeTimestampOffsetWithFraction)
+{
+    const auto offset = parse_log_timestamp_offset("-00 00:00:10.000500");
+
+    ASSERT_TRUE(offset.has_value());
+    EXPECT_EQ(offset->seconds, -10);
+    EXPECT_EQ(offset->nanosecond, -500000);
+    EXPECT_EQ(format_log_timestamp_offset(*offset), "-00d 00:00:10.0005");
+}
+
+TEST(LogTimestampTest, AddsTimestampOffsetAcrossSecondBoundary)
+{
+    const LogTimestamp timestamp {0, 250000000};
+    const LogTimestampOffset offset {-1, -500000000};
+
+    const auto result = add_offset(timestamp, offset);
+
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result->epoch_seconds, -2);
+    EXPECT_EQ(result->nanosecond, 750000000U);
+}
+
 } // namespace slayerlog

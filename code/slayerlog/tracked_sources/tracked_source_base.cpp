@@ -31,6 +31,21 @@ void TrackedSourceBase::set_source_label(std::string source_label)
     _source_label = std::move(source_label);
 }
 
+std::optional<std::string> TrackedSourceBase::set_timestamp_offset(LogTimestampOffset offset)
+{
+    _timestamp_offset = offset;
+    return apply_timestamp_offset_to_entries();
+}
+
+void TrackedSourceBase::clear_timestamp_offset()
+{
+    _timestamp_offset.reset();
+    for (const auto& entry : _entries)
+    {
+        entry->metadata.offset_timestamp.reset();
+    }
+}
+
 const std::vector<std::shared_ptr<LogEntry>>& TrackedSourceBase::entries() const
 {
     return _entries;
@@ -39,6 +54,11 @@ const std::vector<std::shared_ptr<LogEntry>>& TrackedSourceBase::entries() const
 const std::shared_ptr<const TimestampFormatCatalog>& TrackedSourceBase::timestamp_formats() const
 {
     return _timestamp_formats;
+}
+
+const std::optional<LogTimestampOffset>& TrackedSourceBase::timestamp_offset() const
+{
+    return _timestamp_offset;
 }
 
 void TrackedSourceBase::set_timestamp_formats(std::shared_ptr<const TimestampFormatCatalog> timestamp_formats)
@@ -59,6 +79,7 @@ void TrackedSourceBase::reparse_entries(SourceTimestampParser& parser, bool& par
     for (const auto& entry : _entries)
     {
         entry->metadata.timestamp.reset();
+        entry->metadata.offset_timestamp.reset();
         entry->metadata.extracted_time_text.clear();
         entry->metadata.extracted_time_start.reset();
         entry->metadata.extracted_time_end.reset();
@@ -76,8 +97,57 @@ void TrackedSourceBase::reparse_entries(SourceTimestampParser& parser, bool& par
         if (parser_initialized)
         {
             parser.parse(*entry);
+            (void)apply_timestamp_offset(*entry);
         }
     }
+}
+
+std::optional<std::string> TrackedSourceBase::apply_timestamp_offset_to_entries()
+{
+    std::vector<std::optional<LogTimestamp>> offset_timestamps;
+    offset_timestamps.reserve(_entries.size());
+
+    for (const auto& entry : _entries)
+    {
+        if (!_timestamp_offset.has_value() || !entry->metadata.timestamp.has_value())
+        {
+            offset_timestamps.push_back(std::nullopt);
+            continue;
+        }
+
+        const auto offset_timestamp = add_offset(*entry->metadata.timestamp, *_timestamp_offset);
+        if (!offset_timestamp.has_value())
+        {
+            return "Timestamp offset would overflow";
+        }
+
+        offset_timestamps.push_back(*offset_timestamp);
+    }
+
+    for (std::size_t index = 0; index < _entries.size(); ++index)
+    {
+        _entries[index]->metadata.offset_timestamp = offset_timestamps[index];
+    }
+
+    return std::nullopt;
+}
+
+std::optional<std::string> TrackedSourceBase::apply_timestamp_offset(LogEntry& entry) const
+{
+    entry.metadata.offset_timestamp.reset();
+    if (!_timestamp_offset.has_value() || !entry.metadata.timestamp.has_value())
+    {
+        return std::nullopt;
+    }
+
+    const auto offset_timestamp = add_offset(*entry.metadata.timestamp, *_timestamp_offset);
+    if (!offset_timestamp.has_value())
+    {
+        return "Timestamp offset would overflow";
+    }
+
+    entry.metadata.offset_timestamp = *offset_timestamp;
+    return std::nullopt;
 }
 
 void TrackedSourceBase::reserve_entries(std::size_t additional_count)

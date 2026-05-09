@@ -27,14 +27,15 @@ std::optional<LogTimestamp> earliest_new_timestamp(const std::vector<LogBatchSou
         }
 
         const auto& entry = (*source_range.entries)[source_range.first_entry_index];
-        if (!entry->metadata.timestamp.has_value())
+        const auto timestamp = effective_timestamp(entry->metadata);
+        if (!timestamp.has_value())
         {
             continue;
         }
 
-        if (!earliest_timestamp.has_value() || entry->metadata.timestamp.value() < earliest_timestamp.value())
+        if (!earliest_timestamp.has_value() || timestamp.value() < earliest_timestamp.value())
         {
-            earliest_timestamp = entry->metadata.timestamp;
+            earliest_timestamp = timestamp;
         }
     }
 
@@ -46,12 +47,13 @@ std::size_t find_rewrite_start_index(const IndexedVector<std::shared_ptr<LogEntr
     for (std::size_t line_index = 0; line_index < all_lines.size(); ++line_index)
     {
         const auto& line = all_lines[AllLineIndex {static_cast<int>(line_index)}];
-        if (!line->metadata.timestamp.has_value())
+        const auto timestamp = effective_timestamp(line->metadata);
+        if (!timestamp.has_value())
         {
             continue;
         }
 
-        if (line->metadata.timestamp.value() >= earliest_timestamp)
+        if (timestamp.value() >= earliest_timestamp)
         {
             return line_index;
         }
@@ -211,10 +213,11 @@ std::optional<AllLineIndex> AllTrackedSources::poll()
     if (!_all_lines.empty())
     {
         const auto& last_line = _all_lines[AllLineIndex {static_cast<int>(_all_lines.size() - 1)}];
-        if (last_line->metadata.timestamp.has_value())
+        const auto last_timestamp = effective_timestamp(last_line->metadata);
+        if (last_timestamp.has_value())
         {
             min_new_timestamp = earliest_new_timestamp(source_ranges);
-            if (min_new_timestamp.has_value() && min_new_timestamp.value() < last_line->metadata.timestamp.value())
+            if (min_new_timestamp.has_value() && min_new_timestamp.value() < last_timestamp.value())
             {
                 can_append_to_tail = false;
             }
@@ -333,6 +336,35 @@ std::optional<std::string> AllTrackedSources::set_source_timestamp_format(std::s
     }
 
     _sources[source_index]->set_timestamp_format(format);
+    rebuild_all_lines();
+    return std::nullopt;
+}
+
+std::optional<std::string> AllTrackedSources::set_source_timestamp_offset(std::size_t source_index, LogTimestampOffset offset)
+{
+    if (source_index >= _sources.size())
+    {
+        return "Invalid source selection";
+    }
+
+    const auto error = _sources[source_index]->set_timestamp_offset(offset);
+    if (error.has_value())
+    {
+        return error;
+    }
+
+    rebuild_all_lines();
+    return std::nullopt;
+}
+
+std::optional<std::string> AllTrackedSources::clear_source_timestamp_offset(std::size_t source_index)
+{
+    if (source_index >= _sources.size())
+    {
+        return "Invalid source selection";
+    }
+
+    _sources[source_index]->clear_timestamp_offset();
     rebuild_all_lines();
     return std::nullopt;
 }

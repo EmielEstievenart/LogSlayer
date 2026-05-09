@@ -213,6 +213,17 @@ TEST(LogModelTest, ShowsDetectedTimestampTextWhenEnabled)
     EXPECT_EQ(model.rendered_line(0), "1 {2026-04-01 10:00:00} INFO 2026-04-01 10:00:00 hello");
 }
 
+TEST(LogModelTest, RendersOffsetTimestampWhenPresent)
+{
+    LogModel model;
+    LogEntry entry {"alpha.log", "hello", test_timestamp()};
+    entry.metadata.offset_timestamp = *add_offset(*entry.metadata.timestamp, *parse_log_timestamp_offset("00 01:00:00"));
+
+    model.append_lines({entry});
+
+    EXPECT_EQ(model.rendered_line(0), "1 {2026-04-01 11:00:00} hello");
+}
+
 TEST(LogModelTest, HidesIdenticalMessagesThatOnlyDifferByTimestampByDefault)
 {
     LogModel model;

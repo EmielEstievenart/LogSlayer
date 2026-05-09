@@ -33,12 +33,13 @@ int decimal_width(std::size_t value)
 
 int rendered_timestamp_width(const LogEntry& entry)
 {
-    if (!entry.metadata.timestamp.has_value())
+    const auto timestamp = effective_timestamp(entry.metadata);
+    if (!timestamp.has_value())
     {
         return 0;
     }
 
-    return static_cast<int>(format_log_timestamp_utc(*entry.metadata.timestamp).size()) + 2;
+    return static_cast<int>(format_log_timestamp_utc(*timestamp).size()) + 2;
 }
 
 std::string trim_text(std::string_view text)
@@ -902,12 +903,13 @@ void AllProcessedSources::observe_entry_widths(AllLineIndex entry_index, const L
 
 std::string AllProcessedSources::render_timestamp_text(const LogEntry& entry) const
 {
-    if (!entry.metadata.timestamp.has_value())
+    const auto timestamp = effective_timestamp(entry.metadata);
+    if (!timestamp.has_value())
     {
         return {};
     }
 
-    return "{" + format_log_timestamp_utc(*entry.metadata.timestamp) + "}";
+    return "{" + format_log_timestamp_utc(*timestamp) + "}";
 }
 
 std::string AllProcessedSources::render_message_text(const LogEntry& entry) const

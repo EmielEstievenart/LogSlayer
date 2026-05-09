@@ -92,7 +92,7 @@ std::vector<std::shared_ptr<LogEntry>> merge_shared_log_batch(const std::vector<
             while (has_pending_entry(source_state))
             {
                 const auto& entry = current_entry_pointer(source_state);
-                if (entry->metadata.timestamp.has_value())
+                if (effective_timestamp(entry->metadata).has_value())
                 {
                     break;
                 }
@@ -119,15 +119,16 @@ std::vector<std::shared_ptr<LogEntry>> merge_shared_log_batch(const std::vector<
             }
 
             const auto& entry = current_entry_pointer(source_state);
-            if (!entry->metadata.timestamp.has_value())
+            const auto timestamp = effective_timestamp(entry->metadata);
+            if (!timestamp.has_value())
             {
                 continue;
             }
 
-            if (!next_source_index.has_value() || entry->metadata.timestamp.value() < next_timestamp.value())
+            if (!next_source_index.has_value() || timestamp.value() < next_timestamp.value())
             {
                 next_source_index = source_index;
-                next_timestamp    = entry->metadata.timestamp;
+                next_timestamp    = timestamp;
             }
         }
 
@@ -181,7 +182,7 @@ void merge_log_batch(const std::vector<LogBatchSourceRange>& source_ranges, std:
             while (has_pending_entry(source_state))
             {
                 const auto& entry = current_entry_pointer(source_state);
-                if (entry->metadata.timestamp.has_value())
+                if (effective_timestamp(entry->metadata).has_value())
                 {
                     break;
                 }
@@ -209,15 +210,16 @@ void merge_log_batch(const std::vector<LogBatchSourceRange>& source_ranges, std:
             }
 
             const auto& entry = current_entry_pointer(source_state);
-            if (!entry->metadata.timestamp.has_value())
+            const auto timestamp = effective_timestamp(entry->metadata);
+            if (!timestamp.has_value())
             {
                 continue;
             }
 
-            if (!next_state_index.has_value() || entry->metadata.timestamp.value() < next_timestamp.value())
+            if (!next_state_index.has_value() || timestamp.value() < next_timestamp.value())
             {
                 next_state_index = state_index;
-                next_timestamp   = entry->metadata.timestamp;
+                next_timestamp   = timestamp;
             }
         }
 

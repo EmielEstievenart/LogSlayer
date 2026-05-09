@@ -66,6 +66,7 @@ void TrackedSourceFile::add_entries_from_raw_strings(std::vector<std::string> li
         LogEntry& entry = append_entry();
         entry.text      = std::move(line);
         _timestamp_parser.parse(entry);
+        (void)apply_timestamp_offset(entry);
     }
 }
 

@@ -16,6 +16,7 @@ class TrackedSourceBase;
 struct LogEntryMetadata
 {
     std::optional<LogTimestamp> timestamp;
+    std::optional<LogTimestamp> offset_timestamp;
     std::string extracted_time_text;
     std::optional<std::size_t> extracted_time_start;
     std::optional<std::size_t> extracted_time_end;
@@ -31,6 +32,11 @@ struct LogEntryMetadata
     {
     }
 };
+
+inline std::optional<LogTimestamp> effective_timestamp(const LogEntryMetadata& metadata)
+{
+    return metadata.offset_timestamp.has_value() ? metadata.offset_timestamp : metadata.timestamp;
+}
 
 struct LogEntry
 {
