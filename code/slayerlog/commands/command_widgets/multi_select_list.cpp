@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <utility>
 
+#include "command_widgets/reflected_viewport.hpp"
 #include "view_theme.hpp"
 
 namespace slayerlog
@@ -56,23 +57,28 @@ ftxui::Element MultiSelectList::render()
         return ftxui::text("No entries") | ftxui::color(theme::muted);
     }
 
-    ensure_focus_visible();
-
-    ftxui::Elements rows;
-    const std::size_t visible_count = static_cast<std::size_t>(std::max(1, _viewport_height));
-    const std::size_t end_index     = std::min(_labels.size(), _first_visible_index + visible_count);
-    for (std::size_t index = _first_visible_index; index < end_index; ++index)
-    {
-        const std::string prefix = _selected_indices.count(index) == 0 ? "[ ] " : "[x] ";
-        ftxui::Element row       = ftxui::text(prefix + _labels[index]);
-        if (index == _focused_index)
+    return reflected_viewport(
+        [this](int width, int height) { set_viewport_size(width, height); },
+        [this]()
         {
-            row = row | ftxui::inverted;
-        }
-        rows.push_back(std::move(row));
-    }
+            ensure_focus_visible();
 
-    return ftxui::vbox(std::move(rows));
+            ftxui::Elements rows;
+            const std::size_t visible_count = static_cast<std::size_t>(std::max(1, _viewport_height));
+            const std::size_t end_index     = std::min(_labels.size(), _first_visible_index + visible_count);
+            for (std::size_t index = _first_visible_index; index < end_index; ++index)
+            {
+                const std::string prefix = _selected_indices.count(index) == 0 ? "[ ] " : "[x] ";
+                ftxui::Element row       = ftxui::text(prefix + _labels[index]);
+                if (index == _focused_index)
+                {
+                    row = row | ftxui::inverted;
+                }
+                rows.push_back(std::move(row));
+            }
+
+            return ftxui::vbox(std::move(rows));
+        });
 }
 
 std::vector<std::size_t> MultiSelectList::selected_indices() const

@@ -100,8 +100,8 @@ CommandEventResult SetTimeFormatCommand::handle_event(const ftxui::Event& event)
 
 ftxui::Element SetTimeFormatCommand::render()
 {
-    if (_state == State::SourceSelection && _source_picker.has_value()) { return ftxui::vbox({ftxui::text("Select source to reparse") | ftxui::color(theme::muted), ftxui::separator(), _source_picker->render()}); }
-    if (_state == State::FormatSelection && _format_picker.has_value()) { return ftxui::vbox({ftxui::text("Select timestamp format") | ftxui::color(theme::muted), ftxui::separator(), _format_picker->render()}); }
+    if (_state == State::SourceSelection && _source_picker.has_value()) { return ftxui::vbox({ftxui::text("Select source to reparse") | ftxui::color(theme::muted), ftxui::separator(), _source_picker->render() | ftxui::flex}); }
+    if (_state == State::FormatSelection && _format_picker.has_value()) { return ftxui::vbox({ftxui::text("Select timestamp format") | ftxui::color(theme::muted), ftxui::separator(), _format_picker->render() | ftxui::flex}); }
     return ftxui::emptyElement();
 }
 

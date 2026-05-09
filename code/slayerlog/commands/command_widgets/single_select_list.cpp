@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <utility>
 
+#include "command_widgets/reflected_viewport.hpp"
 #include "view_theme.hpp"
 
 namespace slayerlog
@@ -47,22 +48,27 @@ ftxui::Element SingleSelectList::render()
         return ftxui::text("No entries") | ftxui::color(theme::muted);
     }
 
-    ensure_selection_visible();
-
-    ftxui::Elements rows;
-    const std::size_t visible_count = static_cast<std::size_t>(std::max(1, _viewport_height));
-    const std::size_t end_index     = std::min(_labels.size(), _first_visible_index + visible_count);
-    for (std::size_t index = _first_visible_index; index < end_index; ++index)
-    {
-        ftxui::Element row = ftxui::text(_labels[index]);
-        if (index == _selected_index)
+    return reflected_viewport(
+        [this](int width, int height) { set_viewport_size(width, height); },
+        [this]()
         {
-            row = row | ftxui::inverted;
-        }
-        rows.push_back(std::move(row));
-    }
+            ensure_selection_visible();
 
-    return ftxui::vbox(std::move(rows));
+            ftxui::Elements rows;
+            const std::size_t visible_count = static_cast<std::size_t>(std::max(1, _viewport_height));
+            const std::size_t end_index     = std::min(_labels.size(), _first_visible_index + visible_count);
+            for (std::size_t index = _first_visible_index; index < end_index; ++index)
+            {
+                ftxui::Element row = ftxui::text(_labels[index]);
+                if (index == _selected_index)
+                {
+                    row = row | ftxui::inverted;
+                }
+                rows.push_back(std::move(row));
+            }
+
+            return ftxui::vbox(std::move(rows));
+        });
 }
 
 std::optional<std::size_t> SingleSelectList::selected_index() const

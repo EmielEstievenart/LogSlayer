@@ -121,7 +121,7 @@ ftxui::Element DeleteFiltersCommand::render()
         return ftxui::emptyElement();
     }
 
-    return ftxui::vbox({ftxui::text("Mark filters to delete") | ftxui::color(theme::muted), ftxui::separator(), _picker->render()});
+    return ftxui::vbox({ftxui::text("Mark filters to delete") | ftxui::color(theme::muted), ftxui::separator(), _picker->render() | ftxui::flex});
 }
 
 std::string DeleteFiltersCommand::palette_title() const

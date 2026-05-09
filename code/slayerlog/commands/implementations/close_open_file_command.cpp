@@ -80,7 +80,7 @@ CommandEventResult CloseOpenFileCommand::handle_event(const ftxui::Event& event)
 ftxui::Element CloseOpenFileCommand::render()
 {
     if (!_picker.has_value()) { return ftxui::emptyElement(); }
-    return ftxui::vbox({ftxui::text("Select file to close") | ftxui::color(theme::muted), ftxui::separator(), _picker->render()});
+    return ftxui::vbox({ftxui::text("Select file to close") | ftxui::color(theme::muted), ftxui::separator(), _picker->render() | ftxui::flex});
 }
 
 std::string CloseOpenFileCommand::palette_title() const { return "Close Open File"; }

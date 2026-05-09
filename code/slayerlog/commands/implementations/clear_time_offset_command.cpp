@@ -74,7 +74,7 @@ CommandEventResult ClearTimeOffsetCommand::handle_event(const ftxui::Event& even
 ftxui::Element ClearTimeOffsetCommand::render()
 {
     if (!_picker.has_value()) { return ftxui::emptyElement(); }
-    return ftxui::vbox({ftxui::text("Select source to clear offset") | ftxui::color(theme::muted), ftxui::separator(), _picker->render()});
+    return ftxui::vbox({ftxui::text("Select source to clear offset") | ftxui::color(theme::muted), ftxui::separator(), _picker->render() | ftxui::flex});
 }
 
 std::string ClearTimeOffsetCommand::palette_title() const { return "Select Log Source"; }

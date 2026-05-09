@@ -165,7 +165,9 @@ ftxui::Element CommandPaletteView::render(CommandPaletteController& command_pale
 
         auto palette = ftxui::clear_under(ftxui::window(ftxui::text(active_command->palette_title()),
                                                         ftxui::vbox({
-                                                            active_command->render() | ftxui::flex,
+                                                            active_command->render() |
+                                                                ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, result_view_height(screen_height)) |
+                                                                ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 116) | ftxui::flex,
                                                             ftxui::separator(),
                                                             std::move(status),
                                                         }))) |

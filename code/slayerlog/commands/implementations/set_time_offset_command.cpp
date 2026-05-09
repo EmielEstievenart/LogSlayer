@@ -102,7 +102,7 @@ CommandEventResult SetTimeOffsetCommand::handle_event(const ftxui::Event& event)
 
 ftxui::Element SetTimeOffsetCommand::render()
 {
-    if (_state == State::SourceSelection && _source_picker.has_value()) { return ftxui::vbox({ftxui::text("Select source to offset") | ftxui::color(theme::muted), ftxui::separator(), _source_picker->render()}); }
+    if (_state == State::SourceSelection && _source_picker.has_value()) { return ftxui::vbox({ftxui::text("Select source to offset") | ftxui::color(theme::muted), ftxui::separator(), _source_picker->render() | ftxui::flex}); }
     if (_state == State::OffsetInput && _input.has_value()) { return ftxui::vbox({ftxui::text("Source: " + _labels[*_selected_source_index]) | ftxui::color(theme::muted), ftxui::text("Expected: DD hh:mm:ss[.fraction]") | ftxui::color(theme::muted), ftxui::text("Example: 20 02:10:10.005") | ftxui::color(theme::muted), ftxui::separator(), _input->render()}); }
     return ftxui::emptyElement();
 }
