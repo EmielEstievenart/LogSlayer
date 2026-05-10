@@ -1,5 +1,6 @@
 #include "settings_store.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
@@ -178,12 +179,28 @@ bool SettingsStore::ensure_default_values(std::string_view section, std::string_
 {
     error_message.clear();
 
-    if (!_ini.values(section, key).empty())
+    const auto existing_values = _ini.values(section, key);
+    if (existing_values.empty())
+    {
+        _ini.set_values(std::string(section), std::string(key), values);
+        return save(error_message);
+    }
+
+    std::vector<std::string> merged_values = values;
+    for (const auto& existing_value : existing_values)
+    {
+        if (std::find(merged_values.begin(), merged_values.end(), existing_value) == merged_values.end())
+        {
+            merged_values.push_back(existing_value);
+        }
+    }
+
+    if (merged_values == existing_values)
     {
         return true;
     }
 
-    _ini.set_values(std::string(section), std::string(key), values);
+    _ini.set_values(std::string(section), std::string(key), merged_values);
     return save(error_message);
 }
 

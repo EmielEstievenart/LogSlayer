@@ -343,7 +343,12 @@ std::string format_signals(const nlohmann::json& signals)
 
 std::string format_can_frame_line(const nlohmann::json& event)
 {
-    const std::string timestamp = json_string_value(event, "ts", "+" + json_number_text(event, "ts_rel_ns", "0") + "ns");
+    std::string timestamp = json_string_value(event, "ts", "+" + json_number_text(event, "ts_rel_ns", "0") + "ns");
+    if (!timestamp.empty() && timestamp.back() == 'Z')
+    {
+        timestamp.pop_back();
+    }
+
     const std::string direction = json_string_value(event, "direction", "rx");
     const std::string can_id = json_string_value(event, "id", "0x000");
     const std::string data = json_string_value(event, "data");

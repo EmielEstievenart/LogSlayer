@@ -61,6 +61,7 @@ std::vector<std::string> default_timestamp_formats()
         "YYYY-MM-DDThh:mm:ssZZZ",
         "YYYY-MM-DDThh:mm:ssZZ",
         "YYYY-MM-DDThh:mm:ssZ",
+        "YYYY-MM-DDThh:mm:ss.ffffff",
         "YYYY-MM-DDThh:mm:ss.f",
         "YYYY-MM-DDThh:mm:ss.fff",
         "YYYY-MM-DDThh:mm:ss",

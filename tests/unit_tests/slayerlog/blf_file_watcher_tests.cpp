@@ -37,7 +37,7 @@ TEST(BlfFileWatcherTest, FirstPollReturnsImporterStdoutLines)
                                return BlfFileWatcher::ImportResult {true, 0, {"{\"kind\":\"can_frame\",\"ts\":\"2021-04-08T13:50:21.104969Z\",\"channel\":1,\"direction\":\"rx\",\"id\":\"0x0C7\",\"data_len\":8,\"dlc\":8,\"data\":\"0000000000000404\",\"is_fd\":false}"}, {}, {}};
                            });
 
-    expect_poll_lines(watcher, {"2021-04-08T13:50:21.104969Z CAN1 RX 0x0C7 [8] 00 00 00 00 00 00 04 04"});
+    expect_poll_lines(watcher, {"2021-04-08T13:50:21.104969 CAN1 RX 0x0C7 [8] 00 00 00 00 00 00 04 04"});
 }
 
 TEST(BlfFileWatcherTest, SecondPollReturnsNothing)

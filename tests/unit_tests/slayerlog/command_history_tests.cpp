@@ -1,8 +1,10 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <string>
+#include <vector>
 
 #include "commands/command_history.hpp"
 #include "timestamp/source_timestamp_parser.hpp"
@@ -96,6 +98,29 @@ TEST(CommandHistoryTest, SeedsDefaultTimestampFormatsWhenMissing)
 
     const auto formats = settings_store.ini().values("timestamp_formats", "format");
     EXPECT_EQ(formats, default_timestamp_formats());
+
+    remove_temp_settings_file(settings_path);
+}
+
+TEST(CommandHistoryTest, AddsMissingDefaultTimestampFormatsToExistingSettings)
+{
+    const auto settings_path = make_temp_settings_path();
+    SettingsStore settings_store(settings_path);
+    std::string error_message;
+    std::vector<std::string> existing_formats = default_timestamp_formats();
+    existing_formats.erase(std::remove(existing_formats.begin(), existing_formats.end(), "YYYY-MM-DDThh:mm:ss.ffffff"), existing_formats.end());
+    existing_formats.push_back("custom-format");
+
+    ASSERT_TRUE(settings_store.load(error_message));
+    settings_store.ini().set_values("timestamp_formats", "format", existing_formats);
+    ASSERT_TRUE(settings_store.save(error_message));
+
+    ASSERT_TRUE(settings_store.ensure_default_values("timestamp_formats", "format", default_timestamp_formats(), error_message));
+
+    auto expected_formats = default_timestamp_formats();
+    expected_formats.push_back("custom-format");
+    const auto formats = settings_store.ini().values("timestamp_formats", "format");
+    EXPECT_EQ(formats, expected_formats);
 
     remove_temp_settings_file(settings_path);
 }
