@@ -118,6 +118,29 @@ Notification blf_import_progress_notification(const std::string& file_path, int 
     return notification;
 }
 
+Notification blf_format_progress_notification(const std::string& file_path, int percent)
+{
+    percent = std::max(0, std::min(100, percent));
+
+    Notification notification;
+    notification.title = "Formatting BLF content";
+    notification.message = std::to_string(percent) + "% " + source_basename_for_progress(file_path);
+    notification.level = percent >= 100 ? NotificationLevel::Success : NotificationLevel::Info;
+    notification.progress = static_cast<float>(percent) / 100.0F;
+    notification.timeout = percent >= 100 ? std::chrono::seconds(2) : std::chrono::milliseconds(0);
+    return notification;
+}
+
+int rounded_progress_percent(std::size_t completed_count, std::size_t total_count)
+{
+    if (total_count == 0)
+    {
+        return 100;
+    }
+
+    return static_cast<int>(((completed_count * 100) + (total_count / 2)) / total_count);
+}
+
 bool try_parse_progress_line(const std::string& line, int& percent)
 {
     if (line.size() < progress_prefix.size() || line.compare(0, progress_prefix.size(), progress_prefix.data(), progress_prefix.size()) != 0)
@@ -509,11 +532,27 @@ std::string format_imported_line(std::string line)
     return line;
 }
 
-void format_imported_lines(std::vector<std::string>& lines)
+void format_imported_lines(std::vector<std::string>& lines, const std::string& file_path, const Notifier& notifier)
 {
-    for (auto& line : lines)
+    NotificationHandle progress_notification(notifier);
+    int last_reported_percent = -1;
+    if (!lines.empty())
     {
+        (void)progress_notification.show_or_update(blf_format_progress_notification(file_path, 0));
+        last_reported_percent = 0;
+    }
+
+    for (std::size_t line_index = 0; line_index < lines.size(); ++line_index)
+    {
+        auto& line = lines[line_index];
         line = format_imported_line(std::move(line));
+
+        const int percent = rounded_progress_percent(line_index + 1, lines.size());
+        if (percent != last_reported_percent)
+        {
+            (void)progress_notification.show_or_update(blf_format_progress_notification(file_path, percent));
+            last_reported_percent = percent;
+        }
     }
 }
 
@@ -638,7 +677,7 @@ bool BlfFileWatcher::poll_locked(std::vector<std::string>& lines)
     }
 
     lines = std::move(result.stdout_lines);
-    format_imported_lines(lines);
+    format_imported_lines(lines, _file_path, _notifier);
 
     if (!result.started)
     {

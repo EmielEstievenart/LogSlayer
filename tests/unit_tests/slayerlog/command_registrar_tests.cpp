@@ -259,10 +259,22 @@ TEST(CommandRegistrarTest, OpenFileCommandOpensFileInBackgroundWhenTaskRunnerExi
     EXPECT_EQ(tracked_sources.line_count(), 1);
     ASSERT_EQ(processed_sources.line_count(), 1);
     EXPECT_NE(processed_sources.rendered_line(0).find("plain line"), std::string::npos);
-    ASSERT_EQ(sink->notifications.size(), 1U);
-    EXPECT_EQ(sink->notifications[0].title, "File opened");
-    EXPECT_EQ(sink->notifications[0].message, log_path.string());
-    EXPECT_EQ(sink->notifications[0].level, NotificationLevel::Success);
+    ASSERT_GE(sink->notifications.size(), 2U);
+    bool saw_building_view = false;
+    bool saw_file_opened = false;
+    for (const auto& notification : sink->notifications)
+    {
+        if (notification.title == "Building log view")
+        {
+            saw_building_view = true;
+        }
+        if (notification.title == "File opened" && notification.message == log_path.string() && notification.level == NotificationLevel::Success)
+        {
+            saw_file_opened = true;
+        }
+    }
+    EXPECT_TRUE(saw_building_view);
+    EXPECT_TRUE(saw_file_opened);
 
     remove_temp_export_file(log_path);
 }

@@ -6,6 +6,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <utility>
 
 #include "command_support.hpp"
@@ -46,6 +47,17 @@ void show_file_open_failed_notification(const Notifier& notifier, const std::str
     notification.level = NotificationLevel::Error;
     notification.timeout = std::chrono::seconds(10);
     (void)notifier.show(std::move(notification));
+}
+
+Notification file_view_progress_notification(const std::string& message, NotificationLevel level, float progress)
+{
+    Notification notification;
+    notification.title = "Building log view";
+    notification.message = message;
+    notification.level = level;
+    notification.progress = progress;
+    notification.timeout = progress >= 1.0F ? std::chrono::seconds(2) : std::chrono::milliseconds(0);
+    return notification;
 }
 
 void show_source_already_open_notification(const Notifier& notifier, const LogSource& source)
@@ -105,17 +117,26 @@ CommandResult OpenFileCommand::execute(std::string_view arguments)
                                                 {
                                                     auto source_state = create_tracked_source(source, display_path, timestamp_format_catalog, context.notifier);
                                                     source_state->poll();
+                                                    const std::size_t entry_count = source_state->entries().size();
+
+                                                    NotificationHandle view_progress(context.notifier);
+                                                    (void)view_progress.show_or_update(file_view_progress_notification("Preparing " + std::to_string(entry_count) + " log lines", NotificationLevel::Info, 0.0F));
+                                                    std::this_thread::sleep_for(std::chrono::milliseconds(16));
                                                     {
                                                         std::lock_guard lock(*context.model_mutex);
+                                                        (void)view_progress.show_or_update(file_view_progress_notification("Adding source to model", NotificationLevel::Info, 0.25F));
                                                         const auto error = context.tracked_sources.add_opened_source(std::move(source_state));
                                                         if (error.has_value())
                                                         {
                                                             SLAYERLOG_LOG_ERROR("open-file failed file=" << display_path << " error=" << *error);
+                                                            (void)view_progress.show_or_update(file_view_progress_notification(*error, NotificationLevel::Error, 1.0F));
                                                             show_file_open_failed_notification(context.notifier, *error);
                                                             return;
                                                         }
+                                                        (void)view_progress.show_or_update(file_view_progress_notification("Rendering " + std::to_string(entry_count) + " log lines", NotificationLevel::Info, 0.75F));
                                                         reload_processed_sources(context.tracked_sources, context.header_text, context.processed_sources, context.log_controller, context.screen);
                                                     }
+                                                    (void)view_progress.show_or_update(file_view_progress_notification("Ready " + std::to_string(entry_count) + " log lines", NotificationLevel::Success, 1.0F));
                                                     show_file_opened_notification(context.notifier, source);
                                                 }
                                                 catch (const std::exception& ex)
