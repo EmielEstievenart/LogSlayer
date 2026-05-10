@@ -132,6 +132,8 @@ set(SLAYERLOG_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/watchers/log_watcher_base.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/watchers/log_watcher_factory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/watchers/log_watcher_factory.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/watchers/blf_file_watcher.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/watchers/blf_file_watcher.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/watchers/file_watcher.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/watchers/file_watcher.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/watchers/zstd_file_watcher.cpp
@@ -144,7 +146,8 @@ set(SLAYERLOG_CORE_SOURCES
 add_executable(LogSlayer main.cpp log4cplus.ini ${SLAYERLOG_CORE_SOURCES})
 
 target_compile_definitions(LogSlayer PRIVATE BOOST_ALL_NO_LIB
-                                              BOOST_USE_WINAPI_VERSION=0x0602)
+                                              BOOST_USE_WINAPI_VERSION=0x0602
+                                              LOGSLAYER_BLF_IMPORTER_SOURCE_PATH="${CMAKE_SOURCE_DIR}/tools/importers/blf/blf_to_logslayer.py")
 
 target_include_directories(
   LogSlayer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
@@ -165,3 +168,13 @@ add_custom_command(
     "${CMAKE_CURRENT_SOURCE_DIR}/log4cplus.ini"
     "$<TARGET_FILE_DIR:LogSlayer>/log4cplus.ini"
   COMMENT "Copy log4cplus.ini next to LogSlayer executable")
+
+add_custom_command(
+  TARGET LogSlayer
+  POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:LogSlayer>/tools/importers/blf"
+  COMMAND
+    ${CMAKE_COMMAND} -E copy_if_different
+    "${CMAKE_SOURCE_DIR}/tools/importers/blf/blf_to_logslayer.py"
+    "$<TARGET_FILE_DIR:LogSlayer>/tools/importers/blf/blf_to_logslayer.py"
+  COMMENT "Copy BLF importer next to LogSlayer executable")

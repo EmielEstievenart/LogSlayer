@@ -60,7 +60,7 @@ OpenFolderCommand::OpenFolderCommand(CommandContext context) : _context(context)
 
 const CommandDescriptor& OpenFolderCommand::descriptor() const
 {
-    static const CommandDescriptor descriptor {"open-folder", "Open folder and reload all tracked logs", "open-folder <path>", {"Watch every regular file in a local folder and include new files as they appear.", "Folder watching also opens .zst files and reads them through the zstd watcher.", "Use this for log directories; SSH folders are not supported.", "Example: open-folder logs/archive"}};
+    static const CommandDescriptor descriptor {"open-folder", "Open folder and reload all tracked logs", "open-folder <path>", {"Watch every regular file in a local folder and include new files as they appear.", "Supported file types include plain text logs, .zst compressed logs, and Vector .blf CAN/CAN-FD logs.", "BLF support requires Python and vblf: python -m pip install vblf", "Use this for log directories; SSH folders are not supported.", "Example: open-folder logs/archive"}};
     return descriptor;
 }
 

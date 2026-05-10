@@ -254,6 +254,35 @@ TEST(TrackedSourceTest, FilePollReadsZstdFileOnce)
     expect_no_poll_lines(tracked_source);
 }
 
+TEST(TrackedSourceTest, FilePollUsesBlfWatcherForCaseInsensitiveBlfExtension)
+{
+    ScopedTestFolder folder;
+    const std::vector<std::string> file_names {"lower.blf", "upper.BLF", "mixed.BlF"};
+
+    for (const auto& file_name : file_names)
+    {
+        folder.write_file(file_name, "raw blf bytes should not be tailed as text\n");
+
+        TrackedSourceFile tracked_source(parse_log_source((folder.path() / file_name).string()), file_name);
+
+        ASSERT_TRUE(tracked_source.poll()) << file_name;
+        ASSERT_FALSE(tracked_source.entries().empty()) << file_name;
+        EXPECT_NE(tracked_source.entries().front()->text.find("\"kind\":\"import_error\""), std::string::npos) << file_name;
+        EXPECT_NE(tracked_source.entries().front()->text.find("\"schema\":\"logslayer.blf.v1\""), std::string::npos) << file_name;
+        EXPECT_NE(tracked_source.entries().front()->text.find("raw blf bytes should not be tailed as text"), 0U) << file_name;
+    }
+}
+
+TEST(TrackedSourceTest, FilePollDoesNotTreatBlffooAsBlf)
+{
+    ScopedTestFolder folder;
+    folder.write_file("plain.blffoo", "plain text\n");
+
+    TrackedSourceFile tracked_source(parse_log_source((folder.path() / "plain.blffoo").string()), "plain.blffoo");
+
+    expect_poll_lines(tracked_source, {"plain text"});
+}
+
 TEST(TrackedSourceTest, FolderPollKeepsTailingNormalFilesAfterFirstPoll)
 {
     ScopedTestFolder folder;

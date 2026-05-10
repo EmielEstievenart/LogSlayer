@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <utility>
 
+#include "watchers/blf_file_watcher.hpp"
 #include "watchers/log_watcher_factory.hpp"
 #include "watchers/zstd_file_watcher.hpp"
 
@@ -21,6 +22,13 @@ bool has_zstd_extension(const std::filesystem::path& path)
     return extension == ".zst";
 }
 
+bool has_blf_extension(const std::filesystem::path& path)
+{
+    std::string extension = path.extension().string();
+    std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
+    return extension == ".blf";
+}
+
 } // namespace
 
 TrackedSourceFile::TrackedSourceFile(LogSource source, std::string source_label, std::shared_ptr<const TimestampFormatCatalog> timestamp_formats) : TrackedSourceBase(std::move(source), std::move(source_label), std::move(timestamp_formats))
@@ -29,6 +37,12 @@ TrackedSourceFile::TrackedSourceFile(LogSource source, std::string source_label,
     if (file_source.kind == LogSourceKind::LocalFile && has_zstd_extension(file_source.local_path))
     {
         _watcher = std::make_unique<ZstdFileWatcher>(file_source.local_path);
+        return;
+    }
+
+    if (file_source.kind == LogSourceKind::LocalFile && has_blf_extension(file_source.local_path))
+    {
+        _watcher = std::make_unique<BlfFileWatcher>(file_source.local_path);
         return;
     }
 
