@@ -158,7 +158,7 @@ target_include_directories(
 
 target_link_libraries(
   LogSlayer PRIVATE component ftxui_components Boost::program_options
-                    log4cplus::log4cplus libzstd eestv_lib)
+                    log4cplus::log4cplus libzstd eestv_lib nlohmann_json::nlohmann_json)
 
 add_custom_command(
   TARGET LogSlayer

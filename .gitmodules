@@ -17,3 +17,6 @@
 [submodule "libs/ftxui_components"]
 	path = libs/ftxui_components
 	url = git@github.com:EmielEstievenart/ftxui_components.git
+[submodule "libs/nlohmann_json"]
+	path = libs/nlohmann_json
+	url = https://github.com/nlohmann/json.git

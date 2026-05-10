@@ -107,6 +107,7 @@ set(ZSTD_BUILD_STATIC
     CACHE BOOL "Build static zstd library in the superproject" FORCE)
 add_subdirectory(libs/zstd)
 
+add_subdirectory(libs/nlohmann_json)
 add_subdirectory(libs/eestv)
 add_subdirectory(code/slayerlog)
 add_subdirectory(tests/unit_tests)

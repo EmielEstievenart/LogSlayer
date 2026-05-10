@@ -2,14 +2,18 @@
 
 #include <array>
 #include <chrono>
+#include <cctype>
 #include <cstdlib>
 #include <filesystem>
+#include <iomanip>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string_view>
 #include <thread>
 #include <utility>
+
+#include <nlohmann/json.hpp>
 
 #include "debug_log.hpp"
 #include "process_pipe.hpp"
@@ -229,6 +233,229 @@ std::vector<std::string> split_output_lines(const std::string& text)
     return lines;
 }
 
+std::string json_string_value(const nlohmann::json& object, const char* key, std::string fallback = {})
+{
+    const auto it = object.find(key);
+    if (it == object.end() || it->is_null())
+    {
+        return fallback;
+    }
+
+    if (it->is_string())
+    {
+        return it->get<std::string>();
+    }
+
+    return it->dump();
+}
+
+int json_int_value(const nlohmann::json& object, const char* key, int fallback = 0)
+{
+    const auto it = object.find(key);
+    if (it == object.end() || !it->is_number_integer())
+    {
+        return fallback;
+    }
+
+    return it->get<int>();
+}
+
+bool json_bool_value(const nlohmann::json& object, const char* key, bool fallback = false)
+{
+    const auto it = object.find(key);
+    if (it == object.end() || !it->is_boolean())
+    {
+        return fallback;
+    }
+
+    return it->get<bool>();
+}
+
+std::string json_number_text(const nlohmann::json& object, const char* key, std::string fallback = {})
+{
+    const auto it = object.find(key);
+    if (it == object.end() || !it->is_number())
+    {
+        return fallback;
+    }
+
+    return it->dump();
+}
+
+std::string spaced_hex_bytes(std::string_view text)
+{
+    std::string output;
+    output.reserve(text.size() + text.size() / 2);
+    for (std::size_t index = 0; index + 1 < text.size(); index += 2)
+    {
+        if (!output.empty())
+        {
+            output.push_back(' ');
+        }
+        output.push_back(text[index]);
+        output.push_back(text[index + 1]);
+    }
+    return output;
+}
+
+std::string format_json_value(const nlohmann::json& value)
+{
+    if (value.is_string())
+    {
+        return value.get<std::string>();
+    }
+
+    if (value.is_number_float())
+    {
+        std::ostringstream output;
+        output << std::setprecision(6) << value.get<double>();
+        return output.str();
+    }
+
+    if (value.is_boolean())
+    {
+        return value.get<bool>() ? "true" : "false";
+    }
+
+    return value.dump();
+}
+
+std::string format_signals(const nlohmann::json& signals)
+{
+    if (!signals.is_object())
+    {
+        return {};
+    }
+
+    std::ostringstream output;
+    bool first = true;
+    for (auto it = signals.begin(); it != signals.end(); ++it)
+    {
+        if (!first)
+        {
+            output << ' ';
+        }
+        first = false;
+        output << it.key() << '=' << format_json_value(it.value());
+    }
+    return output.str();
+}
+
+std::string format_can_frame_line(const nlohmann::json& event)
+{
+    const std::string timestamp = json_string_value(event, "ts", "+" + json_number_text(event, "ts_rel_ns", "0") + "ns");
+    const std::string direction = json_string_value(event, "direction", "rx");
+    const std::string can_id = json_string_value(event, "id", "0x000");
+    const std::string data = json_string_value(event, "data");
+    const int channel = json_int_value(event, "channel");
+    const int data_len = json_int_value(event, "data_len");
+
+    std::ostringstream output;
+    output << timestamp << " CAN" << channel << ' ';
+    for (const char character : direction)
+    {
+        output << static_cast<char>(std::toupper(static_cast<unsigned char>(character)));
+    }
+    output << ' ';
+    if (json_bool_value(event, "is_fd"))
+    {
+        output << "FD ";
+    }
+    output << can_id << " [" << data_len << "]";
+
+    const std::string spaced_data = spaced_hex_bytes(data);
+    if (!spaced_data.empty())
+    {
+        output << ' ' << spaced_data;
+    }
+
+    std::vector<std::string> annotations;
+    const int dlc = json_int_value(event, "dlc", data_len);
+    if (dlc != data_len)
+    {
+        annotations.push_back("dlc=" + std::to_string(dlc));
+    }
+    if (json_bool_value(event, "is_extended_id"))
+    {
+        annotations.push_back("ext");
+    }
+    if (json_bool_value(event, "is_remote_frame"))
+    {
+        annotations.push_back("rtr");
+    }
+    if (json_bool_value(event, "bitrate_switch"))
+    {
+        annotations.push_back("brs");
+    }
+    if (json_bool_value(event, "error_state_indicator"))
+    {
+        annotations.push_back("esi");
+    }
+
+    const std::string dbc_message = json_string_value(event, "dbc_message");
+    if (!dbc_message.empty())
+    {
+        annotations.push_back("msg=" + dbc_message);
+    }
+
+    const auto signals_it = event.find("signals");
+    if (signals_it != event.end())
+    {
+        const std::string signals = format_signals(*signals_it);
+        if (!signals.empty())
+        {
+            annotations.push_back("signals=" + signals);
+        }
+    }
+
+    const std::string decode_error = json_string_value(event, "decode_error");
+    if (!decode_error.empty())
+    {
+        annotations.push_back("decode_error=" + decode_error);
+    }
+
+    if (!annotations.empty())
+    {
+        output << " (";
+        for (std::size_t index = 0; index < annotations.size(); ++index)
+        {
+            if (index > 0)
+            {
+                output << ' ';
+            }
+            output << annotations[index];
+        }
+        output << ')';
+    }
+
+    return output.str();
+}
+
+std::string format_imported_line(std::string line)
+{
+    try
+    {
+        const auto event = nlohmann::json::parse(line);
+        if (json_string_value(event, "kind") == "can_frame")
+        {
+            return format_can_frame_line(event);
+        }
+    }
+    catch (const nlohmann::json::exception&)
+    {
+    }
+
+    return line;
+}
+
+void format_imported_lines(std::vector<std::string>& lines)
+{
+    for (auto& line : lines)
+    {
+        line = format_imported_line(std::move(line));
+    }
+}
+
 BlfFileWatcher::ImportResult run_process(const PythonCommand& command, const std::filesystem::path& importer_script, const std::string& file_path)
 {
     std::vector<std::string> arguments = command.prefix_arguments;
@@ -327,6 +554,7 @@ bool BlfFileWatcher::poll_locked(std::vector<std::string>& lines)
     }
 
     lines = std::move(result.stdout_lines);
+    format_imported_lines(lines);
 
     if (!result.started)
     {

@@ -34,10 +34,10 @@ TEST(BlfFileWatcherTest, FirstPollReturnsImporterStdoutLines)
                            [](const std::string& file_path)
                            {
                                EXPECT_EQ(file_path, "trace.blf");
-                               return BlfFileWatcher::ImportResult {true, 0, {"{\"kind\":\"can_frame\",\"seq\":0}", "{\"kind\":\"can_frame\",\"seq\":1}"}, {}, {}};
+                               return BlfFileWatcher::ImportResult {true, 0, {"{\"kind\":\"can_frame\",\"ts\":\"2021-04-08T13:50:21.104969Z\",\"channel\":1,\"direction\":\"rx\",\"id\":\"0x0C7\",\"data_len\":8,\"dlc\":8,\"data\":\"0000000000000404\",\"is_fd\":false}"}, {}, {}};
                            });
 
-    expect_poll_lines(watcher, {"{\"kind\":\"can_frame\",\"seq\":0}", "{\"kind\":\"can_frame\",\"seq\":1}"});
+    expect_poll_lines(watcher, {"2021-04-08T13:50:21.104969Z CAN1 RX 0x0C7 [8] 00 00 00 00 00 00 04 04"});
 }
 
 TEST(BlfFileWatcherTest, SecondPollReturnsNothing)
@@ -47,10 +47,10 @@ TEST(BlfFileWatcherTest, SecondPollReturnsNothing)
                            [&call_count](const std::string&)
                            {
                                ++call_count;
-                               return BlfFileWatcher::ImportResult {true, 0, {"{\"kind\":\"can_frame\"}"}, {}, {}};
+                               return BlfFileWatcher::ImportResult {true, 0, {"{\"kind\":\"blf_object\"}"}, {}, {}};
                            });
 
-    expect_poll_lines(watcher, {"{\"kind\":\"can_frame\"}"});
+    expect_poll_lines(watcher, {"{\"kind\":\"blf_object\"}"});
     expect_no_poll_lines(watcher);
     EXPECT_EQ(call_count, 1);
 }
