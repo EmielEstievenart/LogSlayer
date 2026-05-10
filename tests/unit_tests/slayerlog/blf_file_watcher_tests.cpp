@@ -30,8 +30,8 @@ void expect_no_poll_lines(BlfFileWatcher& watcher)
 
 TEST(BlfFileWatcherTest, FirstPollReturnsImporterStdoutLines)
 {
-    BlfFileWatcher watcher("trace.blf",
-                           [](const std::string& file_path)
+    BlfFileWatcher watcher("trace.blf", {},
+                           [](const std::string& file_path, const Notifier&)
                            {
                                EXPECT_EQ(file_path, "trace.blf");
                                return BlfFileWatcher::ImportResult {true, 0, {"{\"kind\":\"can_frame\",\"ts\":\"2021-04-08T13:50:21.104969Z\",\"channel\":1,\"direction\":\"rx\",\"id\":\"0x0C7\",\"data_len\":8,\"dlc\":8,\"data\":\"0000000000000404\",\"is_fd\":false}"}, {}, {}};
@@ -43,8 +43,8 @@ TEST(BlfFileWatcherTest, FirstPollReturnsImporterStdoutLines)
 TEST(BlfFileWatcherTest, SecondPollReturnsNothing)
 {
     int call_count = 0;
-    BlfFileWatcher watcher("trace.blf",
-                           [&call_count](const std::string&)
+    BlfFileWatcher watcher("trace.blf", {},
+                           [&call_count](const std::string&, const Notifier&)
                            {
                                ++call_count;
                                return BlfFileWatcher::ImportResult {true, 0, {"{\"kind\":\"blf_object\"}"}, {}, {}};
@@ -57,8 +57,8 @@ TEST(BlfFileWatcherTest, SecondPollReturnsNothing)
 
 TEST(BlfFileWatcherTest, NonzeroImporterWithStdoutAppendsErrorLine)
 {
-    BlfFileWatcher watcher("trace.blf",
-                           [](const std::string&)
+    BlfFileWatcher watcher("trace.blf", {},
+                           [](const std::string&, const Notifier&)
                            {
                                return BlfFileWatcher::ImportResult {true, 7, {"{\"kind\":\"import_error\",\"message\":\"from script\"}"}, "stderr details\n", {}};
                            });
@@ -74,8 +74,8 @@ TEST(BlfFileWatcherTest, NonzeroImporterWithStdoutAppendsErrorLine)
 
 TEST(BlfFileWatcherTest, NonzeroImporterWithoutStdoutReturnsErrorLine)
 {
-    BlfFileWatcher watcher("trace.blf",
-                           [](const std::string&)
+    BlfFileWatcher watcher("trace.blf", {},
+                           [](const std::string&, const Notifier&)
                            {
                                return BlfFileWatcher::ImportResult {true, 2, {}, {}, {}};
                            });
@@ -89,8 +89,8 @@ TEST(BlfFileWatcherTest, NonzeroImporterWithoutStdoutReturnsErrorLine)
 
 TEST(BlfFileWatcherTest, StartFailureReturnsErrorLine)
 {
-    BlfFileWatcher watcher("trace.blf",
-                           [](const std::string&)
+    BlfFileWatcher watcher("trace.blf", {},
+                           [](const std::string&, const Notifier&)
                            {
                                return BlfFileWatcher::ImportResult {false, 0, {}, {}, "missing python"};
                            });
@@ -104,8 +104,8 @@ TEST(BlfFileWatcherTest, StartFailureReturnsErrorLine)
 
 TEST(BlfFileWatcherTest, RunnerExceptionReturnsErrorLine)
 {
-    BlfFileWatcher watcher("trace.blf",
-                           [](const std::string&) -> BlfFileWatcher::ImportResult
+    BlfFileWatcher watcher("trace.blf", {},
+                           [](const std::string&, const Notifier&) -> BlfFileWatcher::ImportResult
                            {
                                throw std::runtime_error("runner exploded");
                            });

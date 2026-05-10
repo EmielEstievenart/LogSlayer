@@ -283,6 +283,31 @@ TEST(TrackedSourceTest, FilePollDoesNotTreatBlffooAsBlf)
     expect_poll_lines(tracked_source, {"plain text"});
 }
 
+TEST(TrackedSourceTest, BlfContentParsingReportsProgressThroughNotifier)
+{
+    ScopedTestFolder folder;
+    folder.write_file("trace.blf", "unused\n");
+    auto sink = std::make_shared<RecordingNotificationSink>();
+
+    TrackedSourceFile tracked_source(parse_log_source((folder.path() / "trace.blf").string()), "trace.blf", default_timestamp_format_catalog(), Notifier(sink));
+
+    tracked_source.add_entries_from_raw_strings({
+        "2021-04-08T13:50:21.104969 CAN1 RX 0x0C7 [8] 00 00 00 00 00 00 04 04",
+        "2021-04-08T13:50:21.105216 CAN1 RX 0x241 [8] 01 20 00 00 00 00 05 24",
+        "2021-04-08T13:50:21.105450 CAN1 RX 0x103 [8] 8F 47 8F 00 00 78 E4 DB",
+    });
+
+    ASSERT_EQ(sink->notifications.size(), 4U);
+    EXPECT_EQ(sink->notifications[0].title, "Parsing BLF content");
+    EXPECT_EQ(sink->notifications[0].message, "0% trace.blf");
+    EXPECT_EQ(sink->notifications[1].message, "33% trace.blf");
+    EXPECT_EQ(sink->notifications[2].message, "67% trace.blf");
+    EXPECT_EQ(sink->notifications[3].message, "100% trace.blf");
+    ASSERT_TRUE(sink->notifications[3].progress.has_value());
+    EXPECT_FLOAT_EQ(*sink->notifications[3].progress, 1.0F);
+    EXPECT_EQ(sink->updated_ids, std::vector<NotificationId>({1, 1, 1}));
+}
+
 TEST(TrackedSourceTest, FolderPollKeepsTailingNormalFilesAfterFirstPoll)
 {
     ScopedTestFolder folder;

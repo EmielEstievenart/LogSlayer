@@ -23,7 +23,7 @@ public:
     explicit AllTrackedSources(std::shared_ptr<const TimestampFormatCatalog> timestamp_formats = default_timestamp_format_catalog());
     ~AllTrackedSources();
 
-    std::optional<std::string> open_source(const LogSource& source);
+    std::optional<std::string> open_source(const LogSource& source, Notifier notifier = {});
     std::optional<std::string> add_opened_source(std::unique_ptr<TrackedSourceBase> source_state);
     std::optional<std::string> close_source(std::size_t source_index, std::string* closed_label = nullptr);
 

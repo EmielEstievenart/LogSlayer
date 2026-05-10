@@ -227,6 +227,46 @@ TEST(CommandRegistrarTest, OpenFileCommandShowsToastWhenSourceAlreadyOpen)
     remove_temp_export_file(log_path);
 }
 
+TEST(CommandRegistrarTest, OpenFileCommandOpensFileInBackgroundWhenTaskRunnerExists)
+{
+    const auto log_path = make_temp_export_path();
+    {
+        std::ofstream output(log_path, std::ios::binary | std::ios::trunc);
+        ASSERT_TRUE(output.is_open());
+        output << "plain line\n";
+    }
+
+    AllProcessedSources processed_sources;
+    CommandManager command_manager;
+    LogController controller;
+    CommandPaletteModel command_palette_model;
+    CommandPaletteController command_palette_controller(command_palette_model, command_manager);
+    std::string header_text;
+    auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
+    AllTrackedSources tracked_sources;
+    std::mutex model_mutex;
+    std::vector<std::thread> background_tasks;
+    auto sink = std::make_shared<RecordingNotificationSink>();
+    register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen, Notifier(sink), &model_mutex, &background_tasks});
+
+    const auto result = command_manager.execute("open-file " + log_path.string());
+
+    EXPECT_TRUE(result.success);
+    EXPECT_EQ(result.message, "Opening file in background: " + log_path.string());
+    ASSERT_EQ(background_tasks.size(), 1U);
+    background_tasks.front().join();
+
+    EXPECT_EQ(tracked_sources.line_count(), 1);
+    ASSERT_EQ(processed_sources.line_count(), 1);
+    EXPECT_NE(processed_sources.rendered_line(0).find("plain line"), std::string::npos);
+    ASSERT_EQ(sink->notifications.size(), 1U);
+    EXPECT_EQ(sink->notifications[0].title, "File opened");
+    EXPECT_EQ(sink->notifications[0].message, log_path.string());
+    EXPECT_EQ(sink->notifications[0].level, NotificationLevel::Success);
+
+    remove_temp_export_file(log_path);
+}
+
 TEST(CommandRegistrarTest, OpenFolderCommandPreflightsAlreadyOpenSourceBeforeStartingBackgroundTask)
 {
     const auto folder_path = std::filesystem::temp_directory_path() / ("slayerlog_command_folder_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));

@@ -38,6 +38,7 @@ private:
     std::unordered_map<std::string, ChildState> _children;
     std::vector<std::string> _active_file_order;
     std::unordered_set<std::string> _active_file_paths;
+    Notifier _notifier;
     NotificationHandle _sort_progress_notification;
     NotificationHandle _open_progress_notification;
     bool _report_open_progress = true;

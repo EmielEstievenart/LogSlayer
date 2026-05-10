@@ -15,7 +15,7 @@ std::unique_ptr<TrackedSourceBase> create_tracked_source(LogSource source, std::
         return std::make_unique<TrackedSourceFolder>(std::move(source), std::move(source_label), std::move(timestamp_formats), std::move(notifier));
     }
 
-    return std::make_unique<TrackedSourceFile>(std::move(source), std::move(source_label), std::move(timestamp_formats));
+    return std::make_unique<TrackedSourceFile>(std::move(source), std::move(source_label), std::move(timestamp_formats), std::move(notifier));
 }
 
 } // namespace slayerlog

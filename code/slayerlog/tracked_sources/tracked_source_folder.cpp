@@ -94,7 +94,7 @@ Notification folder_open_progress_notification(std::size_t opened_file_count, st
 } // namespace
 
 TrackedSourceFolder::TrackedSourceFolder(LogSource source, std::string source_label, std::shared_ptr<const TimestampFormatCatalog> timestamp_formats, Notifier notifier)
-    : TrackedSourceBase(std::move(source), std::move(source_label), std::move(timestamp_formats)), _sort_progress_notification(notifier), _open_progress_notification(std::move(notifier))
+    : TrackedSourceBase(std::move(source), std::move(source_label), std::move(timestamp_formats)), _notifier(notifier), _sort_progress_notification(notifier), _open_progress_notification(std::move(notifier))
 {
 }
 
@@ -290,7 +290,7 @@ void TrackedSourceFolder::refresh_active_children()
         }
 
         ChildState child;
-        child.tracked_source = std::make_unique<TrackedSourceFile>(parse_log_source(file_path.string()), file_path.filename().string(), timestamp_formats());
+        child.tracked_source = std::make_unique<TrackedSourceFile>(parse_log_source(file_path.string()), file_path.filename().string(), timestamp_formats(), _notifier);
         if (timestamp_offset().has_value())
         {
             (void)child.tracked_source->set_timestamp_offset(*timestamp_offset());

@@ -1,7 +1,10 @@
 #include "implementations/open_file_command.hpp"
 
+#include <chrono>
 #include <cctype>
 #include <exception>
+#include <memory>
+#include <mutex>
 #include <string>
 #include <utility>
 
@@ -11,6 +14,7 @@
 #include "log_source.hpp"
 #include "tracked_sources/all_processed_sources.hpp"
 #include "tracked_sources/all_tracked_sources.hpp"
+#include "tracked_sources/tracked_source_factory.hpp"
 
 namespace slayerlog
 {
@@ -31,6 +35,16 @@ void show_file_opened_notification(const Notifier& notifier, const LogSource& so
     notification.title = "File opened";
     notification.message = source_display_path(source);
     notification.level = NotificationLevel::Success;
+    (void)notifier.show(std::move(notification));
+}
+
+void show_file_open_failed_notification(const Notifier& notifier, const std::string& message)
+{
+    Notification notification;
+    notification.title = "File open failed";
+    notification.message = message;
+    notification.level = NotificationLevel::Error;
+    notification.timeout = std::chrono::seconds(10);
     (void)notifier.show(std::move(notification));
 }
 
@@ -69,16 +83,49 @@ CommandResult OpenFileCommand::execute(std::string_view arguments)
         return {false, error};
     }
 
-    const auto error = _context.tracked_sources.open_source(source);
-    if (error.has_value())
+    if (_context.model_mutex == nullptr || _context.background_tasks == nullptr)
     {
-        SLAYERLOG_LOG_ERROR("open-file failed file=" << file_path << " error=" << *error);
-        return {false, *error};
+        const auto error = _context.tracked_sources.open_source(source, _context.notifier);
+        if (error.has_value())
+        {
+            SLAYERLOG_LOG_ERROR("open-file failed file=" << file_path << " error=" << *error);
+            return {false, *error};
+        }
+
+        reload_processed_sources(_context.tracked_sources, _context.header_text, _context.processed_sources, _context.log_controller, _context.screen);
+        show_file_opened_notification(_context.notifier, source);
+        return {true, "Opened file: " + source_display_path(source)};
     }
 
-    reload_processed_sources(_context.tracked_sources, _context.header_text, _context.processed_sources, _context.log_controller, _context.screen);
-    show_file_opened_notification(_context.notifier, source);
-    return {true, "Opened file: " + source_display_path(source)};
+    const std::string display_path = source_display_path(source);
+    auto timestamp_format_catalog = _context.tracked_sources.timestamp_format_catalog();
+    _context.background_tasks->emplace_back([source = std::move(source), display_path, timestamp_format_catalog = std::move(timestamp_format_catalog), context = _context]
+                                            {
+                                                try
+                                                {
+                                                    auto source_state = create_tracked_source(source, display_path, timestamp_format_catalog, context.notifier);
+                                                    source_state->poll();
+                                                    {
+                                                        std::lock_guard lock(*context.model_mutex);
+                                                        const auto error = context.tracked_sources.add_opened_source(std::move(source_state));
+                                                        if (error.has_value())
+                                                        {
+                                                            SLAYERLOG_LOG_ERROR("open-file failed file=" << display_path << " error=" << *error);
+                                                            show_file_open_failed_notification(context.notifier, *error);
+                                                            return;
+                                                        }
+                                                        reload_processed_sources(context.tracked_sources, context.header_text, context.processed_sources, context.log_controller, context.screen);
+                                                    }
+                                                    show_file_opened_notification(context.notifier, source);
+                                                }
+                                                catch (const std::exception& ex)
+                                                {
+                                                    SLAYERLOG_LOG_ERROR("open-file failed file=" << display_path << " error=" << ex.what());
+                                                    show_file_open_failed_notification(context.notifier, ex.what());
+                                                }
+                                            });
+
+    return {true, "Opening file in background: " + display_path};
 }
 
 } // namespace slayerlog

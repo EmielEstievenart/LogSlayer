@@ -95,7 +95,7 @@ AllTrackedSources::AllTrackedSources(std::shared_ptr<const TimestampFormatCatalo
 
 AllTrackedSources::~AllTrackedSources() = default;
 
-std::optional<std::string> AllTrackedSources::open_source(const LogSource& source)
+std::optional<std::string> AllTrackedSources::open_source(const LogSource& source, Notifier notifier)
 {
     if (is_source_open(source))
     {
@@ -105,7 +105,7 @@ std::optional<std::string> AllTrackedSources::open_source(const LogSource& sourc
     try
     {
         const std::size_t source_index = _sources.size();
-        auto source_state              = create_tracked_source(source, source_display_path(source), _timestamp_formats);
+        auto source_state              = create_tracked_source(source, source_display_path(source), _timestamp_formats, std::move(notifier));
 
         source_state->poll();
 

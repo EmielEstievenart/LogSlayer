@@ -1,5 +1,6 @@
 #include "blf_file_watcher.hpp"
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cctype>
@@ -17,6 +18,7 @@
 
 #include "debug_log.hpp"
 #include "process_pipe.hpp"
+#include "stream_line_buffer.hpp"
 
 namespace slayerlog
 {
@@ -25,6 +27,7 @@ namespace
 {
 
 constexpr std::size_t read_buffer_size = 4096;
+constexpr std::string_view progress_prefix = "LOGSLAYER_PROGRESS blf_import ";
 
 struct PythonCommand
 {
@@ -95,6 +98,59 @@ std::string trim_stderr(std::string text)
     }
 
     return text;
+}
+
+std::string source_basename_for_progress(const std::string& file_path)
+{
+    return std::filesystem::path(file_path).filename().string();
+}
+
+Notification blf_import_progress_notification(const std::string& file_path, int percent)
+{
+    percent = std::max(0, std::min(100, percent));
+
+    Notification notification;
+    notification.title = "Importing BLF";
+    notification.message = std::to_string(percent) + "% " + source_basename_for_progress(file_path);
+    notification.level = percent >= 100 ? NotificationLevel::Success : NotificationLevel::Info;
+    notification.progress = static_cast<float>(percent) / 100.0F;
+    notification.timeout = percent >= 100 ? std::chrono::seconds(2) : std::chrono::milliseconds(0);
+    return notification;
+}
+
+bool try_parse_progress_line(const std::string& line, int& percent)
+{
+    if (line.size() < progress_prefix.size() || line.compare(0, progress_prefix.size(), progress_prefix.data(), progress_prefix.size()) != 0)
+    {
+        return false;
+    }
+
+    try
+    {
+        percent = std::stoi(line.substr(progress_prefix.size()));
+    }
+    catch (...)
+    {
+        percent = 0;
+    }
+    percent = std::max(0, std::min(100, percent));
+    return true;
+}
+
+void process_stderr_lines(const std::vector<std::string>& stderr_lines, const std::string& file_path, NotificationHandle& progress_notification, std::string& stderr_text)
+{
+    for (const auto& line : stderr_lines)
+    {
+        int percent = 0;
+        if (try_parse_progress_line(line, percent))
+        {
+            (void)progress_notification.show_or_update(blf_import_progress_notification(file_path, percent));
+            continue;
+        }
+
+        stderr_text.append(line);
+        stderr_text.push_back('\n');
+    }
 }
 
 std::string read_environment_variable(const char* name)
@@ -461,7 +517,7 @@ void format_imported_lines(std::vector<std::string>& lines)
     }
 }
 
-BlfFileWatcher::ImportResult run_process(const PythonCommand& command, const std::filesystem::path& importer_script, const std::string& file_path)
+BlfFileWatcher::ImportResult run_process(const PythonCommand& command, const std::filesystem::path& importer_script, const std::string& file_path, const Notifier& notifier)
 {
     std::vector<std::string> arguments = command.prefix_arguments;
     arguments.push_back(importer_script.string());
@@ -471,70 +527,93 @@ BlfFileWatcher::ImportResult run_process(const PythonCommand& command, const std
     std::array<char, read_buffer_size> buffer {};
     std::string stdout_text;
     std::string stderr_text;
+    StreamLineBuffer stderr_buffer;
+    NotificationHandle progress_notification(notifier);
+    (void)progress_notification.show_or_update(blf_import_progress_notification(file_path, 0));
 
-    while (true)
+    try
     {
-        bool made_progress = false;
-        bool stdout_ended = false;
-        bool stderr_ended = false;
-
-        const std::size_t stdout_bytes = pipe.read_stdout(buffer.data(), buffer.size(), stdout_ended);
-        if (stdout_bytes > 0)
+        while (true)
         {
-            made_progress = true;
-            stdout_text.append(buffer.data(), stdout_bytes);
-        }
+            bool made_progress = false;
+            bool stdout_ended = false;
+            bool stderr_ended = false;
 
-        const std::size_t stderr_bytes = pipe.read_stderr(buffer.data(), buffer.size(), stderr_ended);
-        if (stderr_bytes > 0)
-        {
-            made_progress = true;
-            stderr_text.append(buffer.data(), stderr_bytes);
-        }
-
-        if (!pipe.running())
-        {
-            while (true)
+            const std::size_t stdout_bytes = pipe.read_stdout(buffer.data(), buffer.size(), stdout_ended);
+            if (stdout_bytes > 0)
             {
-                bool drain_stdout_ended = false;
-                bool drain_stderr_ended = false;
-                const std::size_t drain_stdout_bytes = pipe.read_stdout(buffer.data(), buffer.size(), drain_stdout_ended);
-                if (drain_stdout_bytes > 0)
-                {
-                    stdout_text.append(buffer.data(), drain_stdout_bytes);
-                }
-
-                const std::size_t drain_stderr_bytes = pipe.read_stderr(buffer.data(), buffer.size(), drain_stderr_ended);
-                if (drain_stderr_bytes > 0)
-                {
-                    stderr_text.append(buffer.data(), drain_stderr_bytes);
-                }
-
-                if (drain_stdout_bytes == 0 && drain_stderr_bytes == 0)
-                {
-                    break;
-                }
+                made_progress = true;
+                stdout_text.append(buffer.data(), stdout_bytes);
             }
 
-            BlfFileWatcher::ImportResult result;
-            result.exit_code = pipe.wait();
-            result.stdout_lines = split_output_lines(stdout_text);
-            result.stderr_text = std::move(stderr_text);
-            return result;
-        }
+            const std::size_t stderr_bytes = pipe.read_stderr(buffer.data(), buffer.size(), stderr_ended);
+            if (stderr_bytes > 0)
+            {
+                made_progress = true;
+                std::vector<std::string> stderr_lines;
+                (void)stderr_buffer.append(std::string_view(buffer.data(), stderr_bytes), stderr_lines);
+                process_stderr_lines(stderr_lines, file_path, progress_notification, stderr_text);
+            }
 
-        if (!made_progress)
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            if (!pipe.running())
+            {
+                while (true)
+                {
+                    bool drain_stdout_ended = false;
+                    bool drain_stderr_ended = false;
+                    const std::size_t drain_stdout_bytes = pipe.read_stdout(buffer.data(), buffer.size(), drain_stdout_ended);
+                    if (drain_stdout_bytes > 0)
+                    {
+                        stdout_text.append(buffer.data(), drain_stdout_bytes);
+                    }
+
+                    const std::size_t drain_stderr_bytes = pipe.read_stderr(buffer.data(), buffer.size(), drain_stderr_ended);
+                    if (drain_stderr_bytes > 0)
+                    {
+                        std::vector<std::string> stderr_lines;
+                        (void)stderr_buffer.append(std::string_view(buffer.data(), drain_stderr_bytes), stderr_lines);
+                        process_stderr_lines(stderr_lines, file_path, progress_notification, stderr_text);
+                    }
+
+                    if (drain_stdout_bytes == 0 && drain_stderr_bytes == 0)
+                    {
+                        break;
+                    }
+                }
+
+                BlfFileWatcher::ImportResult result;
+                result.exit_code = pipe.wait();
+                if (result.exit_code == 0)
+                {
+                    (void)progress_notification.show_or_update(blf_import_progress_notification(file_path, 100));
+                }
+                else
+                {
+                    progress_notification.dismiss();
+                }
+                result.stdout_lines = split_output_lines(stdout_text);
+                result.stderr_text = std::move(stderr_text);
+                return result;
+            }
+
+            if (!made_progress)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            }
         }
+    }
+    catch (...)
+    {
+        progress_notification.dismiss();
+        throw;
     }
 }
 
 } // namespace
 
-BlfFileWatcher::BlfFileWatcher(std::string file_path) : BlfFileWatcher(std::move(file_path), run_importer_process) { }
+BlfFileWatcher::BlfFileWatcher(std::string file_path, Notifier notifier) : BlfFileWatcher(std::move(file_path), std::move(notifier), run_importer_process) { }
 
-BlfFileWatcher::BlfFileWatcher(std::string file_path, ImportRunner import_runner) : _file_path(std::move(file_path)), _import_runner(std::move(import_runner))
+BlfFileWatcher::BlfFileWatcher(std::string file_path, Notifier notifier, ImportRunner import_runner) : _file_path(std::move(file_path)), _notifier(std::move(notifier)), _import_runner(std::move(import_runner))
 {
     SLAYERLOG_LOG_INFO("Created BLF file watcher for file=" << _file_path);
 }
@@ -550,7 +629,7 @@ bool BlfFileWatcher::poll_locked(std::vector<std::string>& lines)
     ImportResult result;
     try
     {
-        result = _import_runner(_file_path);
+        result = _import_runner(_file_path, _notifier);
     }
     catch (const std::exception& ex)
     {
@@ -590,7 +669,7 @@ bool BlfFileWatcher::poll_locked(std::vector<std::string>& lines)
     return !lines.empty();
 }
 
-BlfFileWatcher::ImportResult BlfFileWatcher::run_importer_process(const std::string& file_path)
+BlfFileWatcher::ImportResult BlfFileWatcher::run_importer_process(const std::string& file_path, const Notifier& notifier)
 {
     const auto importer_script = find_importer_script();
     if (!importer_script.has_value())
@@ -603,7 +682,7 @@ BlfFileWatcher::ImportResult BlfFileWatcher::run_importer_process(const std::str
     {
         try
         {
-            auto result = run_process(command, *importer_script, file_path);
+            auto result = run_process(command, *importer_script, file_path, notifier);
             if (python_not_found_result(result) && read_environment_variable("LOGSLAYER_PYTHON").empty())
             {
                 last_error = "Failed to start Python interpreter: " + command.executable;

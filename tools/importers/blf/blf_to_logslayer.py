@@ -34,11 +34,28 @@ CANFD64_BRS_FLAG = 0x2000
 CANFD64_ESI_FLAG = 0x4000
 
 SCHEMA = "logslayer.blf.v1"
+PROGRESS_PREFIX = "LOGSLAYER_PROGRESS blf_import "
 
 
 def write_event(out_fh: Any, event: dict[str, Any]) -> None:
     json.dump(event, out_fh, ensure_ascii=False, separators=(",", ":"))
     out_fh.write("\n")
+
+
+def report_progress(percent: int, last_percent: int) -> int:
+    percent = max(0, min(100, percent))
+    if percent == last_percent:
+        return last_percent
+
+    print(f"{PROGRESS_PREFIX}{percent}", file=sys.stderr, flush=True)
+    return percent
+
+
+def rounded_progress_percent(completed_count: int, total_count: int) -> int:
+    if total_count <= 0:
+        return 100
+
+    return ((completed_count * 100) + (total_count // 2)) // total_count
 
 
 def import_error(message: str, source: Optional[Path] = None) -> dict[str, Any]:
@@ -296,8 +313,11 @@ def main() -> int:
         try:
             with BlfReader(args.input) as reader:
                 start_epoch_ns = system_time_to_epoch_ns(reader.file_statistics.measurement_start_time)
+                total_objects = max(1, int(getattr(reader.file_statistics, "object_count", 0) or 0))
+                last_progress = report_progress(0, -1)
 
                 for seq, obj in enumerate(reader):
+                    last_progress = report_progress(rounded_progress_percent(seq + 1, total_objects), last_progress)
                     if isinstance(obj, can_types):
                         event = can_event(obj, seq, start_epoch_ns, dbc_db, can_types, ObjFlags)
                     elif isinstance(obj, NotImplementedObject):
@@ -311,6 +331,7 @@ def main() -> int:
 
                     write_event(out_fh, event)
                     count += 1
+                report_progress(100, last_progress)
         except Exception as exc:
             write_event(out_fh, import_error(f"Failed to import BLF: {exc}", args.input))
             return 1

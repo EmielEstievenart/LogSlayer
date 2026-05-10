@@ -84,7 +84,7 @@ CommandResult OpenFolderCommand::execute(std::string_view arguments)
 
     if (_context.model_mutex == nullptr || _context.background_tasks == nullptr)
     {
-        const auto error = _context.tracked_sources.open_source(source);
+        const auto error = _context.tracked_sources.open_source(source, _context.notifier);
         if (error.has_value())
         {
             SLAYERLOG_LOG_ERROR("open-folder failed folder=" << source_display_path(source) << " error=" << *error);
