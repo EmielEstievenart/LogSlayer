@@ -55,7 +55,8 @@ CommandResult AlignTimeCommand::execute(std::string_view arguments)
     if (_context.tracked_sources.source_count() < 2) { return {false, "At least two open sources are required"}; }
     if (_context.processed_sources.line_count() == 0) { return {false, "No visible log lines to align"}; }
 
-    _context.log_controller.start_time_alignment(
+    _context.log_controller.time_alignment_controller().start(
+        _context.log_controller.text_view_controller().first_visible_line(),
         [context = _context](const LogEntry& source_entry, const LogEntry& destination_entry) mutable
         {
             if (!source_entry.metadata.timestamp.has_value())

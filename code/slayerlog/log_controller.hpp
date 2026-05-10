@@ -59,14 +59,9 @@ public:
 
     // --- Time alignment ---
 
-    using TimeAlignmentApplyCallback = TimeAlignmentController::ApplyCallback;
-
-    void start_time_alignment(TimeAlignmentApplyCallback apply_callback);
-    void cancel_time_alignment();
     bool time_alignment_active() const;
-    std::optional<int> time_alignment_selected_line() const;
-    std::string time_alignment_status_text() const;
-    bool time_alignment_status_is_error() const;
+    TimeAlignmentController& time_alignment_controller();
+    const TimeAlignmentController& time_alignment_controller() const;
 
     // --- Event handling ---
 

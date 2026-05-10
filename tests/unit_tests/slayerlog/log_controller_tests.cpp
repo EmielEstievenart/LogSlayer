@@ -348,7 +348,7 @@ TEST(LogControllerTest, FindSupportsRegexWithRePrefix)
     EXPECT_TRUE(controller.visible_line_matches_find(model, 2));
 }
 
-TEST(LogControllerTest, TimeAlignmentSelectorSupportsPageNavigationAndCallback)
+TEST(LogControllerTest, ForwardsEventsToActiveTimeAlignmentController)
 {
     LogModel model;
     LogController controller;
@@ -363,7 +363,8 @@ TEST(LogControllerTest, TimeAlignmentSelectorSupportsPageNavigationAndCallback)
     controller.text_view_controller().scroll_to_top();
 
     bool callback_called = false;
-    controller.start_time_alignment(
+    controller.time_alignment_controller().start(
+        controller.text_view_controller().first_visible_line(),
         [&](const LogEntry& source_entry, const LogEntry& destination_entry)
         {
             callback_called = true;
@@ -374,14 +375,14 @@ TEST(LogControllerTest, TimeAlignmentSelectorSupportsPageNavigationAndCallback)
         });
 
     ASSERT_TRUE(controller.time_alignment_active());
-    ASSERT_EQ(controller.time_alignment_selected_line(), 0);
+    ASSERT_EQ(controller.time_alignment_controller().selected_line(), 0);
 
     EXPECT_TRUE(controller.handle_event(model, ftxui::Event::Return, {}).handled);
     EXPECT_TRUE(controller.time_alignment_active());
 
     EXPECT_TRUE(controller.handle_event(model, ftxui::Event::PageDown, {}).handled);
-    ASSERT_TRUE(controller.time_alignment_selected_line().has_value());
-    EXPECT_EQ(*controller.time_alignment_selected_line(), 2);
+    ASSERT_TRUE(controller.time_alignment_controller().selected_line().has_value());
+    EXPECT_EQ(*controller.time_alignment_controller().selected_line(), 2);
 
     EXPECT_TRUE(controller.handle_event(model, ftxui::Event::Return, {}).handled);
     EXPECT_TRUE(callback_called);

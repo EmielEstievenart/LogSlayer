@@ -4,7 +4,6 @@
 #include <cstddef>
 #include <iterator>
 #include <string>
-#include <utility>
 
 namespace slayerlog
 {
@@ -265,34 +264,19 @@ std::optional<VisibleLineIndex> LogController::active_find_visible_index(const A
 
 // --- Time alignment ---
 
-void LogController::start_time_alignment(TimeAlignmentApplyCallback apply_callback)
-{
-    _time_alignment_controller.start(_text_view_controller.first_visible_line(), std::move(apply_callback));
-}
-
-void LogController::cancel_time_alignment()
-{
-    _time_alignment_controller.cancel();
-}
-
 bool LogController::time_alignment_active() const
 {
     return _time_alignment_controller.active();
 }
 
-std::optional<int> LogController::time_alignment_selected_line() const
+TimeAlignmentController& LogController::time_alignment_controller()
 {
-    return _time_alignment_controller.selected_line();
+    return _time_alignment_controller;
 }
 
-std::string LogController::time_alignment_status_text() const
+const TimeAlignmentController& LogController::time_alignment_controller() const
 {
-    return _time_alignment_controller.status_text();
-}
-
-bool LogController::time_alignment_status_is_error() const
-{
-    return _time_alignment_controller.status_is_error();
+    return _time_alignment_controller;
 }
 
 // --- Event handling ---

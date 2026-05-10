@@ -145,6 +145,7 @@ ftxui::Element build_find_status(const AllProcessedSources& processed_sources, c
 
 ftxui::Element build_alignment_status(const LogController& controller)
 {
+    const auto& alignment_controller = controller.time_alignment_controller();
     if (!controller.time_alignment_active())
     {
         return ftxui::emptyElement();
@@ -152,8 +153,8 @@ ftxui::Element build_alignment_status(const LogController& controller)
 
     ftxui::Elements parts;
     parts.push_back(theme::badge("ALIGN", theme::label_align_fg));
-    const auto status_color = controller.time_alignment_status_is_error() ? theme::error_fg : theme::muted;
-    parts.push_back(ftxui::text(" " + controller.time_alignment_status_text()) | ftxui::color(status_color));
+    const auto status_color = alignment_controller.status_is_error() ? theme::error_fg : theme::muted;
+    parts.push_back(ftxui::text(" " + alignment_controller.status_text()) | ftxui::color(status_color));
     return ftxui::hbox(std::move(parts));
 }
 
@@ -285,7 +286,7 @@ ftxui::Element LogView::render(const AllProcessedSources& processed_sources, Log
 
     if (controller.time_alignment_active())
     {
-        const auto selected_line = controller.time_alignment_selected_line();
+        const auto selected_line = controller.time_alignment_controller().selected_line();
         if (selected_line.has_value())
         {
             TextViewRangeDecoration selection_decoration;
