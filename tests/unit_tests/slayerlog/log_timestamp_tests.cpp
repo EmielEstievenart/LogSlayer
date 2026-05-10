@@ -42,6 +42,33 @@ std::optional<LogTimestamp> parse_timestamp(const std::string& line)
     return parsed->timestamp;
 }
 
+std::optional<eestv::DateAndTime> parse_with_format(const std::string& format, const std::string& input)
+{
+    eestv::TimestampParser timestamp_parser;
+    const auto parser = timestamp_parser.CompileFormat(format);
+
+    std::string to_parse = input;
+    eestv::DateAndTime output;
+    int index = 0;
+    for (const auto& step : parser.dateParser)
+    {
+        int index_jump = 0;
+        if (!step(to_parse, index, index_jump, output))
+        {
+            return std::nullopt;
+        }
+
+        index += index_jump;
+    }
+
+    if (index != static_cast<int>(to_parse.size()))
+    {
+        return std::nullopt;
+    }
+
+    return output;
+}
+
 } // namespace
 
 TEST(LogTimestampTest, ParsesBracketedIsoTimestamp)
@@ -63,6 +90,25 @@ TEST(LogTimestampTest, ParsesSpaceSeparatedTimestampWithFraction)
     ASSERT_TRUE(line.metadata.timestamp.has_value());
     EXPECT_EQ(line.metadata.timestamp->nanosecond, 123000000U);
     EXPECT_EQ(format_log_timestamp_utc(*line.metadata.timestamp), "2026-04-01 12:34:56.123");
+}
+
+TEST(LogTimestampTest, ParsesVariableSecondAndFractionDigits)
+{
+    const auto one_digit_fraction = parse_with_format("s*.f*", "60.5");
+    const auto padded_seconds     = parse_with_format("s*.f*", "060.50");
+    const auto comma_fraction     = parse_with_format("s*,f*", "6001,15550005");
+
+    ASSERT_TRUE(one_digit_fraction.has_value());
+    EXPECT_EQ(one_digit_fraction->second, 60U);
+    EXPECT_EQ(one_digit_fraction->nanosecond, 500000000U);
+
+    ASSERT_TRUE(padded_seconds.has_value());
+    EXPECT_EQ(padded_seconds->second, 60U);
+    EXPECT_EQ(padded_seconds->nanosecond, 500000000U);
+
+    ASSERT_TRUE(comma_fraction.has_value());
+    EXPECT_EQ(comma_fraction->second, 6001U);
+    EXPECT_EQ(comma_fraction->nanosecond, 155500050U);
 }
 
 TEST(LogTimestampTest, TreatsOffsetlessTimestampsAsUtc)
