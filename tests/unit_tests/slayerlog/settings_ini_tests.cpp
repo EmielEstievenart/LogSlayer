@@ -39,13 +39,13 @@ TEST(SettingsIniTest, SetValuesReplacesExistingEntriesForKey)
     EXPECT_EQ(serialized.find("entry=old"), std::string::npos);
 }
 
-TEST(SettingsIniTest, IgnoresMalformedEntriesLikeSimpleIni)
+TEST(SettingsIniTest, RejectsMalformedSectionHeader)
 {
     SettingsIni ini;
     std::string error_message;
 
-    EXPECT_TRUE(ini.parse("[command_history\nentry=find error\n", error_message));
-    EXPECT_TRUE(error_message.empty());
+    EXPECT_FALSE(ini.parse("[command_history\nentry=find error\n", error_message));
+    EXPECT_NE(error_message.find("missing closing ]"), std::string::npos);
     EXPECT_TRUE(ini.values("command_history", "entry").empty());
 }
 

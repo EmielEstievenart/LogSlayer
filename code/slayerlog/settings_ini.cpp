@@ -1,10 +1,12 @@
 #include "settings_ini.hpp"
 
 #ifndef NOMINMAX
-#define NOMINMAX
+#    define NOMINMAX
 #endif
 
 #include <SimpleIni.h>
+
+#include <cctype>
 
 namespace slayerlog
 {
@@ -27,14 +29,61 @@ std::string simple_ini_error_message(SI_Error error)
     }
 }
 
+std::string trim_copy(std::string_view text)
+{
+    std::size_t start = 0;
+    while (start < text.size() && std::isspace(static_cast<unsigned char>(text[start])) != 0)
+    {
+        ++start;
+    }
+
+    std::size_t end = text.size();
+    while (end > start && std::isspace(static_cast<unsigned char>(text[end - 1])) != 0)
+    {
+        --end;
+    }
+
+    return std::string(text.substr(start, end - start));
+}
+
+bool validate_section_headers(std::string_view text, std::string& error_message)
+{
+    std::size_t line_number = 1;
+    std::size_t line_start  = 0;
+    while (line_start <= text.size())
+    {
+        const std::size_t line_end = text.find('\n', line_start);
+        const std::size_t count    = line_end == std::string_view::npos ? text.size() - line_start : line_end - line_start;
+        std::string line           = trim_copy(text.substr(line_start, count));
+        if (!line.empty() && line.back() == '\r')
+        {
+            line.pop_back();
+            line = trim_copy(line);
+        }
+
+        if (!line.empty() && line.front() == '[' && line.find(']') == std::string::npos)
+        {
+            error_message = "Malformed settings INI section header at line " + std::to_string(line_number) + ": missing closing ]";
+            return false;
+        }
+
+        if (line_end == std::string_view::npos)
+        {
+            break;
+        }
+
+        line_start = line_end + 1;
+        ++line_number;
+    }
+
+    return true;
+}
+
 } // namespace
 
 struct SettingsIni::Impl
 {
-    Impl() : ini(false, true, false)
-    {
-        ini.SetSpaces(false);
-    }
+    Impl() : ini(false, true, false) { ini.SetSpaces(false); }
 
     CSimpleIniCaseA ini;
 };
@@ -53,6 +102,11 @@ bool SettingsIni::parse(std::string_view text, std::string& error_message)
 {
     _impl->ini.Reset();
     error_message.clear();
+
+    if (!validate_section_headers(text, error_message))
+    {
+        return false;
+    }
 
     const std::string input(text);
     const SI_Error result = _impl->ini.LoadData(input);

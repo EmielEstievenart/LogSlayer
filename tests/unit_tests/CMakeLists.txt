@@ -20,6 +20,7 @@ add_executable(
   slayerlog/master_controller_tests.cpp
   slayerlog/toast_component_tests.cpp
   slayerlog/settings_ini_tests.cpp
+  slayerlog/settings_store_tests.cpp
   ${SLAYERLOG_CORE_SOURCES})
 
 target_link_libraries(

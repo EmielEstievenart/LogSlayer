@@ -5,6 +5,7 @@
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
 
@@ -97,19 +98,30 @@ int main(int argc, char** argv)
 
     slayerlog::SettingsStore settings_store(slayerlog::default_settings_file_path());
     std::string settings_error_message;
-    if (!settings_store.load(settings_error_message))
+    const bool settings_loaded = settings_store.load(settings_error_message);
+    if (!settings_loaded)
     {
-        SLAYERLOG_LOG_WARNING("Failed to load settings from " << settings_store.file_path() << ": " << settings_error_message);
+        SLAYERLOG_LOG_ERROR("Failed to load settings from " << settings_store.file_path() << ": " << settings_error_message << "; settings saves are disabled for this run");
         settings_error_message.clear();
     }
 
-    if (!settings_store.ensure_default_values(timestamp_formats_section, timestamp_format_key, slayerlog::default_timestamp_formats(), settings_error_message))
+    std::vector<std::string> timestamp_formats = slayerlog::default_timestamp_formats();
+    if (settings_loaded)
     {
-        SLAYERLOG_LOG_WARNING("Failed to seed timestamp formats in settings file " << settings_store.file_path() << ": " << settings_error_message);
-        settings_error_message.clear();
+        if (!settings_store.ensure_default_values(timestamp_formats_section, timestamp_format_key, timestamp_formats, settings_error_message))
+        {
+            SLAYERLOG_LOG_WARNING("Failed to seed timestamp formats in settings file " << settings_store.file_path() << ": " << settings_error_message);
+            settings_error_message.clear();
+        }
+
+        timestamp_formats = settings_store.ini().values(timestamp_formats_section, timestamp_format_key);
+    }
+    else
+    {
+        SLAYERLOG_LOG_WARNING("Using built-in timestamp formats because settings failed to load from " << settings_store.file_path());
     }
 
-    auto timestamp_catalog = std::make_shared<const slayerlog::TimestampFormatCatalog>(settings_store.ini().values(timestamp_formats_section, timestamp_format_key));
+    auto timestamp_catalog = std::make_shared<const slayerlog::TimestampFormatCatalog>(timestamp_formats);
     slayerlog::set_default_timestamp_format_catalog(timestamp_catalog);
     slayerlog::AllTrackedSources tracked_sources(timestamp_catalog);
 
@@ -144,10 +156,20 @@ int main(int argc, char** argv)
     slayerlog::AllProcessedSources processed_sources;
     processed_sources.set_show_source_labels(tracked_sources.source_count() > 0);
 
-    slayerlog::CommandHistory command_history(settings_store);
-    if (!command_history.load(settings_error_message))
+    std::optional<slayerlog::CommandHistory> command_history;
+    if (settings_loaded)
     {
-        SLAYERLOG_LOG_WARNING("Failed to load settings from " << settings_store.file_path() << ": " << settings_error_message);
+        command_history.emplace(settings_store);
+        if (!command_history->load(settings_error_message))
+        {
+            SLAYERLOG_LOG_ERROR("Failed to load command history from " << settings_store.file_path() << ": " << settings_error_message << "; command history saves are disabled for this run");
+            settings_error_message.clear();
+            command_history.reset();
+        }
+    }
+    else
+    {
+        SLAYERLOG_LOG_WARNING("Command history is disabled because settings failed to load from " << settings_store.file_path());
     }
 
     slayerlog::CommandPaletteModel command_palette_model;
@@ -157,7 +179,15 @@ int main(int argc, char** argv)
     slayerlog::MasterView master_view(view, command_palette_view);
     slayerlog::LogController controller;
 
-    slayerlog::CommandPaletteController command_palette_controller(command_palette_model, command_manager, command_history);
+    std::optional<slayerlog::CommandPaletteController> command_palette_controller;
+    if (command_history.has_value())
+    {
+        command_palette_controller.emplace(command_palette_model, command_manager, *command_history);
+    }
+    else
+    {
+        command_palette_controller.emplace(command_palette_model, command_manager);
+    }
 
     if (config.show_help)
     {
@@ -166,7 +196,7 @@ int main(int argc, char** argv)
         return 0;
     }
 
-    slayerlog::MasterController master_controller(processed_sources, controller, view, screen, command_palette_controller);
+    slayerlog::MasterController master_controller(processed_sources, controller, view, screen, *command_palette_controller);
 
     {
         std::lock_guard lock(model_mutex);
@@ -181,7 +211,7 @@ int main(int argc, char** argv)
         [&]
         {
             std::lock_guard lock(model_mutex);
-            return master_view.render(processed_sources, controller, header_text, screen.dimy(), command_palette_controller);
+            return master_view.render(processed_sources, controller, header_text, screen.dimy(), *command_palette_controller);
         });
 
     viewer |= ftxui::CatchEvent(

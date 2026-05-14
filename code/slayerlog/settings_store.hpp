@@ -22,6 +22,7 @@ public:
     bool ensure_default_values(std::string_view section, std::string_view key, const std::vector<std::string>& values, std::string& error_message);
 
     const std::filesystem::path& file_path() const;
+    std::filesystem::path make_backup_file_path() const;
     SettingsIni& ini();
     const SettingsIni& ini() const;
 

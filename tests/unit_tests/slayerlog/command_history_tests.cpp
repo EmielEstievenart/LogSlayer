@@ -26,6 +26,27 @@ void remove_temp_settings_file(const std::filesystem::path& settings_path)
     std::error_code error_code;
     std::filesystem::remove(settings_path, error_code);
     std::filesystem::remove(settings_path.string() + ".tmp", error_code);
+
+    const auto parent_path = settings_path.parent_path();
+    if (parent_path.empty() || !std::filesystem::exists(parent_path, error_code))
+    {
+        return;
+    }
+
+    const std::string backup_prefix = settings_path.filename().string() + ".";
+    for (const auto& entry : std::filesystem::directory_iterator(parent_path, error_code))
+    {
+        if (error_code)
+        {
+            return;
+        }
+
+        const auto filename = entry.path().filename().string();
+        if (filename.rfind(backup_prefix, 0) == 0 && entry.path().extension() == ".bak")
+        {
+            std::filesystem::remove(entry.path(), error_code);
+        }
+    }
 }
 
 } // namespace

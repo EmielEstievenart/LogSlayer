@@ -1,8 +1,12 @@
 #include "settings_store.hpp"
 
+#include "debug_log.hpp"
+
 #include <algorithm>
+#include <chrono>
 #include <cstdlib>
 #include <fstream>
+#include <iomanip>
 #include <sstream>
 #include <system_error>
 
@@ -46,6 +50,23 @@ std::string env_value(const char* variable_name)
     const char* value = std::getenv(variable_name);
     return value != nullptr && value[0] != '\0' ? std::string(value) : std::string();
 #endif
+}
+
+std::string timestamp_suffix()
+{
+    const auto now    = std::chrono::system_clock::now();
+    const auto time_t = std::chrono::system_clock::to_time_t(now);
+    std::tm local_time {};
+
+#ifdef _WIN32
+    localtime_s(&local_time, &time_t);
+#else
+    localtime_r(&time_t, &local_time);
+#endif
+
+    std::ostringstream stream;
+    stream << std::put_time(&local_time, "%Y%m%d-%H%M%S");
+    return stream.str();
 }
 
 } // namespace
@@ -94,10 +115,20 @@ SettingsStore::SettingsStore(std::filesystem::path file_path) : _file_path(std::
 bool SettingsStore::load(std::string& error_message)
 {
     error_message.clear();
+    SLAYERLOG_LOG_INFO("Loading settings file path=" << _file_path.string());
 
     std::error_code error_code;
-    if (!std::filesystem::exists(_file_path, error_code))
+    const bool file_exists = std::filesystem::exists(_file_path, error_code);
+    if (error_code)
     {
+        error_message = "Failed to check settings file existence: " + _file_path.string() + " error=" + error_code.message();
+        SLAYERLOG_LOG_ERROR(error_message);
+        return false;
+    }
+
+    if (!file_exists)
+    {
+        SLAYERLOG_LOG_INFO("Settings file does not exist yet path=" << _file_path.string());
         return true;
     }
 
@@ -105,6 +136,7 @@ bool SettingsStore::load(std::string& error_message)
     if (!input)
     {
         error_message = "Failed to open settings file for reading: " + _file_path.string();
+        SLAYERLOG_LOG_ERROR(error_message);
         return false;
     }
 
@@ -113,15 +145,24 @@ bool SettingsStore::load(std::string& error_message)
     if (!input.good() && !input.eof())
     {
         error_message = "Failed to read settings file: " + _file_path.string();
+        SLAYERLOG_LOG_ERROR(error_message);
         return false;
     }
 
-    return _ini.parse(buffer.str(), error_message);
+    if (!_ini.parse(buffer.str(), error_message))
+    {
+        SLAYERLOG_LOG_ERROR("Failed to parse settings file path=" << _file_path.string() << " error=" << error_message);
+        return false;
+    }
+
+    SLAYERLOG_LOG_INFO("Loaded settings file path=" << _file_path.string());
+    return true;
 }
 
 bool SettingsStore::save(std::string& error_message) const
 {
     error_message.clear();
+    SLAYERLOG_LOG_INFO("Saving settings file path=" << _file_path.string());
 
     std::error_code error_code;
     const std::filesystem::path parent_path = _file_path.parent_path();
@@ -131,6 +172,7 @@ bool SettingsStore::save(std::string& error_message) const
         if (error_code)
         {
             error_message = "Failed to create settings directory: " + parent_path.string();
+            SLAYERLOG_LOG_ERROR(error_message << " error=" << error_code.message());
             return false;
         }
     }
@@ -141,6 +183,7 @@ bool SettingsStore::save(std::string& error_message) const
         if (!output)
         {
             error_message = "Failed to open temporary settings file for writing: " + temporary_path.string();
+            SLAYERLOG_LOG_ERROR(error_message);
             return false;
         }
 
@@ -149,29 +192,60 @@ bool SettingsStore::save(std::string& error_message) const
         if (!output)
         {
             error_message = "Failed to write settings file: " + temporary_path.string();
+            SLAYERLOG_LOG_ERROR(error_message);
             return false;
         }
     }
 
     if (std::filesystem::exists(_file_path, error_code))
     {
+        const auto backup_path = make_backup_file_path();
+        std::filesystem::copy_file(_file_path, backup_path, std::filesystem::copy_options::none, error_code);
+        if (error_code)
+        {
+            const auto backup_error_message = error_code.message();
+            std::error_code cleanup_error;
+            std::filesystem::remove(temporary_path, cleanup_error);
+            error_message = "Failed to back up settings file before replace: " + backup_path.string();
+            SLAYERLOG_LOG_ERROR(error_message << " error=" << backup_error_message);
+            return false;
+        }
+
+        SLAYERLOG_LOG_INFO("Backed up settings file source=" << _file_path.string() << " backup=" << backup_path.string());
+
         std::filesystem::remove(_file_path, error_code);
         if (error_code)
         {
-            std::filesystem::remove(temporary_path, error_code);
+            const auto remove_error_message = error_code.message();
+            std::error_code cleanup_error;
+            std::filesystem::remove(temporary_path, cleanup_error);
             error_message = "Failed to replace settings file: " + _file_path.string();
+            SLAYERLOG_LOG_ERROR(error_message << " error=" << remove_error_message);
             return false;
         }
+    }
+    else if (error_code)
+    {
+        const auto exists_error_message = error_code.message();
+        std::error_code cleanup_error;
+        std::filesystem::remove(temporary_path, cleanup_error);
+        error_message = "Failed to check settings file before replace: " + _file_path.string();
+        SLAYERLOG_LOG_ERROR(error_message << " error=" << exists_error_message);
+        return false;
     }
 
     std::filesystem::rename(temporary_path, _file_path, error_code);
     if (error_code)
     {
-        std::filesystem::remove(temporary_path, error_code);
+        const auto rename_error_message = error_code.message();
+        std::error_code cleanup_error;
+        std::filesystem::remove(temporary_path, cleanup_error);
         error_message = "Failed to finalize settings file: " + _file_path.string();
+        SLAYERLOG_LOG_ERROR(error_message << " error=" << rename_error_message);
         return false;
     }
 
+    SLAYERLOG_LOG_INFO("Saved settings file path=" << _file_path.string());
     return true;
 }
 
@@ -182,6 +256,7 @@ bool SettingsStore::ensure_default_values(std::string_view section, std::string_
     const auto existing_values = _ini.values(section, key);
     if (existing_values.empty())
     {
+        SLAYERLOG_LOG_INFO("Seeding settings defaults path=" << _file_path.string() << " section=" << section << " key=" << key << " count=" << values.size());
         _ini.set_values(std::string(section), std::string(key), values);
         return save(error_message);
     }
@@ -197,9 +272,11 @@ bool SettingsStore::ensure_default_values(std::string_view section, std::string_
 
     if (merged_values == existing_values)
     {
+        SLAYERLOG_LOG_INFO("Settings defaults already present path=" << _file_path.string() << " section=" << section << " key=" << key);
         return true;
     }
 
+    SLAYERLOG_LOG_INFO("Merging settings defaults path=" << _file_path.string() << " section=" << section << " key=" << key << " existing_count=" << existing_values.size() << " merged_count=" << merged_values.size());
     _ini.set_values(std::string(section), std::string(key), merged_values);
     return save(error_message);
 }
@@ -207,6 +284,19 @@ bool SettingsStore::ensure_default_values(std::string_view section, std::string_
 const std::filesystem::path& SettingsStore::file_path() const
 {
     return _file_path;
+}
+
+std::filesystem::path SettingsStore::make_backup_file_path() const
+{
+    std::filesystem::path candidate = _file_path.string() + "." + timestamp_suffix() + ".bak";
+    std::error_code error_code;
+    for (int index = 1; std::filesystem::exists(candidate, error_code); ++index)
+    {
+        candidate = _file_path.string() + "." + timestamp_suffix() + "." + std::to_string(index) + ".bak";
+        error_code.clear();
+    }
+
+    return candidate;
 }
 
 SettingsIni& SettingsStore::ini()

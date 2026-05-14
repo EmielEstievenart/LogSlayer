@@ -33,10 +33,7 @@ public:
         return {true, "started", false};
     }
 
-    bool has_active_interaction() const override
-    {
-        return active;
-    }
+    bool has_active_interaction() const override { return active; }
 
     CommandEventResult handle_event(const ftxui::Event& event) override
     {
@@ -66,7 +63,7 @@ public:
         active    = false;
     }
 
-    bool active = false;
+    bool active    = false;
     bool cancelled = false;
     std::string last_character;
 };
@@ -82,6 +79,27 @@ void remove_temp_settings_file(const std::filesystem::path& settings_path)
     std::error_code error_code;
     std::filesystem::remove(settings_path, error_code);
     std::filesystem::remove(settings_path.string() + ".tmp", error_code);
+
+    const auto parent_path = settings_path.parent_path();
+    if (parent_path.empty() || !std::filesystem::exists(parent_path, error_code))
+    {
+        return;
+    }
+
+    const std::string backup_prefix = settings_path.filename().string() + ".";
+    for (const auto& entry : std::filesystem::directory_iterator(parent_path, error_code))
+    {
+        if (error_code)
+        {
+            return;
+        }
+
+        const auto filename = entry.path().filename().string();
+        if (filename.rfind(backup_prefix, 0) == 0 && entry.path().extension() == ".bak")
+        {
+            std::filesystem::remove(entry.path(), error_code);
+        }
+    }
 }
 
 } // namespace
@@ -595,7 +613,7 @@ TEST(CommandPaletteControllerTest, HistoryModeReturnExecutesTypedQueryWhenNoHist
 TEST(CommandPaletteControllerTest, ActiveCommandReceivesEventsBeforeQueryEditing)
 {
     CommandManager manager;
-    auto command = std::make_unique<ActivePaletteTestCommand>();
+    auto command                          = std::make_unique<ActivePaletteTestCommand>();
     ActivePaletteTestCommand* command_ptr = command.get();
     manager.register_command(std::move(command));
 
@@ -656,7 +674,7 @@ TEST(CommandPaletteControllerTest, ActiveCommandValidationFailureKeepsPaletteOpe
 TEST(CommandPaletteControllerTest, ActiveCommandCancellationOnEscape)
 {
     CommandManager manager;
-    auto command = std::make_unique<ActivePaletteTestCommand>();
+    auto command                          = std::make_unique<ActivePaletteTestCommand>();
     ActivePaletteTestCommand* command_ptr = command.get();
     manager.register_command(std::move(command));
 
