@@ -9,6 +9,13 @@ namespace
 using eestv::DateAndTime;
 using eestv::TimestampParser;
 
+struct TimestampParserCandidate
+{
+    const eestv::compiledDataAndTimeParser* parser = nullptr;
+    std::size_t start_slot                       = 0;
+    std::size_t match_length                     = 0;
+};
+
 bool apply_parser(const eestv::compiledDataAndTimeParser& parser, const std::string& input, int start_index, DateAndTime& output, int& end_index)
 {
     std::string to_parse = input;
@@ -74,6 +81,7 @@ bool SourceTimestampParser::init(const LogEntry& line, const TimestampFormatCata
     for (std::size_t start_slot = 0; start_slot < start_indices.size(); ++start_slot)
     {
         const int start_index = start_indices[start_slot];
+        std::optional<TimestampParserCandidate> best_match;
         for (const auto& entry : catalog.entries())
         {
             const auto& parser = compiled_parser_from_entry(entry);
@@ -83,8 +91,17 @@ bool SourceTimestampParser::init(const LogEntry& line, const TimestampFormatCata
                 continue;
             }
 
-            _compiled_parser           = parser;
-            _detected_start_index_slot = start_slot;
+            const std::size_t match_length = parsed_metadata.extracted_time_text.size();
+            if (!best_match.has_value() || match_length > best_match->match_length)
+            {
+                best_match = TimestampParserCandidate {&parser, start_slot, match_length};
+            }
+        }
+
+        if (best_match.has_value())
+        {
+            _compiled_parser           = *best_match->parser;
+            _detected_start_index_slot = best_match->start_slot;
             return true;
         }
     }

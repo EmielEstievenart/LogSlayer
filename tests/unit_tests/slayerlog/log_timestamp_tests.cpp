@@ -92,6 +92,25 @@ TEST(LogTimestampTest, ParsesSpaceSeparatedTimestampWithFraction)
     EXPECT_EQ(format_log_timestamp_utc(*line.metadata.timestamp), "2026-04-01 12:34:56.123");
 }
 
+TEST(LogTimestampTest, InitChoosesLongestMatchingTimestampFormat)
+{
+    auto formats = std::make_shared<const TimestampFormatCatalog>(std::vector<std::string> {
+        "YYYY-MM-DDThh:mm:ss.fff",
+        "YYYY-MM-DDThh:mm:ss.ffffff",
+    });
+    SourceTimestampParser parser;
+    LogEntry line("2026-04-01T12:34:56.123456 details");
+
+    ASSERT_TRUE(parser.init(line, *formats));
+    ASSERT_TRUE(parser.parse(line));
+
+    ASSERT_TRUE(line.metadata.timestamp.has_value());
+    EXPECT_EQ(line.metadata.timestamp->nanosecond, 123456000U);
+    EXPECT_EQ(line.metadata.extracted_time_text, "2026-04-01T12:34:56.123456");
+    ASSERT_TRUE(line.metadata.extracted_time_end.has_value());
+    EXPECT_EQ(*line.metadata.extracted_time_end, 26U);
+}
+
 TEST(LogTimestampTest, ParsesVariableSecondAndFractionDigits)
 {
     const auto one_digit_fraction = parse_with_format("s*.f*", "60.5");
