@@ -108,6 +108,7 @@ set(ZSTD_BUILD_STATIC
 add_subdirectory(libs/zstd)
 
 add_subdirectory(libs/nlohmann_json)
+add_subdirectory(libs/simpleini)
 add_subdirectory(libs/eestv)
 add_subdirectory(code/slayerlog)
 add_subdirectory(tests/unit_tests)

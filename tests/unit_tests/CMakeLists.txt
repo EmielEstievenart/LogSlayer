@@ -35,7 +35,8 @@ target_link_libraries(
           Boost::program_options
           log4cplus::log4cplus
           libzstd
-          nlohmann_json::nlohmann_json)
+          nlohmann_json::nlohmann_json
+          SimpleIni::SimpleIni)
 
 target_compile_definitions(unit_tests PRIVATE BOOST_ALL_NO_LIB BOOST_USE_WINAPI_VERSION=0x0602)
 target_include_directories(

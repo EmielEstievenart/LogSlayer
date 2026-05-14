@@ -39,13 +39,14 @@ TEST(SettingsIniTest, SetValuesReplacesExistingEntriesForKey)
     EXPECT_EQ(serialized.find("entry=old"), std::string::npos);
 }
 
-TEST(SettingsIniTest, ReturnsErrorForMalformedSectionLine)
+TEST(SettingsIniTest, IgnoresMalformedEntriesLikeSimpleIni)
 {
     SettingsIni ini;
     std::string error_message;
 
-    EXPECT_FALSE(ini.parse("[command_history\nentry=find error\n", error_message));
-    EXPECT_FALSE(error_message.empty());
+    EXPECT_TRUE(ini.parse("[command_history\nentry=find error\n", error_message));
+    EXPECT_TRUE(error_message.empty());
+    EXPECT_TRUE(ini.values("command_history", "entry").empty());
 }
 
 TEST(SettingsIniTest, StoresTimestampFormatsAsRepeatedValues)
