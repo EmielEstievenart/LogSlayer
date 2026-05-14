@@ -8,6 +8,7 @@
 #include "implementations/clear_filters_command.hpp"
 #include "implementations/clear_time_offset_command.hpp"
 #include "implementations/close_open_file_command.hpp"
+#include "implementations/copy_settings_path_command.hpp"
 #include "implementations/delete_filters_command.hpp"
 #include "implementations/export_visible_text_command.hpp"
 #include "implementations/filter_in_command.hpp"
@@ -61,6 +62,7 @@ void register_commands(CommandManager& command_manager, CommandContext context)
     command_manager.register_command(std::make_unique<HideShownLinesCommand>(context));
 
     command_manager.register_command(std::make_unique<ExportVisibleTextCommand>(context));
+    command_manager.register_command(std::make_unique<CopySettingsPathCommand>(context));
     command_manager.register_command(std::make_unique<FindCommand>(context));
 }
 

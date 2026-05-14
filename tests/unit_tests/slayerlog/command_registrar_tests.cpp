@@ -16,6 +16,7 @@
 #include "command_palette_model.hpp"
 #include "command_registrar.hpp"
 #include "command_manager.hpp"
+#include "implementations/copy_settings_path_command.hpp"
 #include "log_controller.hpp"
 #include "tracked_sources/all_processed_sources.hpp"
 #include "tracked_sources/all_tracked_sources.hpp"
@@ -121,6 +122,46 @@ TEST(CommandRegistrarTest, ExportVisibleTextWritesAllVisibleRenderedLines)
     EXPECT_EQ(read_file_contents(export_path), render_all_visible_lines(processed_sources));
 
     remove_temp_export_file(export_path);
+}
+
+TEST(CommandRegistrarTest, CopySettingsPathCommandCopiesConfiguredSettingsPath)
+{
+    AllProcessedSources processed_sources;
+    LogController controller;
+    std::string header_text;
+    auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
+    AllTrackedSources tracked_sources;
+    const auto settings_path = std::filesystem::temp_directory_path() / "slayerlog_settings_test.ini";
+
+    std::string copied_text;
+    CopySettingsPathCommand command({processed_sources, controller, tracked_sources, header_text, screen, {}, nullptr, nullptr, settings_path},
+                                    [&](const std::string& text, std::string&)
+                                    {
+                                        copied_text = text;
+                                        return true;
+                                    });
+
+    const auto result = command.execute("");
+
+    EXPECT_TRUE(result.success);
+    EXPECT_EQ(copied_text, settings_path.string());
+    EXPECT_EQ(result.message, "Copied settings path to clipboard: " + settings_path.string());
+}
+
+TEST(CommandRegistrarTest, CopySettingsPathCommandRejectsArguments)
+{
+    AllProcessedSources processed_sources;
+    LogController controller;
+    std::string header_text;
+    auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
+    AllTrackedSources tracked_sources;
+
+    CopySettingsPathCommand command({processed_sources, controller, tracked_sources, header_text, screen}, [](const std::string&, std::string&) { return true; });
+
+    const auto result = command.execute("unexpected");
+
+    EXPECT_FALSE(result.success);
+    EXPECT_EQ(result.message, "Usage: copy-settings-path");
 }
 
 TEST(CommandRegistrarTest, ShowAndHideOriginalTimeCommandsToggleRenderedMessage)

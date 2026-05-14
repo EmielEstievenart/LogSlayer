@@ -83,6 +83,8 @@ set(SLAYERLOG_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/delete_filters_command.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/export_visible_text_command.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/export_visible_text_command.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/copy_settings_path_command.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/copy_settings_path_command.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/filter_in_command.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/filter_in_command.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/filter_out_command.cpp

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <filesystem>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -24,8 +25,9 @@ struct CommandContext
     std::string& header_text;
     ftxui::ScreenInteractive& screen;
     Notifier notifier;
-    std::mutex* model_mutex = nullptr;
+    std::mutex* model_mutex                    = nullptr;
     std::vector<std::thread>* background_tasks = nullptr;
+    std::filesystem::path settings_file_path;
 };
 
 } // namespace slayerlog
