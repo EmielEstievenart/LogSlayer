@@ -290,12 +290,12 @@ ftxui::Element LogView::render(const AllProcessedSources& processed_sources, Log
         if (selected_line.has_value())
         {
             TextViewRangeDecoration selection_decoration;
-            selection_decoration.line_index        = *selected_line;
-            selection_decoration.col_start         = 0;
-            selection_decoration.col_end           = std::max(1, data.max_line_width);
-            selection_decoration.style.background  = ftxui::Color::Cyan;
-            selection_decoration.style.foreground  = ftxui::Color::Black;
-            selection_decoration.style.bold        = true;
+            selection_decoration.line_index       = *selected_line;
+            selection_decoration.col_start        = 0;
+            selection_decoration.col_end          = std::max(1, data.max_line_width);
+            selection_decoration.style.background = theme::selected_line_bg;
+            selection_decoration.style.foreground = theme::selected_line_fg;
+            selection_decoration.style.bold       = true;
             data.range_decorations.push_back(selection_decoration);
         }
     }

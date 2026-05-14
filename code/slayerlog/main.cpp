@@ -29,6 +29,7 @@
 #include "notifications/ftxui_toast_notification_sink.hpp"
 #include "tracked_sources/all_processed_sources.hpp"
 #include "settings_store.hpp"
+#include "view_theme.hpp"
 
 namespace
 {
@@ -194,9 +195,11 @@ int main(int argc, char** argv)
     toast_option.screen           = &screen;
     toast_option.width            = 48;
     toast_option.max_visible      = std::numeric_limits<int>::max();
-    toast_option.style.info       = ftxui::Color::CyanLight;
-    toast_option.style.success    = ftxui::Color::GreenLight;
-    toast_option.style.background = ftxui::Color::GrayDark;
+    toast_option.style.info       = slayerlog::theme::toast_info_fg;
+    toast_option.style.success    = slayerlog::theme::toast_success_fg;
+    toast_option.style.warning    = slayerlog::theme::toast_warning_fg;
+    toast_option.style.error      = slayerlog::theme::toast_error_fg;
+    toast_option.style.background = slayerlog::theme::toast_background_bg;
     auto toast_host               = std::make_shared<ToastHostComponent>(viewer, toast_option);
     slayerlog::Notifier notifier(std::make_shared<slayerlog::FtxuiToastNotificationSink>(toast_host));
     tracked_sources.set_notifier(notifier);
