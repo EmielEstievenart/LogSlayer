@@ -1,0 +1,4 @@
+2026-04-01T10:00:02 http server listening port=8080
+2026-04-01T10:00:05 GET /health 200 2ms
+2026-04-01T10:00:07 GET /api/items 200 14ms
+trace request-id=demo-42 completed
