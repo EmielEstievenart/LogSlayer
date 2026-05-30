@@ -26,10 +26,10 @@ set(SLAYERLOG_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/tracked_sources/log_line.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/log_view.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/log_view.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/master_controller.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/master_controller.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/master_view.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/master_view.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/log_view_component.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/log_view_component.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/log_view2_component.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/log_view2_component.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/notifications/ftxui_toast_notification_sink.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/notifications/ftxui_toast_notification_sink.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/notifications/notification.cpp

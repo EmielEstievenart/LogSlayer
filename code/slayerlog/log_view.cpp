@@ -193,7 +193,7 @@ ftxui::Element build_key_hints(const LogController& controller)
 
 } // namespace
 
-ftxui::Element LogView::render(const AllProcessedSources& processed_sources, LogController& controller, const std::string& header_text, int screen_height, std::optional<HiddenColumnRange> hidden_column_preview)
+ftxui::Element LogView::render(const AllProcessedSources& processed_sources, LogController& controller, const std::string& header_text, int screen_height, std::optional<HiddenColumnRange> hidden_column_preview, bool focused)
 {
     // Update viewport dimensions on the text view controller
     const int effective_height = estimate_viewport_line_count(_text_view.viewport_line_count(), screen_height);
@@ -345,16 +345,20 @@ ftxui::Element LogView::render(const AllProcessedSources& processed_sources, Log
         header = ftxui::text(header_text) | ftxui::bold;
     }
 
-    return ftxui::window(ftxui::text("Slayerlog"), ftxui::vbox({
-                                                       header,
-                                                       ftxui::separator(),
-                                                       log_view,
-                                                        ftxui::separator(),
-                                                        build_filter_status(processed_sources),
-                                                        build_find_status(processed_sources, controller),
-                                                        build_alignment_status(controller),
-                                                        build_key_hints(controller),
-                                                    }));
+    ftxui::Element title          = focused ? (ftxui::text("Slayerlog") | ftxui::bold | ftxui::color(theme::active_view_fg)) : ftxui::text("Slayerlog");
+    const ftxui::BorderStyle frame = focused ? ftxui::DOUBLE : ftxui::LIGHT;
+
+    return ftxui::window(std::move(title), ftxui::vbox({
+                                               header,
+                                               ftxui::separator(),
+                                               log_view,
+                                               ftxui::separator(),
+                                               build_filter_status(processed_sources),
+                                               build_find_status(processed_sources, controller),
+                                               build_alignment_status(controller),
+                                               build_key_hints(controller),
+                                           }),
+                         frame);
 }
 
 std::optional<TextViewPosition> LogView::text_position_at(const LogController& controller, int x, int y) const

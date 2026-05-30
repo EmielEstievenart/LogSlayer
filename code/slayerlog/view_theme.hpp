@@ -53,6 +53,9 @@ inline const auto white         = colors[15];
 // General UI
 inline const auto muted = terminal::gray_dark;
 
+// Focused-panel accent (active view highlight)
+inline const auto active_view_fg = terminal::cyan_light;
+
 // Find match highlighting
 inline const auto find_match_bg             = terminal::blue;
 inline const auto find_match_fg             = terminal::white;

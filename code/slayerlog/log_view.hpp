@@ -17,7 +17,7 @@ namespace slayerlog
 class LogView
 {
 public:
-    ftxui::Element render(const AllProcessedSources& processed_sources, LogController& controller, const std::string& header_text, int screen_height, std::optional<HiddenColumnRange> hidden_column_preview = std::nullopt);
+    ftxui::Element render(const AllProcessedSources& processed_sources, LogController& controller, const std::string& header_text, int screen_height, std::optional<HiddenColumnRange> hidden_column_preview = std::nullopt, bool focused = true);
 
     LogEventResult handle_event(AllProcessedSources& processed_sources, LogController& controller, ftxui::Event event);
 
