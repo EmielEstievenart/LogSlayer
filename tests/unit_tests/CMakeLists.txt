@@ -47,6 +47,8 @@ endif()
 target_include_directories(
   unit_tests
   PRIVATE ${CMAKE_SOURCE_DIR}/code/slayerlog
+          ${CMAKE_SOURCE_DIR}/code/slayerlog/LogView
+          ${CMAKE_SOURCE_DIR}/code/slayerlog/LogView2
           ${CMAKE_SOURCE_DIR}/code/slayerlog/commands
           ${CMAKE_SOURCE_DIR}/code/slayerlog/notifications
           ${CMAKE_SOURCE_DIR}/code/slayerlog/tracked_sources

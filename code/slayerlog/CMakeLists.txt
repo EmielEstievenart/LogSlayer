@@ -19,19 +19,19 @@ set(SLAYERLOG_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/log_source.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/log_source.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/watchers/log_watcher.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/log_controller.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/log_controller.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/LogView/log_controller.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/LogView/log_controller.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/time_alignment_controller.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/time_alignment_controller.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/log_batch.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/log_batch.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tracked_sources/log_line.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/log_view.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/log_view.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/log_view_component.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/log_view_component.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/log_view2_component.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/log_view2_component.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/LogView/log_view.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/LogView/log_view.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/LogView/log_view_component.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/LogView/log_view_component.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/LogView2/log_view2_component.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/LogView2/log_view2_component.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/notifications/ftxui_toast_notification_sink.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/notifications/ftxui_toast_notification_sink.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/notifications/notification.cpp
@@ -152,6 +152,8 @@ target_compile_definitions(LogSlayer PRIVATE BOOST_ALL_NO_LIB
 
 target_include_directories(
   LogSlayer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/LogView
+                    ${CMAKE_CURRENT_SOURCE_DIR}/LogView2
                     ${CMAKE_CURRENT_SOURCE_DIR}/commands
                     ${CMAKE_CURRENT_SOURCE_DIR}/notifications
                     ${CMAKE_CURRENT_SOURCE_DIR}/tracked_sources
