@@ -55,6 +55,7 @@ private:
     void refresh_hidden_column_preview();
     void apply_command_result(const CommandResult& result);
     void rebuild_result_lines();
+    bool handle_result_text_view_event(ftxui::Event event);
     void ensure_selected_result_visible();
     void sync_result_text_view_selection();
     void sync_selected_index_from_result_line(int line_index);

@@ -281,7 +281,7 @@ const TimeAlignmentController& LogController::time_alignment_controller() const
 
 // --- Event handling ---
 
-LogEventResult LogController::handle_event(AllProcessedSources& processed_sources, ftxui::Event event, const std::function<std::optional<TextViewPosition>(const ftxui::Mouse&)>& mouse_to_text_position)
+LogEventResult LogController::handle_event(AllProcessedSources& processed_sources, ftxui::Event event, const std::function<std::optional<TextViewPosition>(int, int)>& text_position_at)
 {
     // Custom event (re-render trigger)
     if (event == ftxui::Event::Custom)
@@ -299,7 +299,7 @@ LogEventResult LogController::handle_event(AllProcessedSources& processed_source
             find_navigation.active_visible_index = [this, &processed_sources]() { return active_find_visible_index(processed_sources); };
         }
 
-        return {_time_alignment_controller.handle_event(processed_sources, _text_view_controller, event, mouse_to_text_position, find_navigation), false};
+        return {_time_alignment_controller.handle_event(processed_sources, _text_view_controller, event, text_position_at, find_navigation), false};
     }
 
     // Escape: clear find if active, otherwise delegate (TextViewController handles exit)
@@ -333,9 +333,131 @@ LogEventResult LogController::handle_event(AllProcessedSources& processed_source
         return {go_to_previous_find_match(processed_sources), false};
     }
 
-    // Delegate everything else to the generic text view controller
-    auto result = _text_view_controller.parse_event(event, mouse_to_text_position);
-    return {result.handled, result.request_exit};
+    const int fast_horizontal_step = std::max(1, (_text_view_controller.viewport_col_count() - 1) / 2);
+
+    if (event == ftxui::Event::Character('q') || event == ftxui::Event::Escape)
+    {
+        return {true, true};
+    }
+
+    if (event == ftxui::Event::ArrowUp || event == ftxui::Event::Character('k'))
+    {
+        _text_view_controller.scroll_up(1);
+        return {true, false};
+    }
+
+    if (event == ftxui::Event::ArrowDown || event == ftxui::Event::Character('j'))
+    {
+        _text_view_controller.scroll_down(1);
+        return {true, false};
+    }
+
+    if (event == ftxui::Event::ArrowLeft)
+    {
+        _text_view_controller.scroll_left(1);
+        return {true, false};
+    }
+
+    if (event == ftxui::Event::ArrowLeftCtrl)
+    {
+        _text_view_controller.scroll_left(fast_horizontal_step);
+        return {true, false};
+    }
+
+    if (event == ftxui::Event::ArrowRight)
+    {
+        _text_view_controller.scroll_right(1);
+        return {true, false};
+    }
+
+    if (event == ftxui::Event::ArrowRightCtrl)
+    {
+        _text_view_controller.scroll_right(fast_horizontal_step);
+        return {true, false};
+    }
+
+    if (event == ftxui::Event::PageUp)
+    {
+        _text_view_controller.page_up();
+        return {true, false};
+    }
+
+    if (event == ftxui::Event::PageDown)
+    {
+        _text_view_controller.page_down();
+        return {true, false};
+    }
+
+    if (event == ftxui::Event::Home)
+    {
+        _text_view_controller.scroll_to_top();
+        return {true, false};
+    }
+
+    if (event == ftxui::Event::End)
+    {
+        _text_view_controller.scroll_to_bottom();
+        return {true, false};
+    }
+
+    if (event == ftxui::Event::C)
+    {
+        return {_text_view_controller.copy_selection_to_clipboard(), false};
+    }
+
+    if (event.is_mouse())
+    {
+        const auto mouse = event.mouse();
+        if (text_position_at && mouse.button == ftxui::Mouse::Left)
+        {
+            const auto position = text_position_at(mouse.x, mouse.y);
+            if (mouse.motion == ftxui::Mouse::Pressed)
+            {
+                if (position.has_value())
+                {
+                    _text_view_controller.begin_selection(*position);
+                    return {true, false};
+                }
+
+                _text_view_controller.clear_selection();
+                return {false, false};
+            }
+
+            if (mouse.motion == ftxui::Mouse::Moved && _text_view_controller.selection_in_progress())
+            {
+                if (position.has_value())
+                {
+                    _text_view_controller.update_selection(*position);
+                    return {true, false};
+                }
+            }
+
+            if (mouse.motion == ftxui::Mouse::Released)
+            {
+                _text_view_controller.end_selection(position);
+                return {position.has_value(), false};
+            }
+        }
+
+        if (text_position_at && mouse.button == ftxui::Mouse::Right && mouse.motion == ftxui::Mouse::Pressed)
+        {
+            return {_text_view_controller.copy_selection_to_clipboard(), false};
+        }
+
+        if (mouse.button == ftxui::Mouse::WheelUp)
+        {
+            _text_view_controller.scroll_up(1);
+            return {true, false};
+        }
+
+        if (mouse.button == ftxui::Mouse::WheelDown)
+        {
+            _text_view_controller.scroll_down(1);
+            return {true, false};
+        }
+    }
+
+    return {false, false};
 }
 
 // --- Access to underlying text view ---

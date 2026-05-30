@@ -41,7 +41,7 @@ bool TimeAlignmentController::status_is_error() const
 }
 
 bool TimeAlignmentController::handle_event(AllProcessedSources& processed_sources, TextViewController& text_view_controller, ftxui::Event event,
-                                           const std::function<std::optional<TextViewPosition>(const ftxui::Mouse&)>& mouse_to_text_position, const FindNavigation& find_navigation)
+                                           const std::function<std::optional<TextViewPosition>(int, int)>& text_position_at, const FindNavigation& find_navigation)
 {
     if (event == ftxui::Event::Escape)
     {
@@ -127,9 +127,9 @@ bool TimeAlignmentController::handle_event(AllProcessedSources& processed_source
             return true;
         }
 
-        if (mouse_to_text_position && event.mouse().button == ftxui::Mouse::Left && event.mouse().motion == ftxui::Mouse::Pressed)
+        if (text_position_at && event.mouse().button == ftxui::Mouse::Left && event.mouse().motion == ftxui::Mouse::Pressed)
         {
-            const auto position = mouse_to_text_position(event.mouse());
+            const auto position = text_position_at(event.mouse().x, event.mouse().y);
             if (position.has_value())
             {
                 set_selected_line(processed_sources, text_view_controller, position->line_index, true);
@@ -138,8 +138,42 @@ bool TimeAlignmentController::handle_event(AllProcessedSources& processed_source
         }
     }
 
-    const auto result = text_view_controller.parse_event(event, mouse_to_text_position);
-    return result.handled;
+    const int fast_horizontal_step = std::max(1, (text_view_controller.viewport_col_count() - 1) / 2);
+    if (event == ftxui::Event::ArrowLeft)
+    {
+        text_view_controller.scroll_left(1);
+        return true;
+    }
+
+    if (event == ftxui::Event::ArrowLeftCtrl)
+    {
+        text_view_controller.scroll_left(fast_horizontal_step);
+        return true;
+    }
+
+    if (event == ftxui::Event::ArrowRight)
+    {
+        text_view_controller.scroll_right(1);
+        return true;
+    }
+
+    if (event == ftxui::Event::ArrowRightCtrl)
+    {
+        text_view_controller.scroll_right(fast_horizontal_step);
+        return true;
+    }
+
+    if (event == ftxui::Event::C)
+    {
+        return text_view_controller.copy_selection_to_clipboard();
+    }
+
+    if (event.is_mouse() && event.mouse().button == ftxui::Mouse::Right && event.mouse().motion == ftxui::Mouse::Pressed)
+    {
+        return text_view_controller.copy_selection_to_clipboard();
+    }
+
+    return false;
 }
 
 void TimeAlignmentController::reset()

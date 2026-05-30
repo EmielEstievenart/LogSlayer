@@ -79,7 +79,7 @@ bool MasterController::handle_event(const ftxui::Event& event)
         return true;
     }
 
-    const auto result = _log_controller.handle_event(_processed_sources, event, [this](const ftxui::Mouse& mouse) { return _log_view.mouse_to_text_position(_log_controller, mouse); });
+    const auto result = _log_view.handle_event(_processed_sources, _log_controller, event);
 
     if (result.request_exit)
     {

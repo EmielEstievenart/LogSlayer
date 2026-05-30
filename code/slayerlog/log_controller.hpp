@@ -6,7 +6,6 @@
 #include <vector>
 
 #include <ftxui/component/event.hpp>
-#include <ftxui/component/mouse.hpp>
 
 #include <ftxui_components/text_view_controller.hpp>
 
@@ -65,7 +64,7 @@ public:
 
     // --- Event handling ---
 
-    LogEventResult handle_event(AllProcessedSources& processed_sources, ftxui::Event event, const std::function<std::optional<TextViewPosition>(const ftxui::Mouse&)>& mouse_to_text_position);
+    LogEventResult handle_event(AllProcessedSources& processed_sources, ftxui::Event event, const std::function<std::optional<TextViewPosition>(int, int)>& text_position_at);
 
     // --- Access to underlying text view ---
 

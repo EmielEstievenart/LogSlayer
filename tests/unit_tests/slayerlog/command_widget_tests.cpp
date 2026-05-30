@@ -105,23 +105,23 @@ TEST(TextViewComponentTest, SelectorStepSnapsViewportPageJumps)
 
     ASSERT_EQ(view.selected_line(), 0);
 
-    ASSERT_TRUE(view.handle_event(ftxui::Event::PageDown));
+    view.page_selected_down();
     EXPECT_EQ(view.selected_line(), 9);
 
-    ASSERT_TRUE(view.handle_event(ftxui::Event::PageUp));
+    view.page_selected_up();
     EXPECT_EQ(view.selected_line(), 0);
 
-    ASSERT_TRUE(view.handle_event(ftxui::Event::ArrowDown));
+    view.select_next();
     EXPECT_EQ(view.selected_line(), 3);
 
     view.set_selected_line(12, true);
-    ASSERT_TRUE(view.handle_event(ftxui::Event::PageUp));
+    view.page_selected_up();
     EXPECT_EQ(view.selected_line(), 3);
 
-    ASSERT_TRUE(view.handle_event(ftxui::Event::PageDown));
+    view.page_selected_down();
     EXPECT_EQ(view.selected_line(), 12);
 
-    ASSERT_TRUE(view.handle_event(ftxui::Event::End));
+    view.select_last_line();
     EXPECT_EQ(view.selected_line(), 12);
 }
 

@@ -43,7 +43,7 @@ public:
     bool status_is_error() const;
 
     bool handle_event(AllProcessedSources& processed_sources, TextViewController& text_view_controller, ftxui::Event event,
-                      const std::function<std::optional<TextViewPosition>(const ftxui::Mouse&)>& mouse_to_text_position, const FindNavigation& find_navigation);
+                      const std::function<std::optional<TextViewPosition>(int, int)>& text_position_at, const FindNavigation& find_navigation);
 
 private:
     enum class Phase

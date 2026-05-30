@@ -357,7 +357,7 @@ ftxui::Element LogView::render(const AllProcessedSources& processed_sources, Log
                                                     }));
 }
 
-std::optional<TextViewPosition> LogView::mouse_to_text_position(const LogController& controller, const ftxui::Mouse& mouse) const
+std::optional<TextViewPosition> LogView::text_position_at(const LogController& controller, int x, int y) const
 {
     const auto data = controller.text_view_controller().render_data();
     if (data.total_lines == 0)
@@ -365,7 +365,12 @@ std::optional<TextViewPosition> LogView::mouse_to_text_position(const LogControl
         return std::nullopt;
     }
 
-    return _text_view.mouse_to_text_position(data, mouse);
+    return _text_view.text_position_at(data, x, y);
+}
+
+LogEventResult LogView::handle_event(AllProcessedSources& processed_sources, LogController& controller, ftxui::Event event)
+{
+    return controller.handle_event(processed_sources, event, [this, &controller](int x, int y) { return text_position_at(controller, x, y); });
 }
 
 } // namespace slayerlog

@@ -365,7 +365,7 @@ bool CommandPaletteController::handle_event(const ftxui::Event& event)
 
     if (is_result_scroll_event(event))
     {
-        if (_result_text_view != nullptr && _result_text_view->handle_event(event))
+        if (handle_result_text_view_event(event))
         {
             return true;
         }
@@ -529,6 +529,125 @@ bool CommandPaletteController::handle_event(const ftxui::Event& event)
     }
 
     return true;
+}
+
+bool CommandPaletteController::handle_result_text_view_event(ftxui::Event event)
+{
+    if (_result_text_view == nullptr)
+    {
+        return false;
+    }
+
+    const bool selectable = result_selectable();
+    const int fast_horizontal_step = std::max(1, (_result_text_view->controller().viewport_col_count() - 1) / 2);
+
+    if (event == ftxui::Event::ArrowUp)
+    {
+        if (selectable)
+        {
+            _result_text_view->select_previous();
+        }
+        else
+        {
+            _result_text_view->scroll_up();
+        }
+        return true;
+    }
+
+    if (event == ftxui::Event::ArrowDown)
+    {
+        if (selectable)
+        {
+            _result_text_view->select_next();
+        }
+        else
+        {
+            _result_text_view->scroll_down();
+        }
+        return true;
+    }
+
+    if (event == ftxui::Event::PageUp)
+    {
+        if (selectable)
+        {
+            _result_text_view->page_selected_up();
+        }
+        else
+        {
+            _result_text_view->page_up();
+        }
+        return true;
+    }
+
+    if (event == ftxui::Event::PageDown)
+    {
+        if (selectable)
+        {
+            _result_text_view->page_selected_down();
+        }
+        else
+        {
+            _result_text_view->page_down();
+        }
+        return true;
+    }
+
+    if (event == ftxui::Event::ArrowLeftCtrl)
+    {
+        _result_text_view->scroll_left(fast_horizontal_step);
+        return true;
+    }
+
+    if (event == ftxui::Event::ArrowRightCtrl)
+    {
+        _result_text_view->scroll_right(fast_horizontal_step);
+        return true;
+    }
+
+    if (!event.is_mouse())
+    {
+        return false;
+    }
+
+    const auto mouse = event.mouse();
+    if (mouse.button == ftxui::Mouse::WheelUp)
+    {
+        if (selectable)
+        {
+            _result_text_view->select_previous();
+        }
+        else
+        {
+            _result_text_view->scroll_up();
+        }
+        return true;
+    }
+
+    if (mouse.button == ftxui::Mouse::WheelDown)
+    {
+        if (selectable)
+        {
+            _result_text_view->select_next();
+        }
+        else
+        {
+            _result_text_view->scroll_down();
+        }
+        return true;
+    }
+
+    if (selectable && mouse.button == ftxui::Mouse::Left && mouse.motion == ftxui::Mouse::Pressed)
+    {
+        const auto position = _result_text_view->text_position_at(mouse.x, mouse.y);
+        if (position.has_value())
+        {
+            _result_text_view->select_line_at(*position);
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void CommandPaletteController::autocomplete_selected_command()
