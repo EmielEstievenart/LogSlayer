@@ -23,12 +23,9 @@ public:
 
 private:
     void try_initialize_timestamp_parser(const std::vector<std::string>& lines);
-    void report_content_parse_progress(int percent);
     bool _timestamp_parser_initialized = false;
     SourceTimestampParser _timestamp_parser;
     std::unique_ptr<LogWatcherBase> _watcher;
-    NotificationHandle _content_parse_progress_notification;
-    bool _is_blf_source = false;
 };
 
 } // namespace slayerlog

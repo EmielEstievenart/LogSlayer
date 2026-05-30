@@ -1,7 +1,6 @@
 add_executable(
   unit_tests
   slayerlog/file_watcher_tests.cpp
-  slayerlog/blf_file_watcher_tests.cpp
   slayerlog/zstd_file_watcher_tests.cpp
   slayerlog/log_source_tests.cpp
   slayerlog/tracked_source_tests.cpp
