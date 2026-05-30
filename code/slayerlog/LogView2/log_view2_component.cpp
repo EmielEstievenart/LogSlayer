@@ -77,6 +77,15 @@ bool LogView2Component::OnEvent(ftxui::Event event)
             TakeFocus();
         }
 
+        if (event.mouse().button == ftxui::Mouse::WheelUp)
+        {
+            _text_view->user_scroll_up();
+        }
+        else if (event.mouse().button == ftxui::Mouse::WheelDown)
+        {
+            _text_view->user_scroll_down();
+        }
+
         return true;
     }
 
@@ -84,6 +93,49 @@ bool LogView2Component::OnEvent(ftxui::Event event)
     if (event == ftxui::Event::Tab || event == ftxui::Event::TabReverse)
     {
         return false;
+    }
+
+    const int fast_horizontal_step = std::max(1, (_text_view->controller().viewport_col_count() - 1) / 2);
+
+    if (event == ftxui::Event::ArrowUp)
+    {
+        _text_view->user_scroll_up();
+    }
+    else if (event == ftxui::Event::ArrowDown)
+    {
+        _text_view->user_scroll_down();
+    }
+    else if (event == ftxui::Event::PageUp)
+    {
+        _text_view->user_page_up();
+    }
+    else if (event == ftxui::Event::PageDown)
+    {
+        _text_view->user_page_down();
+    }
+    else if (event == ftxui::Event::Home)
+    {
+        _text_view->user_scroll_to_top();
+    }
+    else if (event == ftxui::Event::End)
+    {
+        _text_view->user_scroll_to_bottom();
+    }
+    else if (event == ftxui::Event::ArrowLeft)
+    {
+        _text_view->user_scroll_left();
+    }
+    else if (event == ftxui::Event::ArrowRight)
+    {
+        _text_view->user_scroll_right();
+    }
+    else if (event == ftxui::Event::ArrowLeftCtrl)
+    {
+        _text_view->user_scroll_left(fast_horizontal_step);
+    }
+    else if (event == ftxui::Event::ArrowRightCtrl)
+    {
+        _text_view->user_scroll_right(fast_horizontal_step);
     }
 
     return true;

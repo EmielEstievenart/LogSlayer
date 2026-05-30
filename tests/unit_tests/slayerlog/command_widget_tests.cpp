@@ -102,23 +102,23 @@ TEST(TextViewComponentTest, SelectorStepSnapsViewportPageJumps)
 
     ASSERT_EQ(view.selected_line(), 0);
 
-    view.page_selected_down();
+    view.user_page_selected_down();
     EXPECT_EQ(view.selected_line(), 9);
 
-    view.page_selected_up();
+    view.user_page_selected_up();
     EXPECT_EQ(view.selected_line(), 0);
 
-    view.select_next();
+    view.user_select_next();
     EXPECT_EQ(view.selected_line(), 3);
 
     view.set_selected_line(12, true);
-    view.page_selected_up();
+    view.user_page_selected_up();
     EXPECT_EQ(view.selected_line(), 3);
 
-    view.page_selected_down();
+    view.user_page_selected_down();
     EXPECT_EQ(view.selected_line(), 12);
 
-    view.select_last_line();
+    view.user_select_last_line();
     EXPECT_EQ(view.selected_line(), 12);
 }
 

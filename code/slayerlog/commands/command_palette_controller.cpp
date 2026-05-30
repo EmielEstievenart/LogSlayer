@@ -545,11 +545,11 @@ bool CommandPaletteController::handle_result_text_view_event(ftxui::Event event)
     {
         if (selectable)
         {
-            _result_text_view->select_previous();
+            _result_text_view->user_select_previous();
         }
         else
         {
-            _result_text_view->scroll_up();
+            _result_text_view->user_scroll_up();
         }
         return true;
     }
@@ -558,11 +558,11 @@ bool CommandPaletteController::handle_result_text_view_event(ftxui::Event event)
     {
         if (selectable)
         {
-            _result_text_view->select_next();
+            _result_text_view->user_select_next();
         }
         else
         {
-            _result_text_view->scroll_down();
+            _result_text_view->user_scroll_down();
         }
         return true;
     }
@@ -571,11 +571,11 @@ bool CommandPaletteController::handle_result_text_view_event(ftxui::Event event)
     {
         if (selectable)
         {
-            _result_text_view->page_selected_up();
+            _result_text_view->user_page_selected_up();
         }
         else
         {
-            _result_text_view->page_up();
+            _result_text_view->user_page_up();
         }
         return true;
     }
@@ -584,24 +584,24 @@ bool CommandPaletteController::handle_result_text_view_event(ftxui::Event event)
     {
         if (selectable)
         {
-            _result_text_view->page_selected_down();
+            _result_text_view->user_page_selected_down();
         }
         else
         {
-            _result_text_view->page_down();
+            _result_text_view->user_page_down();
         }
         return true;
     }
 
     if (event == ftxui::Event::ArrowLeftCtrl)
     {
-        _result_text_view->scroll_left(fast_horizontal_step);
+        _result_text_view->user_scroll_left(fast_horizontal_step);
         return true;
     }
 
     if (event == ftxui::Event::ArrowRightCtrl)
     {
-        _result_text_view->scroll_right(fast_horizontal_step);
+        _result_text_view->user_scroll_right(fast_horizontal_step);
         return true;
     }
 
@@ -615,11 +615,11 @@ bool CommandPaletteController::handle_result_text_view_event(ftxui::Event event)
     {
         if (selectable)
         {
-            _result_text_view->select_previous();
+            _result_text_view->user_select_previous();
         }
         else
         {
-            _result_text_view->scroll_up();
+            _result_text_view->user_scroll_up();
         }
         return true;
     }
@@ -628,11 +628,11 @@ bool CommandPaletteController::handle_result_text_view_event(ftxui::Event event)
     {
         if (selectable)
         {
-            _result_text_view->select_next();
+            _result_text_view->user_select_next();
         }
         else
         {
-            _result_text_view->scroll_down();
+            _result_text_view->user_scroll_down();
         }
         return true;
     }
@@ -642,7 +642,7 @@ bool CommandPaletteController::handle_result_text_view_event(ftxui::Event event)
         const auto position = _result_text_view->text_position_at(mouse.x, mouse.y);
         if (position.has_value())
         {
-            _result_text_view->select_line_at(*position);
+            _result_text_view->user_select_line_at(*position);
             return true;
         }
     }
