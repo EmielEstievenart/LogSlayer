@@ -11,6 +11,7 @@
 #include <ftxui_components/text_view_component.hpp>
 
 #include "log_view2_data.hpp"
+#include "log_view2_selection.hpp"
 
 namespace slayerlog
 {
@@ -27,9 +28,14 @@ private:
     bool OnEvent(ftxui::Event event) override;
     bool Focusable() const override;
 
+    bool handle_mouse(const ftxui::Mouse& mouse);
+    bool handle_left_button(const ftxui::Mouse& mouse);
+    void copy_selection();
+
     std::string _title;
     std::shared_ptr<LogView2Data> _data;
     std::shared_ptr<TextViewComponent> _text_view;
+    LogView2Selection _selection;
     ftxui::Box _box;
 };
 
