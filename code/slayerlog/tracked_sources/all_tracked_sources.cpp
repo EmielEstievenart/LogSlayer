@@ -4,6 +4,7 @@
 #include <chrono>
 #include <exception>
 #include <memory>
+#include <algorithm>
 #include <utility>
 
 #include "debug_log.hpp"
@@ -266,11 +267,13 @@ std::optional<AllLineIndex> AllTrackedSources::poll()
     for (std::size_t merged_index = 0; merged_index < existing_suffix.size(); ++merged_index)
     {
         _all_lines[AllLineIndex {static_cast<int>(rewrite_start_index + merged_index)}] = merged_lines[merged_index];
+        update_widest_line_width(merged_lines[merged_index]);
     }
 
     for (std::size_t merged_index = existing_suffix.size(); merged_index < merged_lines.size(); ++merged_index)
     {
         _all_lines.push_back(merged_lines[merged_index]);
+        update_widest_line_width(merged_lines[merged_index]);
     }
 
     return AllLineIndex {static_cast<int>(rewrite_start_index)};
@@ -284,6 +287,11 @@ const IndexedVector<std::shared_ptr<LogEntry>, AllLineIndex>& AllTrackedSources:
 int AllTrackedSources::line_count() const
 {
     return static_cast<int>(_all_lines.size());
+}
+
+int AllTrackedSources::widest_line_width() const
+{
+    return _widest_line_width;
 }
 
 std::size_t AllTrackedSources::source_count() const
@@ -401,6 +409,7 @@ void AllTrackedSources::rebuild_source_labels()
 void AllTrackedSources::rebuild_all_lines()
 {
     _all_lines.clear();
+    _widest_line_width = 0;
 
     const std::size_t total_step_count = _sources.size() + 1;
     NotificationHandle progress_notification(_notifier);
@@ -428,6 +437,14 @@ void AllTrackedSources::rebuild_all_lines()
     (void)progress_notification.show_or_update(rebuild_progress_notification(100, "100% rebuilt (" + std::to_string(merged_lines.size()) + " log lines)"));
 }
 
+void AllTrackedSources::update_widest_line_width(const std::shared_ptr<LogEntry>& line)
+{
+    if (line != nullptr)
+    {
+        _widest_line_width = std::max(_widest_line_width, static_cast<int>(line->text.size()));
+    }
+}
+
 void AllTrackedSources::append_source_range(std::vector<LogBatchSourceRange>& source_ranges, const TrackedSourceBase& source, std::size_t source_index,
                                             std::size_t first_entry_index) const
 {
@@ -451,6 +468,7 @@ void AllTrackedSources::append_merged_lines(const std::vector<std::shared_ptr<Lo
     for (const auto& line : lines)
     {
         _all_lines.push_back(line);
+        update_widest_line_width(line);
     }
 }
 

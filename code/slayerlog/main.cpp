@@ -9,6 +9,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include <ftxui/component/component.hpp>
@@ -157,11 +158,12 @@ bool handle_help_request(const slayerlog::Config& config, slayerlog::CommandMana
     return true;
 }
 
-ftxui::Component create_log_views(slayerlog::AllProcessedSources& processed_sources, slayerlog::LogController& controller, slayerlog::CommandPaletteController& command_palette_controller, ftxui::ScreenInteractive& screen,
-                                  std::string& header_text, std::mutex& model_mutex)
+ftxui::Component create_log_views(slayerlog::AllProcessedSources& processed_sources, slayerlog::AllTrackedSources& tracked_sources, slayerlog::LogController& controller,
+                                  slayerlog::CommandPaletteController& command_palette_controller, ftxui::ScreenInteractive& screen, std::string& header_text, std::mutex& model_mutex)
 {
-    auto left_view  = std::make_shared<slayerlog::LogViewComponent>(processed_sources, controller, command_palette_controller, screen, header_text, model_mutex);
-    auto right_view = std::make_shared<slayerlog::LogView2Component>();
+    auto left_view       = std::make_shared<slayerlog::LogViewComponent>(processed_sources, controller, command_palette_controller, screen, header_text, model_mutex);
+    auto right_view_data = std::make_shared<slayerlog::AllTrackedSourcesLogView2Data>(tracked_sources, model_mutex);
+    auto right_view      = std::make_shared<slayerlog::LogView2Component>(std::move(right_view_data));
     return ftxui::Container::Horizontal({left_view, right_view});
 }
 
@@ -316,7 +318,7 @@ int main(int argc, char** argv)
         return 0;
     }
 
-    auto views = create_log_views(processed_sources, controller, *command_palette_controller, screen, header_text, model_mutex);
+    auto views = create_log_views(processed_sources, tracked_sources, controller, *command_palette_controller, screen, header_text, model_mutex);
 
     {
         std::lock_guard lock(model_mutex);

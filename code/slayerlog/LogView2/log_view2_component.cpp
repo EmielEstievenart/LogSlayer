@@ -10,23 +10,21 @@
 namespace slayerlog
 {
 
-LogView2Component::LogView2Component() : _lines({"dummy line 1: startup complete", "dummy line 2: connected to source", "dummy line 3: received event", "dummy line 4: parsed payload", "dummy line 5: waiting for input"})
+LogView2Component::LogView2Component(std::shared_ptr<LogView2Data> data) : _data(std::move(data))
 {
-    int max_line_width = 0;
-    for (const auto& line : _lines)
-    {
-        max_line_width = std::max(max_line_width, static_cast<int>(line.size()));
-    }
-
     TextViewComponentOption option;
-    option.total_line_count  = static_cast<int>(_lines.size());
-    option.widest_line_width = max_line_width;
-    option.draw_content      = [this](ftxui::Canvas& canvas, int first_line, int line_count, int first_col, int col_count)
+    option.draw_content = [this](ftxui::Canvas& canvas, int first_line, int line_count, int first_col, int col_count)
     {
-        const int visible_line_count = std::max(0, std::min(line_count, static_cast<int>(_lines.size()) - first_line));
+        if (_data == nullptr)
+        {
+            return;
+        }
+
+        auto lock                    = _data->lock();
+        const int visible_line_count = std::max(0, std::min(line_count, static_cast<int>(_data->size()) - first_line));
         for (int row = 0; row < visible_line_count; ++row)
         {
-            const auto& line = _lines[static_cast<std::size_t>(first_line + row)];
+            const auto line = _data->to_string(static_cast<std::size_t>(first_line + row));
             if (first_col >= static_cast<int>(line.size()))
             {
                 continue;
@@ -42,6 +40,12 @@ LogView2Component::LogView2Component() : _lines({"dummy line 1: startup complete
 
 ftxui::Element LogView2Component::OnRender()
 {
+    if (_data != nullptr)
+    {
+        auto lock = _data->lock();
+        _text_view->update_content_size(static_cast<int>(_data->size()), _data->widest_line_width());
+    }
+
     const bool focused  = Focused();
     ftxui::Element body = _text_view->Render() | ftxui::flex;
 

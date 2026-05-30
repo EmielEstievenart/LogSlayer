@@ -674,9 +674,7 @@ void CommandPaletteController::autocomplete_selected_command()
 void CommandPaletteController::initialize_result_text_view()
 {
     TextViewComponentOption option;
-    option.total_line_count  = 0;
-    option.widest_line_width = 0;
-    option.draw_content      = [this](ftxui::Canvas& canvas, int first_line, int line_count, int first_col, int col_count)
+    option.draw_content = [this](ftxui::Canvas& canvas, int first_line, int line_count, int first_col, int col_count)
     {
         int selected_entry_index = -1;
         if (_result_text_view != nullptr)
@@ -717,9 +715,9 @@ void CommandPaletteController::initialize_result_text_view()
             }
         }
     };
-    option.selectable               = true;
     option.on_selected_line_changed = [this](int line_index) { sync_selected_index_from_result_line(line_index); };
     _result_text_view               = std::make_shared<TextViewComponent>(std::move(option));
+    _result_text_view->set_selectable(true);
 }
 
 void CommandPaletteController::refresh_matches()

@@ -2,7 +2,6 @@
 
 #include <memory>
 #include <string>
-#include <vector>
 
 #include <ftxui/component/component_base.hpp>
 #include <ftxui/component/event.hpp>
@@ -10,6 +9,8 @@
 #include <ftxui/screen/box.hpp>
 
 #include <ftxui_components/text_view_component.hpp>
+
+#include "log_view2_data.hpp"
 
 namespace slayerlog
 {
@@ -19,14 +20,14 @@ namespace slayerlog
 class LogView2Component : public ftxui::ComponentBase
 {
 public:
-    LogView2Component();
+    explicit LogView2Component(std::shared_ptr<LogView2Data> data);
 
 private:
     ftxui::Element OnRender() override;
     bool OnEvent(ftxui::Event event) override;
     bool Focusable() const override;
 
-    std::vector<std::string> _lines;
+    std::shared_ptr<LogView2Data> _data;
     std::shared_ptr<TextViewComponent> _text_view;
     ftxui::Box _box;
 };

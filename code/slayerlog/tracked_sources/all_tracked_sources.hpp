@@ -31,6 +31,7 @@ public:
 
     const IndexedVector<std::shared_ptr<LogEntry>, AllLineIndex>& all_lines() const;
     int line_count() const;
+    int widest_line_width() const;
 
     std::size_t source_count() const;
     bool empty() const;
@@ -46,11 +47,13 @@ public:
 private:
     void rebuild_source_labels();
     void rebuild_all_lines();
+    void update_widest_line_width(const std::shared_ptr<LogEntry>& line);
     void append_source_range(std::vector<LogBatchSourceRange>& source_ranges, const TrackedSourceBase& source, std::size_t source_index, std::size_t first_entry_index) const;
     void append_merged_lines(const std::vector<std::shared_ptr<LogEntry>>& lines);
 
     std::vector<std::unique_ptr<TrackedSourceBase>> _sources;
     IndexedVector<std::shared_ptr<LogEntry>, AllLineIndex> _all_lines;
+    int _widest_line_width = 0;
     std::shared_ptr<const TimestampFormatCatalog> _timestamp_formats;
     Notifier _notifier;
 };
