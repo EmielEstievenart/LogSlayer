@@ -1,12 +1,26 @@
 #include "log_controller.hpp"
 
+#include "clipboard.hpp"
+
 #include <algorithm>
 #include <cstddef>
 #include <iterator>
+#include <sstream>
 #include <string>
+#include <utility>
 
 namespace slayerlog
 {
+
+namespace
+{
+
+bool is_before(const TextViewPosition& lhs, const TextViewPosition& rhs)
+{
+    return lhs.line_index < rhs.line_index || (lhs.line_index == rhs.line_index && lhs.column < rhs.column);
+}
+
+} // namespace
 
 LogController::LogController() = default;
 
@@ -22,7 +36,8 @@ void LogController::reset()
     _find_match_entry_indices.clear();
     _active_find_entry_index.reset();
     _time_alignment_controller.cancel();
-    _text_view_controller.set_content(0, 0, [this](int index) -> const std::string& { return active_buffer()[static_cast<std::size_t>(index)]; });
+    clear_selection();
+    _text_view_controller.set_content(0, 0);
     _text_view_controller.scroll_to_bottom();
 }
 
@@ -50,7 +65,8 @@ void LogController::rebuild_view(const AllProcessedSources& processed_sources)
         _max_line_width = std::max(_max_line_width, static_cast<int>(line.size()));
     }
 
-    _text_view_controller.set_content(count, _max_line_width, [this](int index) -> const std::string& { return active_buffer()[static_cast<std::size_t>(index)]; });
+    clear_selection();
+    _text_view_controller.set_content(count, _max_line_width);
 }
 
 void LogController::sync_view(const AllProcessedSources& processed_sources)
@@ -279,6 +295,128 @@ const TimeAlignmentController& LogController::time_alignment_controller() const
     return _time_alignment_controller;
 }
 
+// --- Text selection ---
+
+void LogController::begin_selection(TextViewPosition position)
+{
+    _selection_anchor      = clamp_selection_position(position);
+    _selection_focus       = _selection_anchor;
+    _selection_in_progress = _selection_anchor.has_value();
+}
+
+void LogController::update_selection(TextViewPosition position)
+{
+    if (!_selection_in_progress || !_selection_anchor.has_value())
+    {
+        return;
+    }
+
+    _selection_focus = clamp_selection_position(position);
+}
+
+void LogController::end_selection(std::optional<TextViewPosition> position)
+{
+    _selection_in_progress = false;
+    if (position.has_value() && _selection_anchor.has_value())
+    {
+        _selection_focus = clamp_selection_position(*position);
+    }
+}
+
+void LogController::clear_selection()
+{
+    _selection_anchor.reset();
+    _selection_focus.reset();
+    _selection_in_progress = false;
+}
+
+bool LogController::selection_in_progress() const
+{
+    return _selection_in_progress;
+}
+
+std::optional<std::pair<TextViewPosition, TextViewPosition>> LogController::selection_bounds() const
+{
+    if (!_selection_anchor.has_value() || !_selection_focus.has_value() || active_buffer().empty())
+    {
+        return std::nullopt;
+    }
+
+    auto start = clamp_selection_position(*_selection_anchor);
+    auto end   = clamp_selection_position(*_selection_focus);
+    if (is_before(end, start))
+    {
+        std::swap(start, end);
+    }
+    return std::pair(start, end);
+}
+
+std::string LogController::selection_text() const
+{
+    const auto bounds = selection_bounds();
+    if (!bounds.has_value())
+    {
+        return {};
+    }
+
+    const auto [start, end] = *bounds;
+    std::ostringstream output;
+    for (int line_index = start.line_index; line_index <= end.line_index; ++line_index)
+    {
+        const auto& line           = line_at(line_index);
+        const int line_start       = (line_index == start.line_index) ? start.column : 0;
+        const int line_end         = (line_index == end.line_index) ? end.column : static_cast<int>(line.size());
+        const int clamped_start    = std::clamp(line_start, 0, static_cast<int>(line.size()));
+        const int clamped_end      = std::clamp(line_end, clamped_start, static_cast<int>(line.size()));
+        const auto selection_count = static_cast<std::size_t>(clamped_end - clamped_start);
+
+        output << line.substr(static_cast<std::size_t>(clamped_start), selection_count);
+        if (line_index != end.line_index)
+        {
+            output << '\n';
+        }
+    }
+
+    return output.str();
+}
+
+std::vector<TextViewRangeDecoration> LogController::selection_decorations() const
+{
+    std::vector<TextViewRangeDecoration> decorations;
+    const auto bounds = selection_bounds();
+    if (!bounds.has_value())
+    {
+        return decorations;
+    }
+
+    for (int line_index = bounds->first.line_index; line_index <= bounds->second.line_index; ++line_index)
+    {
+        const auto& line          = line_at(line_index);
+        const int selection_start = (line_index == bounds->first.line_index) ? bounds->first.column : 0;
+        const int selection_end   = (line_index == bounds->second.line_index) ? bounds->second.column : static_cast<int>(line.size());
+        const int clamped_start   = std::clamp(selection_start, 0, static_cast<int>(line.size()));
+        const int clamped_end     = std::clamp(selection_end, clamped_start, static_cast<int>(line.size()));
+        if (clamped_start == clamped_end)
+        {
+            continue;
+        }
+
+        TextViewRangeDecoration decoration;
+        decoration.line_index     = line_index;
+        decoration.col_start      = clamped_start;
+        decoration.col_end        = clamped_end;
+        decoration.style.inverted = true;
+        decorations.push_back(decoration);
+    }
+
+    return decorations;
+}
+
+bool LogController::copy_selection_to_clipboard() const
+{
+    return CopyTextToClipboard(selection_text());
+}
+
 // --- Event handling ---
 
 LogEventResult LogController::handle_event(AllProcessedSources& processed_sources, ftxui::Event event, const std::function<std::optional<TextViewPosition>(int, int)>& text_position_at)
@@ -299,7 +437,7 @@ LogEventResult LogController::handle_event(AllProcessedSources& processed_source
             find_navigation.active_visible_index = [this, &processed_sources]() { return active_find_visible_index(processed_sources); };
         }
 
-        return {_time_alignment_controller.handle_event(processed_sources, _text_view_controller, event, text_position_at, find_navigation), false};
+        return {_time_alignment_controller.handle_event(processed_sources, _text_view_controller, event, text_position_at, find_navigation, [this]() { return copy_selection_to_clipboard(); }), false};
     }
 
     // Escape: clear find if active, otherwise delegate (TextViewController handles exit)
@@ -402,7 +540,7 @@ LogEventResult LogController::handle_event(AllProcessedSources& processed_source
 
     if (event == ftxui::Event::C)
     {
-        return {_text_view_controller.copy_selection_to_clipboard(), false};
+        return {copy_selection_to_clipboard(), false};
     }
 
     if (event.is_mouse())
@@ -415,33 +553,33 @@ LogEventResult LogController::handle_event(AllProcessedSources& processed_source
             {
                 if (position.has_value())
                 {
-                    _text_view_controller.begin_selection(*position);
+                    begin_selection(*position);
                     return {true, false};
                 }
 
-                _text_view_controller.clear_selection();
+                clear_selection();
                 return {false, false};
             }
 
-            if (mouse.motion == ftxui::Mouse::Moved && _text_view_controller.selection_in_progress())
+            if (mouse.motion == ftxui::Mouse::Moved && selection_in_progress())
             {
                 if (position.has_value())
                 {
-                    _text_view_controller.update_selection(*position);
+                    update_selection(*position);
                     return {true, false};
                 }
             }
 
             if (mouse.motion == ftxui::Mouse::Released)
             {
-                _text_view_controller.end_selection(position);
+                end_selection(position);
                 return {position.has_value(), false};
             }
         }
 
         if (text_position_at && mouse.button == ftxui::Mouse::Right && mouse.motion == ftxui::Mouse::Pressed)
         {
-            return {_text_view_controller.copy_selection_to_clipboard(), false};
+            return {copy_selection_to_clipboard(), false};
         }
 
         if (mouse.button == ftxui::Mouse::WheelUp)
@@ -475,6 +613,20 @@ const TextViewController& LogController::text_view_controller() const
 const std::string& LogController::line_at(int index) const
 {
     return active_buffer().at(static_cast<std::size_t>(index));
+}
+
+TextViewPosition LogController::clamp_selection_position(TextViewPosition position) const
+{
+    const auto& buffer = active_buffer();
+    if (buffer.empty())
+    {
+        return TextViewPosition {0, 0};
+    }
+
+    position.line_index    = std::clamp(position.line_index, 0, static_cast<int>(buffer.size()) - 1);
+    const auto line_length = static_cast<int>(line_at(position.line_index).size());
+    position.column        = std::clamp(position.column, 0, line_length);
+    return position;
 }
 
 // --- Private ---

@@ -206,6 +206,12 @@ ftxui::Element LogView::render(const AllProcessedSources& processed_sources, Log
     const bool empty_state = processed_sources.line_count() == 0;
     std::vector<RenderedRow> rendered_rows;
 
+    auto selection_decorations = controller.selection_decorations();
+    if (!selection_decorations.empty())
+    {
+        data.range_decorations.insert(data.range_decorations.end(), selection_decorations.begin(), selection_decorations.end());
+    }
+
     if (empty_state)
     {
         data.total_lines        = 1;

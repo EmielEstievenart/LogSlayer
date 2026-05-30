@@ -30,7 +30,7 @@ std::string trim_text(std::string_view text)
 
 std::string selected_find_text(const LogController& log_controller)
 {
-    std::string selection = trim_text(log_controller.text_view_controller().selection_text());
+    std::string selection = trim_text(log_controller.selection_text());
     if (selection.find_first_of("\r\n") != std::string::npos)
     {
         return {};

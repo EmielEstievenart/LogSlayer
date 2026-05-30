@@ -3,6 +3,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <ftxui/component/event.hpp>
@@ -62,6 +63,19 @@ public:
     TimeAlignmentController& time_alignment_controller();
     const TimeAlignmentController& time_alignment_controller() const;
 
+    // --- Text selection ---
+
+    void begin_selection(TextViewPosition position);
+    void update_selection(TextViewPosition position);
+    void end_selection(std::optional<TextViewPosition> position);
+    void clear_selection();
+
+    [[nodiscard]] bool selection_in_progress() const;
+    [[nodiscard]] std::optional<std::pair<TextViewPosition, TextViewPosition>> selection_bounds() const;
+    [[nodiscard]] std::string selection_text() const;
+    [[nodiscard]] std::vector<TextViewRangeDecoration> selection_decorations() const;
+    [[nodiscard]] bool copy_selection_to_clipboard() const;
+
     // --- Event handling ---
 
     LogEventResult handle_event(AllProcessedSources& processed_sources, ftxui::Event event, const std::function<std::optional<TextViewPosition>(int, int)>& text_position_at);
@@ -79,6 +93,7 @@ private:
     void rebuild_find_matches(const AllProcessedSources& processed_sources);
     void expand_find_matches(const AllProcessedSources& processed_sources, AllLineIndex first_new_entry_index);
     bool entry_matches_find_query(const LogEntry& entry) const;
+    [[nodiscard]] TextViewPosition clamp_selection_position(TextViewPosition position) const;
 
     TextViewController _text_view_controller;
 
@@ -93,6 +108,10 @@ private:
     IndexedVector<AllLineIndex, FindResultIndex> _find_match_entry_indices;
     std::optional<AllLineIndex> _active_find_entry_index;
     TimeAlignmentController _time_alignment_controller;
+
+    bool _selection_in_progress = false;
+    std::optional<TextViewPosition> _selection_anchor;
+    std::optional<TextViewPosition> _selection_focus;
 };
 
 } // namespace slayerlog

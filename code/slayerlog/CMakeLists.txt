@@ -14,6 +14,8 @@ set(SLAYERLOG_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/command_line_parser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/command_line_parser.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/debug_log.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/clipboard.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/clipboard.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/log_source.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/log_source.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/watchers/log_watcher.hpp
@@ -159,6 +161,10 @@ target_link_libraries(
   LogSlayer PRIVATE component ftxui_components Boost::program_options
                     log4cplus::log4cplus libzstd eestv_lib nlohmann_json::nlohmann_json
                     SimpleIni::SimpleIni)
+
+if(WIN32)
+  target_link_libraries(LogSlayer PRIVATE user32)
+endif()
 
 add_custom_command(
   TARGET LogSlayer

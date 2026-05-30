@@ -94,11 +94,10 @@ TEST(TextViewComponentTest, SelectorStepSnapsViewportPageJumps)
     }
 
     TextViewComponentOption option;
-    option.total_line_count = static_cast<int>(lines.size());
-    option.max_line_width   = 7;
-    option.line_at          = [&lines](int line_index) -> const std::string& { return lines.at(static_cast<std::size_t>(line_index)); };
-    option.selectable       = true;
-    option.selector_step    = 3;
+    option.total_line_count  = static_cast<int>(lines.size());
+    option.widest_line_width = 7;
+    option.selectable        = true;
+    option.selector_step     = 3;
 
     TextViewComponent view(std::move(option));
     view.controller().update_viewport_line_count(9);
@@ -134,11 +133,10 @@ TEST(TextViewComponentTest, SelectorStepKeepsFullSelectedBlockVisible)
     }
 
     TextViewComponentOption option;
-    option.total_line_count = static_cast<int>(lines.size());
-    option.max_line_width   = 7;
-    option.line_at          = [&lines](int line_index) -> const std::string& { return lines.at(static_cast<std::size_t>(line_index)); };
-    option.selectable       = true;
-    option.selector_step    = 2;
+    option.total_line_count  = static_cast<int>(lines.size());
+    option.widest_line_width = 7;
+    option.selectable        = true;
+    option.selector_step     = 2;
 
     TextViewComponent view(std::move(option));
     view.controller().update_viewport_line_count(5);

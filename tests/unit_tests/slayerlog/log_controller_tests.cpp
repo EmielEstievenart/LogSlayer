@@ -259,24 +259,24 @@ TEST(LogControllerTest, SelectionTracksBoundsAndExtractsText)
     const auto first  = model.rendered_line(0);
     const auto second = model.rendered_line(1);
 
-    controller.text_view_controller().begin_selection(TextViewPosition {0, 2});
-    EXPECT_TRUE(controller.text_view_controller().selection_in_progress());
-    controller.text_view_controller().update_selection(TextViewPosition {1, 3});
-    controller.text_view_controller().end_selection(TextViewPosition {1, 3});
+    controller.begin_selection(TextViewPosition {0, 2});
+    EXPECT_TRUE(controller.selection_in_progress());
+    controller.update_selection(TextViewPosition {1, 3});
+    controller.end_selection(TextViewPosition {1, 3});
 
-    EXPECT_FALSE(controller.text_view_controller().selection_in_progress());
-    ASSERT_TRUE(controller.text_view_controller().selection_bounds().has_value());
-    const auto bounds = *controller.text_view_controller().selection_bounds();
+    EXPECT_FALSE(controller.selection_in_progress());
+    ASSERT_TRUE(controller.selection_bounds().has_value());
+    const auto bounds = *controller.selection_bounds();
     EXPECT_EQ(bounds.first.line_index, 0);
     EXPECT_EQ(bounds.first.column, 2);
     EXPECT_EQ(bounds.second.line_index, 1);
     EXPECT_EQ(bounds.second.column, 3);
 
-    EXPECT_EQ(controller.text_view_controller().selection_text(), first.substr(2) + "\n" + second.substr(0, 3));
+    EXPECT_EQ(controller.selection_text(), first.substr(2) + "\n" + second.substr(0, 3));
 
-    controller.text_view_controller().clear_selection();
-    EXPECT_FALSE(controller.text_view_controller().selection_bounds().has_value());
-    EXPECT_TRUE(controller.text_view_controller().selection_text().empty());
+    controller.clear_selection();
+    EXPECT_FALSE(controller.selection_bounds().has_value());
+    EXPECT_TRUE(controller.selection_text().empty());
 }
 
 TEST(LogControllerTest, ResetClearsControllerState)
@@ -293,9 +293,9 @@ TEST(LogControllerTest, ResetClearsControllerState)
     ASSERT_TRUE(controller.set_find_query(model, "line"));
     ASSERT_TRUE(controller.active_find_visible_index(model).has_value());
 
-    controller.text_view_controller().begin_selection(TextViewPosition {0, 1});
-    controller.text_view_controller().update_selection(TextViewPosition {1, 2});
-    EXPECT_TRUE(controller.text_view_controller().selection_in_progress());
+    controller.begin_selection(TextViewPosition {0, 1});
+    controller.update_selection(TextViewPosition {1, 2});
+    EXPECT_TRUE(controller.selection_in_progress());
 
     controller.reset();
 
@@ -305,9 +305,9 @@ TEST(LogControllerTest, ResetClearsControllerState)
     EXPECT_FALSE(controller.active_find_visible_index(model).has_value());
     EXPECT_FALSE(controller.find_active());
     EXPECT_EQ(controller.total_find_match_count(), 0);
-    EXPECT_FALSE(controller.text_view_controller().selection_in_progress());
-    EXPECT_FALSE(controller.text_view_controller().selection_bounds().has_value());
-    EXPECT_TRUE(controller.text_view_controller().selection_text().empty());
+    EXPECT_FALSE(controller.selection_in_progress());
+    EXPECT_FALSE(controller.selection_bounds().has_value());
+    EXPECT_TRUE(controller.selection_text().empty());
 }
 
 TEST(LogControllerTest, FindCountsAllMatchesWhileVisibleCountRespectsFilters)

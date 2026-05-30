@@ -41,7 +41,8 @@ bool TimeAlignmentController::status_is_error() const
 }
 
 bool TimeAlignmentController::handle_event(AllProcessedSources& processed_sources, TextViewController& text_view_controller, ftxui::Event event,
-                                           const std::function<std::optional<TextViewPosition>(int, int)>& text_position_at, const FindNavigation& find_navigation)
+                                           const std::function<std::optional<TextViewPosition>(int, int)>& text_position_at, const FindNavigation& find_navigation,
+                                           const std::function<bool()>& copy_selection_to_clipboard)
 {
     if (event == ftxui::Event::Escape)
     {
@@ -165,12 +166,12 @@ bool TimeAlignmentController::handle_event(AllProcessedSources& processed_source
 
     if (event == ftxui::Event::C)
     {
-        return text_view_controller.copy_selection_to_clipboard();
+        return copy_selection_to_clipboard ? copy_selection_to_clipboard() : false;
     }
 
     if (event.is_mouse() && event.mouse().button == ftxui::Mouse::Right && event.mouse().motion == ftxui::Mouse::Pressed)
     {
-        return text_view_controller.copy_selection_to_clipboard();
+        return copy_selection_to_clipboard ? copy_selection_to_clipboard() : false;
     }
 
     return false;

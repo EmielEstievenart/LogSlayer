@@ -50,9 +50,9 @@ TEST(LogViewComponentTest, CtrlFOpensFindPalettePrefilledFromSelection)
     const auto rendered_line   = model.rendered_line(0);
     const auto selection_start = rendered_line.find("timeout");
     ASSERT_NE(selection_start, std::string::npos);
-    controller.text_view_controller().begin_selection(TextViewPosition {0, static_cast<int>(selection_start)});
-    controller.text_view_controller().update_selection(TextViewPosition {0, static_cast<int>(selection_start + std::string("timeout").size())});
-    controller.text_view_controller().end_selection(TextViewPosition {0, static_cast<int>(selection_start + std::string("timeout").size())});
+    controller.begin_selection(TextViewPosition {0, static_cast<int>(selection_start)});
+    controller.update_selection(TextViewPosition {0, static_cast<int>(selection_start + std::string("timeout").size())});
+    controller.end_selection(TextViewPosition {0, static_cast<int>(selection_start + std::string("timeout").size())});
 
     CommandPaletteModel command_palette_model;
     CommandManager command_manager;

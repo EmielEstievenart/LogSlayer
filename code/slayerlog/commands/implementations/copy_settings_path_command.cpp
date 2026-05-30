@@ -3,7 +3,7 @@
 #include <cctype>
 #include <utility>
 
-#include <ftxui_components/clipboard.hpp>
+#include "clipboard.hpp"
 
 #include "settings_store.hpp"
 

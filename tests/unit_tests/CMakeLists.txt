@@ -39,6 +39,11 @@ target_link_libraries(
           SimpleIni::SimpleIni)
 
 target_compile_definitions(unit_tests PRIVATE BOOST_ALL_NO_LIB BOOST_USE_WINAPI_VERSION=0x0602)
+
+if(WIN32)
+  target_link_libraries(unit_tests PRIVATE user32)
+endif()
+
 target_include_directories(
   unit_tests
   PRIVATE ${CMAKE_SOURCE_DIR}/code/slayerlog
