@@ -163,7 +163,7 @@ ftxui::Component create_log_views(slayerlog::AllProcessedSources& processed_sour
 {
     auto left_view       = std::make_shared<slayerlog::LogViewComponent>(processed_sources, controller, command_palette_controller, screen, header_text, model_mutex);
     auto right_view_data = std::make_shared<slayerlog::AllTrackedSourcesLogView2Data>(tracked_sources, model_mutex);
-    auto right_view      = std::make_shared<slayerlog::LogView2Component>(std::move(right_view_data));
+    auto right_view      = std::make_shared<slayerlog::LogView2Component>("LogView2", std::move(right_view_data));
     return ftxui::Container::Horizontal({left_view, right_view});
 }
 

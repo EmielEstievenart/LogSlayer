@@ -20,13 +20,14 @@ namespace slayerlog
 class LogView2Component : public ftxui::ComponentBase
 {
 public:
-    explicit LogView2Component(std::shared_ptr<LogView2Data> data);
+    LogView2Component(std::string title, std::shared_ptr<LogView2Data> data);
 
 private:
     ftxui::Element OnRender() override;
     bool OnEvent(ftxui::Event event) override;
     bool Focusable() const override;
 
+    std::string _title;
     std::shared_ptr<LogView2Data> _data;
     std::shared_ptr<TextViewComponent> _text_view;
     ftxui::Box _box;

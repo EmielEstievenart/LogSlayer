@@ -10,7 +10,7 @@
 namespace slayerlog
 {
 
-LogView2Component::LogView2Component(std::shared_ptr<LogView2Data> data) : _data(std::move(data))
+LogView2Component::LogView2Component(std::string title, std::shared_ptr<LogView2Data> data) : _title(std::move(title)), _data(std::move(data))
 {
     TextViewComponentOption option;
     option.draw_content = [this](ftxui::Canvas& canvas, int first_line, int line_count, int first_col, int col_count)
@@ -49,7 +49,7 @@ ftxui::Element LogView2Component::OnRender()
     const bool focused  = Focused();
     ftxui::Element body = _text_view->Render() | ftxui::flex;
 
-    ftxui::Element title           = focused ? (ftxui::text("LogView2") | ftxui::bold | ftxui::color(theme::active_view_fg)) : ftxui::text("LogView2");
+    ftxui::Element title           = focused ? (ftxui::text(_title) | ftxui::bold | ftxui::color(theme::active_view_fg)) : ftxui::text(_title);
     const ftxui::BorderStyle frame = focused ? ftxui::DOUBLE : ftxui::LIGHT;
 
     ftxui::Element panel = ftxui::window(std::move(title), std::move(body), frame);
