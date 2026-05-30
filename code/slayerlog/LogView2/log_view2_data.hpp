@@ -42,6 +42,9 @@ public:
 private:
     const AllTrackedSources& _tracked_sources;
     std::mutex& _mutex;
+    // Widest formatted time and source number seen so far, so every line pads to the same columns.
+    mutable int _widest_time_width   = 0;
+    mutable int _widest_source_width = 0;
 };
 
 } // namespace slayerlog
