@@ -145,8 +145,8 @@ void initialize_command_palette_controller(std::optional<slayerlog::CommandPalet
     command_palette_controller.emplace(command_palette_model, command_manager);
 }
 
-bool handle_help_request(const slayerlog::Config& config, slayerlog::CommandManager& command_manager, slayerlog::AllProcessedSources& processed_sources, slayerlog::LogController& controller,
-                         slayerlog::AllTrackedSources& tracked_sources, std::string& header_text, ftxui::ScreenInteractive& screen, const slayerlog::SettingsStore& settings_store)
+bool handle_help_request(const slayerlog::Config& config, slayerlog::CommandManager& command_manager, slayerlog::AllProcessedSources& processed_sources, slayerlog::LogController& controller, slayerlog::AllTrackedSources& tracked_sources,
+                         std::string& header_text, ftxui::ScreenInteractive& screen, const slayerlog::SettingsStore& settings_store)
 {
     if (!config.show_help)
     {
@@ -158,39 +158,56 @@ bool handle_help_request(const slayerlog::Config& config, slayerlog::CommandMana
     return true;
 }
 
-ftxui::Component create_log_views(slayerlog::AllProcessedSources& processed_sources, slayerlog::AllTrackedSources& tracked_sources, slayerlog::LogController& controller,
-                                  slayerlog::CommandPaletteController& command_palette_controller, ftxui::ScreenInteractive& screen, std::string& header_text, std::mutex& model_mutex)
+ftxui::Component create_log_views(slayerlog::AllProcessedSources& processed_sources, slayerlog::AllTrackedSources& tracked_sources, slayerlog::LogController& controller, slayerlog::CommandPaletteController& command_palette_controller,
+                                  slayerlog::CommandPaletteController& log_view2_command_palette_controller, ftxui::ScreenInteractive& screen, std::string& header_text, std::mutex& model_mutex)
 {
     auto left_view       = std::make_shared<slayerlog::LogViewComponent>(processed_sources, controller, command_palette_controller, screen, header_text, model_mutex);
     auto right_view_data = std::make_shared<slayerlog::AllTrackedSourcesLogView2Data>(tracked_sources, model_mutex);
-    auto right_view      = std::make_shared<slayerlog::LogView2Component>("LogView2", std::move(right_view_data));
+    auto right_view      = std::make_shared<slayerlog::LogView2Component>("LogView2", std::move(right_view_data), log_view2_command_palette_controller);
     return ftxui::Container::Horizontal({left_view, right_view});
 }
 
-ftxui::Component create_viewer(ftxui::Component views, slayerlog::CommandPaletteController& command_palette_controller, slayerlog::CommandPaletteView& command_palette_view, ftxui::ScreenInteractive& screen, std::mutex& model_mutex)
+slayerlog::CommandPaletteController* active_command_palette_controller(slayerlog::CommandPaletteController& command_palette_controller, slayerlog::CommandPaletteController& log_view2_command_palette_controller)
+{
+    if (command_palette_controller.is_open())
+    {
+        return &command_palette_controller;
+    }
+
+    if (log_view2_command_palette_controller.is_open())
+    {
+        return &log_view2_command_palette_controller;
+    }
+
+    return nullptr;
+}
+
+ftxui::Component create_viewer(ftxui::Component views, slayerlog::CommandPaletteController& command_palette_controller, slayerlog::CommandPaletteController& log_view2_command_palette_controller,
+                               slayerlog::CommandPaletteView& command_palette_view, ftxui::ScreenInteractive& screen, std::mutex& model_mutex)
 {
     auto viewer = ftxui::Renderer(views,
-                                  [views, &command_palette_controller, &command_palette_view, &screen, &model_mutex]
+                                  [views, &command_palette_controller, &log_view2_command_palette_controller, &command_palette_view, &screen, &model_mutex]
                                   {
                                       auto base = views->Render();
-                                      if (command_palette_controller.is_open())
+                                      if (auto* active_palette = active_command_palette_controller(command_palette_controller, log_view2_command_palette_controller))
                                       {
                                           std::lock_guard lock(model_mutex);
-                                          base = ftxui::dbox({std::move(base), command_palette_view.render(command_palette_controller, screen.dimy())});
+                                          base = ftxui::dbox({std::move(base), command_palette_view.render(*active_palette, screen.dimy())});
                                       }
                                       return base;
                                   });
 
     viewer |= ftxui::CatchEvent(
-        [&command_palette_controller, &model_mutex](ftxui::Event event)
+        [&command_palette_controller, &log_view2_command_palette_controller, &model_mutex](ftxui::Event event)
         {
-            if (!command_palette_controller.is_open())
+            auto* active_palette = active_command_palette_controller(command_palette_controller, log_view2_command_palette_controller);
+            if (active_palette == nullptr)
             {
                 return false;
             }
 
             std::lock_guard lock(model_mutex);
-            return command_palette_controller.handle_event(event);
+            return active_palette->handle_event(event);
         });
 
     return viewer;
@@ -199,9 +216,9 @@ ftxui::Component create_viewer(ftxui::Component views, slayerlog::CommandPalette
 std::shared_ptr<ToastHostComponent> create_toast_host(ftxui::Component viewer, ftxui::ScreenInteractive& screen)
 {
     ToastHostOption toast_option;
-    toast_option.screen      = &screen;
-    toast_option.width       = 48;
-    toast_option.max_visible = std::numeric_limits<int>::max();
+    toast_option.screen           = &screen;
+    toast_option.width            = 48;
+    toast_option.max_visible      = std::numeric_limits<int>::max();
     toast_option.style.info       = slayerlog::theme::toast_info_fg;
     toast_option.style.success    = slayerlog::theme::toast_success_fg;
     toast_option.style.warning    = slayerlog::theme::toast_warning_fg;
@@ -307,18 +324,22 @@ int main(int argc, char** argv)
 
     slayerlog::CommandPaletteModel command_palette_model;
     slayerlog::CommandManager command_manager;
+    slayerlog::CommandPaletteModel log_view2_command_palette_model;
+    slayerlog::CommandManager log_view2_command_manager;
     slayerlog::CommandPaletteView command_palette_view;
     slayerlog::LogController controller;
 
     std::optional<slayerlog::CommandPaletteController> command_palette_controller;
+    std::optional<slayerlog::CommandPaletteController> log_view2_command_palette_controller;
     initialize_command_palette_controller(command_palette_controller, command_palette_model, command_manager, command_history);
+    initialize_command_palette_controller(log_view2_command_palette_controller, log_view2_command_palette_model, log_view2_command_manager, command_history);
 
     if (handle_help_request(config, command_manager, processed_sources, controller, tracked_sources, header_text, screen, settings_store))
     {
         return 0;
     }
 
-    auto views = create_log_views(processed_sources, tracked_sources, controller, *command_palette_controller, screen, header_text, model_mutex);
+    auto views = create_log_views(processed_sources, tracked_sources, controller, *command_palette_controller, *log_view2_command_palette_controller, screen, header_text, model_mutex);
 
     {
         std::lock_guard lock(model_mutex);
@@ -329,12 +350,13 @@ int main(int argc, char** argv)
     std::vector<std::thread> background_tasks;
     std::thread watcher_thread = start_watcher_thread(config.poll_interval_ms, tracked_sources, model_mutex, processed_sources, controller, screen, keep_running);
 
-    auto viewer     = create_viewer(views, *command_palette_controller, command_palette_view, screen, model_mutex);
+    auto viewer     = create_viewer(views, *command_palette_controller, *log_view2_command_palette_controller, command_palette_view, screen, model_mutex);
     auto toast_host = create_toast_host(viewer, screen);
     slayerlog::Notifier notifier(std::make_shared<slayerlog::FtxuiToastNotificationSink>(toast_host));
     tracked_sources.set_notifier(notifier);
 
     slayerlog::register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen, notifier, &model_mutex, &background_tasks, settings_store.file_path()});
+    slayerlog::register_log_view2_commands(log_view2_command_manager, {processed_sources, controller, tracked_sources, header_text, screen, notifier, &model_mutex, &background_tasks, settings_store.file_path()});
 
     //This blocks until app is ready for shutdown.
     screen.Loop(toast_host);

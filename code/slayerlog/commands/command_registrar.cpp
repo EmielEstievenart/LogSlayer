@@ -22,6 +22,7 @@
 #include "implementations/hide_shown_lines_command.hpp"
 #include "implementations/open_file_command.hpp"
 #include "implementations/open_folder_command.hpp"
+#include "implementations/open_command.hpp"
 #include "implementations/reset_column_filter_command.hpp"
 #include "implementations/reset_filters_command.hpp"
 #include "implementations/set_time_format_command.hpp"
@@ -64,6 +65,11 @@ void register_commands(CommandManager& command_manager, CommandContext context)
     command_manager.register_command(std::make_unique<ExportVisibleTextCommand>(context));
     command_manager.register_command(std::make_unique<CopySettingsPathCommand>(context));
     command_manager.register_command(std::make_unique<FindCommand>(context));
+}
+
+void register_log_view2_commands(CommandManager& command_manager, CommandContext context)
+{
+    command_manager.register_command(std::make_unique<OpenCommand>(context));
 }
 
 } // namespace slayerlog

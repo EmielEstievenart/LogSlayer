@@ -38,7 +38,8 @@ void draw_selection(ftxui::Canvas& canvas, const std::vector<TextViewRangeDecora
 
 } // namespace
 
-LogView2Component::LogView2Component(std::string title, std::shared_ptr<LogView2Data> data) : _title(std::move(title)), _data(std::move(data))
+LogView2Component::LogView2Component(std::string title, std::shared_ptr<LogView2Data> data, CommandPaletteController& command_palette_controller)
+    : _title(std::move(title)), _data(std::move(data)), _command_palette_controller(command_palette_controller)
 {
     TextViewComponentOption option;
     option.draw_content = [this](ftxui::Canvas& canvas, int first_line, int line_count, int first_col, int col_count)
@@ -107,6 +108,24 @@ bool LogView2Component::OnEvent(ftxui::Event event)
     if (event == ftxui::Event::C)
     {
         copy_selection();
+        return true;
+    }
+
+    if (event == ftxui::Event::CtrlP)
+    {
+        _command_palette_controller.open();
+        return true;
+    }
+
+    if (event == ftxui::Event::CtrlR)
+    {
+        _command_palette_controller.open_history();
+        return true;
+    }
+
+    if (event == ftxui::Event::CtrlO)
+    {
+        _command_palette_controller.open_history_with_query("open");
         return true;
     }
 

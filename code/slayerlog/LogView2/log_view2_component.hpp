@@ -10,6 +10,7 @@
 
 #include <ftxui_components/text_view_component.hpp>
 
+#include "command_palette_controller.hpp"
 #include "log_view2_data.hpp"
 #include "log_view2_selection.hpp"
 
@@ -21,7 +22,7 @@ namespace slayerlog
 class LogView2Component : public ftxui::ComponentBase
 {
 public:
-    LogView2Component(std::string title, std::shared_ptr<LogView2Data> data);
+    LogView2Component(std::string title, std::shared_ptr<LogView2Data> data, CommandPaletteController& command_palette_controller);
 
 private:
     ftxui::Element OnRender() override;
@@ -34,6 +35,7 @@ private:
 
     std::string _title;
     std::shared_ptr<LogView2Data> _data;
+    CommandPaletteController& _command_palette_controller;
     std::shared_ptr<TextViewComponent> _text_view;
     LogView2Selection _selection;
     ftxui::Box _box;

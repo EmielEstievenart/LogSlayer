@@ -111,6 +111,8 @@ set(SLAYERLOG_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/hide_shown_lines_command.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/open_file_command.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/open_file_command.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/open_command.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/open_command.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/open_folder_command.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/open_folder_command.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/reset_column_filter_command.cpp

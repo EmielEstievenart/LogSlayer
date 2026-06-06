@@ -196,6 +196,14 @@ void CommandPaletteController::open_history()
     refresh_matches();
 }
 
+void CommandPaletteController::open_history_with_query(std::string query)
+{
+    open_history();
+    _model.query           = std::move(query);
+    _model.cursor_position = _model.query.size();
+    refresh_matches();
+}
+
 void CommandPaletteController::open_close_open_file_picker(std::vector<std::string> open_files, std::function<CommandResult(std::size_t selected_index)> on_confirm)
 {
     _model.open = true;
