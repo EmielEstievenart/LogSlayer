@@ -46,14 +46,13 @@ LogTimestamp test_timestamp(unsigned second = 0)
     return *make_log_timestamp_utc(2026, 4, 1, 10, 0, second, 0);
 }
 
-LogEntry make_batch_entry(std::size_t source_index, std::string source_label, std::string text, std::uint64_t sequence_number,
-                          std::optional<LogTimestamp> timestamp = std::nullopt)
+LogEntry make_batch_entry(std::size_t source_index, std::string source_label, std::string text, std::uint64_t sequence_number, std::optional<LogTimestamp> timestamp = std::nullopt)
 {
     LogEntry entry;
-    entry.metadata.source_index  = source_index;
-    entry.metadata.source_label  = std::move(source_label);
-    entry.text                   = std::move(text);
-    entry.metadata.timestamp     = timestamp;
+    entry.metadata.source_index    = source_index;
+    entry.metadata.source_label    = std::move(source_label);
+    entry.text                     = std::move(text);
+    entry.metadata.timestamp       = timestamp;
     entry.metadata.sequence_number = sequence_number;
     return entry;
 }
@@ -86,6 +85,29 @@ TEST(LogModelTest, AppendsLinesInProvidedOrder)
                                          "2026-04-01T10:01:00 beta timed",
                                          "2026-04-01T10:02:00 alpha timed",
                                      }));
+}
+
+TEST(LogModelTest, LinesChangedCallbacksAreOwnedByProcessedSources)
+{
+    LogModel model;
+    std::vector<int> first_changed_lines;
+    const auto callback_id = model.add_lines_changed_callback([&](VisibleLineIndex first_changed_line) { first_changed_lines.push_back(first_changed_line.value); });
+
+    model.append_lines({
+        LogEntry {"alpha.log", "first"},
+        LogEntry {"alpha.log", "second"},
+    });
+    model.append_lines({
+        LogEntry {"alpha.log", "third"},
+    });
+    model.add_include_filter("third");
+
+    model.remove_lines_changed_callback(callback_id);
+    model.append_lines({
+        LogEntry {"alpha.log", "fourth"},
+    });
+
+    EXPECT_EQ(first_changed_lines, (std::vector<int> {0, 2, 0}));
 }
 
 TEST(LogModelTest, PausedUpdatesAppendWhenResumed)

@@ -339,7 +339,7 @@ int main(int argc, char** argv)
         return 0;
     }
 
-    auto right_view_data = std::make_shared<slayerlog::AllTrackedSourcesLogView2Data>(tracked_sources, model_mutex);
+    auto right_view_data = std::make_shared<slayerlog::AllProcessedSourcesLogView2Data>(processed_sources, model_mutex);
     auto views           = create_log_views(processed_sources, right_view_data, controller, *command_palette_controller, *log_view2_command_palette_controller, screen, header_text, model_mutex);
 
     {

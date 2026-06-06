@@ -10,7 +10,7 @@
 namespace slayerlog
 {
 
-class AllTrackedSources;
+class AllProcessedSources;
 
 class LogView2Data
 {
@@ -37,10 +37,10 @@ public:
     virtual void remove_update_callback(CallbackId callback_id)          = 0;
 };
 
-class AllTrackedSourcesLogView2Data : public LogView2Data
+class AllProcessedSourcesLogView2Data : public LogView2Data
 {
 public:
-    AllTrackedSourcesLogView2Data(const AllTrackedSources& tracked_sources, std::mutex& mutex);
+    AllProcessedSourcesLogView2Data(const AllProcessedSources& processed_sources, std::mutex& mutex);
 
     [[nodiscard]] Lock lock() const override;
     [[nodiscard]] std::size_t size() const override;
@@ -50,11 +50,8 @@ public:
     void remove_update_callback(CallbackId callback_id) override;
 
 private:
-    const AllTrackedSources& _tracked_sources;
+    const AllProcessedSources& _processed_sources;
     std::mutex& _mutex;
-    // Widest formatted time and source number seen so far, so every line pads to the same columns.
-    mutable int _widest_time_width   = 0;
-    mutable int _widest_source_width = 0;
 };
 
 } // namespace slayerlog

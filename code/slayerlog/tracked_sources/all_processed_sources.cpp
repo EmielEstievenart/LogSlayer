@@ -7,6 +7,7 @@
 #include <iomanip>
 #include <sstream>
 #include <system_error>
+#include <utility>
 
 #include "all_tracked_sources.hpp"
 #include "search_pattern.hpp"
@@ -91,7 +92,7 @@ std::vector<std::shared_ptr<LogEntry>> make_shared_entries(const std::vector<Log
 
 std::vector<std::shared_ptr<LogEntry>> source_entries_from_index(const AllTrackedSources& tracked_sources, AllLineIndex first_entry_index)
 {
-    const auto& lines = tracked_sources.all_lines();
+    const auto& lines       = tracked_sources.all_lines();
     const int clamped_start = std::clamp(first_entry_index.value, 0, static_cast<int>(lines.size()));
 
     std::vector<std::shared_ptr<LogEntry>> entries;
@@ -161,10 +162,12 @@ void AllProcessedSources::reset()
 
     reset_column_width_cache();
 
-    _updates_paused     = false;
-    _show_source_labels = false;
-    _show_original_time = false;
+    _updates_paused       = false;
+    _show_source_labels   = false;
+    _show_original_time   = false;
     _hide_identical_lines = true;
+
+    notify_lines_changed(VisibleLineIndex {0});
 }
 
 void AllProcessedSources::append_lines(const std::vector<std::shared_ptr<LogEntry>>& lines)
@@ -216,6 +219,7 @@ void AllProcessedSources::replace_batch(const std::vector<std::shared_ptr<LogEnt
     }
 
     rebuild_visible_entries();
+    notify_lines_changed(VisibleLineIndex {0});
 }
 
 void AllProcessedSources::replace_batch(const std::vector<LogEntry>& batch)
@@ -286,6 +290,7 @@ void AllProcessedSources::rebuild_from_sources(const AllTrackedSources& tracked_
     }
 
     rebuild_visible_entries();
+    notify_lines_changed(VisibleLineIndex {0});
 }
 
 void AllProcessedSources::toggle_pause()
@@ -305,6 +310,7 @@ bool AllProcessedSources::updates_paused() const
 void AllProcessedSources::set_show_source_labels(bool show_source_labels)
 {
     _show_source_labels = show_source_labels;
+    notify_lines_changed(VisibleLineIndex {0});
 }
 
 bool AllProcessedSources::show_source_labels() const
@@ -315,6 +321,7 @@ bool AllProcessedSources::show_source_labels() const
 void AllProcessedSources::set_show_original_time(bool show_original_time)
 {
     _show_original_time = show_original_time;
+    notify_lines_changed(VisibleLineIndex {0});
 }
 
 bool AllProcessedSources::show_original_time() const
@@ -331,6 +338,7 @@ void AllProcessedSources::set_hide_identical_lines(bool hide_identical_lines)
 
     _hide_identical_lines = hide_identical_lines;
     rebuild_visible_entries();
+    notify_lines_changed(VisibleLineIndex {0});
 }
 
 bool AllProcessedSources::hide_identical_lines() const
@@ -366,7 +374,7 @@ int AllProcessedSources::source_number_column_start() const
 
 bool AllProcessedSources::consume_column_width_growth()
 {
-    const bool grew = _column_width_grew;
+    const bool grew    = _column_width_grew;
     _column_width_grew = false;
     return grew;
 }
@@ -384,6 +392,7 @@ void AllProcessedSources::add_include_filter(std::string filter_text)
     _include_filters.push_back(pattern.raw_text);
     _include_filter_patterns.push_back(pattern);
     rebuild_visible_entries();
+    notify_lines_changed(VisibleLineIndex {0});
 }
 
 void AllProcessedSources::add_exclude_filter(std::string filter_text)
@@ -399,6 +408,7 @@ void AllProcessedSources::add_exclude_filter(std::string filter_text)
     _exclude_filters.push_back(pattern.raw_text);
     _exclude_filter_patterns.push_back(pattern);
     rebuild_visible_entries();
+    notify_lines_changed(VisibleLineIndex {0});
 }
 
 void AllProcessedSources::reset_filters()
@@ -408,6 +418,7 @@ void AllProcessedSources::reset_filters()
     _include_filter_patterns.clear();
     _exclude_filter_patterns.clear();
     rebuild_visible_entries();
+    notify_lines_changed(VisibleLineIndex {0});
 }
 
 bool AllProcessedSources::remove_filters(const std::vector<FilterSelection>& filters)
@@ -482,6 +493,7 @@ bool AllProcessedSources::remove_filters(const std::vector<FilterSelection>& fil
     erase_selected(_exclude_filters, exclude_indices);
     erase_selected(_exclude_filter_patterns, exclude_indices);
     rebuild_visible_entries();
+    notify_lines_changed(VisibleLineIndex {0});
     return true;
 }
 
@@ -517,6 +529,7 @@ void AllProcessedSources::hide_before_line_number(int line_number)
 {
     _hidden_before_line_number = line_number > 1 ? std::optional<int>(line_number) : std::nullopt;
     rebuild_visible_entries();
+    notify_lines_changed(VisibleLineIndex {0});
 }
 
 std::optional<int> AllProcessedSources::hidden_before_line_number() const
@@ -529,20 +542,37 @@ void AllProcessedSources::hide_columns(int start_column, int end_column)
     if (start_column < 0 || end_column <= start_column)
     {
         _hidden_columns.reset();
+        notify_lines_changed(VisibleLineIndex {0});
         return;
     }
 
     _hidden_columns = HiddenColumnRange {start_column, end_column};
+    notify_lines_changed(VisibleLineIndex {0});
 }
 
 void AllProcessedSources::reset_hidden_columns()
 {
     _hidden_columns.reset();
+    notify_lines_changed(VisibleLineIndex {0});
 }
 
 std::optional<HiddenColumnRange> AllProcessedSources::hidden_columns() const
 {
     return _hidden_columns;
+}
+
+AllProcessedSources::CallbackId AllProcessedSources::add_lines_changed_callback(LinesChangedCallback callback) const
+{
+    std::lock_guard lock(_callbacks_mutex);
+    const CallbackId id = _next_callback_id++;
+    _callbacks.push_back({id, std::move(callback)});
+    return id;
+}
+
+void AllProcessedSources::remove_lines_changed_callback(CallbackId callback_id) const
+{
+    std::lock_guard lock(_callbacks_mutex);
+    _callbacks.erase(std::remove_if(_callbacks.begin(), _callbacks.end(), [callback_id](const CallbackRegistration& registration) { return registration.id == callback_id; }), _callbacks.end());
 }
 
 const LogEntry& AllProcessedSources::entry_at(AllLineIndex entry_index) const
@@ -739,6 +769,7 @@ std::string AllProcessedSources::entry_deduplication_text(const LogEntry& entry)
 void AllProcessedSources::append_lines_immediately(const std::vector<std::shared_ptr<LogEntry>>& lines)
 {
     const AllLineIndex first_new_entry_index {static_cast<int>(_all_entries.size())};
+    const VisibleLineIndex first_changed_visible_line {static_cast<int>(_visible_rows.size())};
 
     for (const auto& line : lines)
     {
@@ -747,6 +778,7 @@ void AllProcessedSources::append_lines_immediately(const std::vector<std::shared
     }
 
     expand_visible_entries(first_new_entry_index);
+    notify_lines_changed(first_changed_visible_line);
 }
 
 void AllProcessedSources::apply_source_replacement(AllLineIndex first_changed_entry_index, const std::vector<std::shared_ptr<LogEntry>>& replacement_entries)
@@ -781,6 +813,7 @@ void AllProcessedSources::apply_source_replacement(AllLineIndex first_changed_en
     }
 
     rebuild_visible_entries();
+    notify_lines_changed(VisibleLineIndex {0});
 }
 
 void AllProcessedSources::flush_paused_updates()
@@ -812,7 +845,7 @@ void AllProcessedSources::rebuild_visible_entries()
     }
 
     std::optional<std::string> previous_deduplication_text;
-    
+
     for (; index < _all_entries.size(); ++index)
     {
         const AllLineIndex entry_index {static_cast<int>(index)};
@@ -852,7 +885,7 @@ void AllProcessedSources::rebuild_visible_entries()
                 continue;
             }
 
-            auto& hidden_identical_run = _visible_rows[VisibleLineIndex {static_cast<int>(_visible_rows.size() - 1)}].hidden_identical_run;
+            auto& hidden_identical_run                    = _visible_rows[VisibleLineIndex {static_cast<int>(_visible_rows.size() - 1)}].hidden_identical_run;
             hidden_identical_run->last_hidden_entry_index = entry_index;
             ++hidden_identical_run->hidden_count;
         }
@@ -881,24 +914,42 @@ void AllProcessedSources::observe_entry_widths(AllLineIndex entry_index, const L
     if (line_width > _line_number_column_width)
     {
         _line_number_column_width = line_width;
-        grew = true;
+        grew                      = true;
     }
 
     const int timestamp_width = rendered_timestamp_width(entry);
     if (timestamp_width > _timestamp_column_width)
     {
         _timestamp_column_width = timestamp_width;
-        grew = true;
+        grew                    = true;
     }
 
     const int source_width = std::max(minimum_source_number_column_width, decimal_width(entry.metadata.source_index + 1));
     if (source_width > _source_number_column_width)
     {
         _source_number_column_width = source_width;
-        grew = true;
+        grew                        = true;
     }
 
     _column_width_grew = _column_width_grew || grew;
+}
+
+void AllProcessedSources::notify_lines_changed(VisibleLineIndex first_changed_line) const
+{
+    std::vector<LinesChangedCallback> callbacks;
+    {
+        std::lock_guard lock(_callbacks_mutex);
+        callbacks.reserve(_callbacks.size());
+        for (const auto& registration : _callbacks)
+        {
+            callbacks.push_back(registration.callback);
+        }
+    }
+
+    for (const auto& callback : callbacks)
+    {
+        callback(first_changed_line);
+    }
 }
 
 std::string AllProcessedSources::render_timestamp_text(const LogEntry& entry) const

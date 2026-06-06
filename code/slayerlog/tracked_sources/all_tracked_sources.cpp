@@ -113,7 +113,6 @@ std::optional<std::string> AllTrackedSources::open_source(const LogSource& sourc
         _sources.push_back(std::move(source_state));
         rebuild_source_labels();
         rebuild_all_lines();
-        notify_lines_changed(VisibleLineIndex {0});
 
         SLAYERLOG_LOG_INFO("Opened source index=" << source_index << " source=" << source_display_path(source));
         return std::nullopt;
@@ -141,7 +140,6 @@ std::optional<std::string> AllTrackedSources::add_opened_source(std::unique_ptr<
     _sources.push_back(std::move(source_state));
     rebuild_source_labels();
     rebuild_all_lines();
-    notify_lines_changed(VisibleLineIndex {0});
 
     SLAYERLOG_LOG_INFO("Opened source index=" << source_index << " source=" << display_path);
     return std::nullopt;
@@ -162,7 +160,6 @@ std::optional<std::string> AllTrackedSources::close_source(std::size_t source_in
     _sources.erase(_sources.begin() + static_cast<std::ptrdiff_t>(source_index));
     rebuild_source_labels();
     rebuild_all_lines();
-    notify_lines_changed(VisibleLineIndex {0});
     return std::nullopt;
 }
 
@@ -231,14 +228,12 @@ std::optional<AllLineIndex> AllTrackedSources::poll()
     if (can_append_to_tail)
     {
         const auto first_changed_line = append_new_tail();
-        notify_lines_changed(VisibleLineIndex {first_changed_line.value});
         return first_changed_line;
     }
 
     if (!min_new_timestamp.has_value())
     {
         const auto first_changed_line = append_new_tail();
-        notify_lines_changed(VisibleLineIndex {first_changed_line.value});
         return first_changed_line;
     }
 
@@ -246,7 +241,6 @@ std::optional<AllLineIndex> AllTrackedSources::poll()
     if (rewrite_start_index >= _all_lines.size())
     {
         const auto first_changed_line = append_new_tail();
-        notify_lines_changed(VisibleLineIndex {first_changed_line.value});
         return first_changed_line;
     }
 
@@ -286,7 +280,6 @@ std::optional<AllLineIndex> AllTrackedSources::poll()
     }
 
     const AllLineIndex first_changed_line {static_cast<int>(rewrite_start_index)};
-    notify_lines_changed(VisibleLineIndex {first_changed_line.value});
     return first_changed_line;
 }
 
@@ -342,20 +335,6 @@ void AllTrackedSources::set_notifier(Notifier notifier)
     _notifier = std::move(notifier);
 }
 
-AllTrackedSources::CallbackId AllTrackedSources::add_lines_changed_callback(LinesChangedCallback callback) const
-{
-    std::lock_guard lock(_callbacks_mutex);
-    const CallbackId id = _next_callback_id++;
-    _callbacks.push_back({id, std::move(callback)});
-    return id;
-}
-
-void AllTrackedSources::remove_lines_changed_callback(CallbackId callback_id) const
-{
-    std::lock_guard lock(_callbacks_mutex);
-    _callbacks.erase(std::remove_if(_callbacks.begin(), _callbacks.end(), [callback_id](const CallbackRegistration& registration) { return registration.id == callback_id; }), _callbacks.end());
-}
-
 std::optional<std::string> AllTrackedSources::set_source_timestamp_format(std::size_t source_index, const std::string& format)
 {
     if (source_index >= _sources.size())
@@ -370,7 +349,6 @@ std::optional<std::string> AllTrackedSources::set_source_timestamp_format(std::s
 
     _sources[source_index]->set_timestamp_format(format);
     rebuild_all_lines();
-    notify_lines_changed(VisibleLineIndex {0});
     return std::nullopt;
 }
 
@@ -388,7 +366,6 @@ std::optional<std::string> AllTrackedSources::set_source_timestamp_offset(std::s
     }
 
     rebuild_all_lines();
-    notify_lines_changed(VisibleLineIndex {0});
     return std::nullopt;
 }
 
@@ -401,7 +378,6 @@ std::optional<std::string> AllTrackedSources::clear_source_timestamp_offset(std:
 
     _sources[source_index]->clear_timestamp_offset();
     rebuild_all_lines();
-    notify_lines_changed(VisibleLineIndex {0});
     return std::nullopt;
 }
 
@@ -463,24 +439,6 @@ void AllTrackedSources::rebuild_all_lines()
     append_merged_lines(merged_lines);
 
     (void)progress_notification.show_or_update(rebuild_progress_notification(100, "100% rebuilt (" + std::to_string(merged_lines.size()) + " log lines)"));
-}
-
-void AllTrackedSources::notify_lines_changed(VisibleLineIndex first_changed_line) const
-{
-    std::vector<LinesChangedCallback> callbacks;
-    {
-        std::lock_guard lock(_callbacks_mutex);
-        callbacks.reserve(_callbacks.size());
-        for (const auto& registration : _callbacks)
-        {
-            callbacks.push_back(registration.callback);
-        }
-    }
-
-    for (const auto& callback : callbacks)
-    {
-        callback(first_changed_line);
-    }
 }
 
 void AllTrackedSources::update_widest_line_width(const std::shared_ptr<LogEntry>& line)

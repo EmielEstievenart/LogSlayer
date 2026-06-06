@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cstddef>
+#include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -19,6 +21,9 @@ class AllTrackedSources;
 class AllProcessedSources
 {
 public:
+    using LinesChangedCallback = std::function<void(VisibleLineIndex)>;
+    using CallbackId           = std::size_t;
+
     struct HiddenIdenticalRun
     {
         AllLineIndex first_hidden_entry_index;
@@ -66,6 +71,8 @@ public:
     void hide_columns(int start_column, int end_column);
     void reset_hidden_columns();
     std::optional<HiddenColumnRange> hidden_columns() const;
+    CallbackId add_lines_changed_callback(LinesChangedCallback callback) const;
+    void remove_lines_changed_callback(CallbackId callback_id) const;
 
     const LogEntry& entry_at(AllLineIndex entry_index) const;
     std::optional<AllLineIndex> entry_index_for_visible_line(VisibleLineIndex visible_line_index) const;
@@ -98,6 +105,12 @@ private:
         std::vector<std::shared_ptr<LogEntry>> replacement_entries;
     };
 
+    struct CallbackRegistration
+    {
+        CallbackId id;
+        LinesChangedCallback callback;
+    };
+
     std::string render_entry(AllLineIndex entry_index) const;
     std::string render_hidden_identical_row(const HiddenIdenticalRun& hidden_identical_run) const;
     std::string entry_deduplication_text(const LogEntry& entry) const;
@@ -108,6 +121,7 @@ private:
     void expand_visible_entries(AllLineIndex first_new_entry_index);
     void reset_column_width_cache();
     void observe_entry_widths(AllLineIndex entry_index, const LogEntry& entry);
+    void notify_lines_changed(VisibleLineIndex first_changed_line) const;
     std::string render_timestamp_text(const LogEntry& entry) const;
     std::string render_message_text(const LogEntry& entry) const;
     bool entry_matches_filters(const std::shared_ptr<LogEntry>& entry) const;
@@ -131,10 +145,14 @@ private:
     int _source_number_column_width = 2;
     bool _column_width_grew         = false;
 
-    bool _updates_paused     = false;
-    bool _show_source_labels = false;
-    bool _show_original_time = false;
+    bool _updates_paused       = false;
+    bool _show_source_labels   = false;
+    bool _show_original_time   = false;
     bool _hide_identical_lines = true;
+
+    mutable std::mutex _callbacks_mutex;
+    mutable std::vector<CallbackRegistration> _callbacks;
+    mutable CallbackId _next_callback_id = 1;
 };
 
 } // namespace slayerlog
