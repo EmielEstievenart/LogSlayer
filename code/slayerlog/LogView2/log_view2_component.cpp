@@ -2,54 +2,15 @@
 
 #include <algorithm>
 #include <utility>
-#include <vector>
 
 #include <ftxui/dom/canvas.hpp>
 
 #include "clipboard.hpp"
+#include "log_view2_utils.hpp"
 #include "view_theme.hpp"
 
 namespace slayerlog
 {
-
-namespace
-{
-
-// Apply selection decorations onto the already-drawn canvas, mapping each
-// decoration's model-space columns into the visible viewport.
-void draw_selection(ftxui::Canvas& canvas, const std::vector<TextViewRangeDecoration>& decorations, int first_line, int line_count, int first_col, int col_count)
-{
-    for (const auto& decoration : decorations)
-    {
-        const int row = decoration.line_index - first_line;
-        if (row < 0 || row >= line_count)
-        {
-            continue;
-        }
-
-        const int start = std::max(0, decoration.col_start - first_col);
-        const int end   = std::min(col_count, decoration.col_end - first_col);
-        for (int col = start; col < end; ++col)
-        {
-            canvas.Style(col * 2, row * 4, [](ftxui::Cell& cell) { cell.inverted = true; });
-        }
-    }
-}
-
-void color_line(ftxui::Canvas& canvas, int row, int col_start, int col_end, ftxui::Color foreground, ftxui::Color background)
-{
-    for (int col = col_start; col < col_end; ++col)
-    {
-        canvas.Style(col * 2, row * 4,
-                     [foreground, background](ftxui::Cell& cell)
-                     {
-                         cell.foreground_color = foreground;
-                         cell.background_color = background;
-                     });
-    }
-}
-
-} // namespace
 
 LogView2Component::LogView2Component(std::string title, std::shared_ptr<LogView2Data> data, CommandPaletteController& command_palette_controller)
     : _title(std::move(title)), _data(std::move(data)), _find_manager(_data), _command_palette_controller(command_palette_controller)
@@ -143,6 +104,22 @@ bool LogView2Component::OnEvent(ftxui::Event event)
     if (event == ftxui::Event::CtrlP)
     {
         _command_palette_controller.open();
+        return true;
+    }
+
+    if (event == ftxui::Event::CtrlF)
+    {
+        std::string query = "find ";
+        if (_data != nullptr)
+        {
+            auto lock             = _data->lock();
+            const std::string sel = selected_find_text(_selection, *_data);
+            if (!sel.empty())
+            {
+                query += sel;
+            }
+        }
+        _command_palette_controller.open_with_query(std::move(query));
         return true;
     }
 

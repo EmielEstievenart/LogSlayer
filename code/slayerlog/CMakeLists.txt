@@ -38,6 +38,8 @@ set(SLAYERLOG_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/LogView2/log_view2_component.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LogView2/log_view2_selection.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LogView2/log_view2_selection.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/LogView2/log_view2_utils.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/LogView2/log_view2_utils.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/notifications/ftxui_toast_notification_sink.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/notifications/ftxui_toast_notification_sink.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/notifications/notification.cpp
