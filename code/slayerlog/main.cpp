@@ -158,12 +158,12 @@ bool handle_help_request(const slayerlog::Config& config, slayerlog::CommandMana
     return true;
 }
 
-ftxui::Component create_log_views(slayerlog::AllProcessedSources& processed_sources, slayerlog::AllTrackedSources& tracked_sources, slayerlog::LogController& controller, slayerlog::CommandPaletteController& command_palette_controller,
-                                  slayerlog::CommandPaletteController& log_view2_command_palette_controller, ftxui::ScreenInteractive& screen, std::string& header_text, std::mutex& model_mutex)
+ftxui::Component create_log_views(slayerlog::AllProcessedSources& processed_sources, std::shared_ptr<slayerlog::LogView2Data> right_view_data, slayerlog::LogController& controller,
+                                  slayerlog::CommandPaletteController& command_palette_controller, slayerlog::CommandPaletteController& log_view2_command_palette_controller, ftxui::ScreenInteractive& screen, std::string& header_text,
+                                  std::mutex& model_mutex)
 {
-    auto left_view       = std::make_shared<slayerlog::LogViewComponent>(processed_sources, controller, command_palette_controller, screen, header_text, model_mutex);
-    auto right_view_data = std::make_shared<slayerlog::AllTrackedSourcesLogView2Data>(tracked_sources, model_mutex);
-    auto right_view      = std::make_shared<slayerlog::LogView2Component>("LogView2", std::move(right_view_data), log_view2_command_palette_controller);
+    auto left_view  = std::make_shared<slayerlog::LogViewComponent>(processed_sources, controller, command_palette_controller, screen, header_text, model_mutex);
+    auto right_view = std::make_shared<slayerlog::LogView2Component>("LogView2", std::move(right_view_data), log_view2_command_palette_controller);
     return ftxui::Container::Horizontal({left_view, right_view});
 }
 
@@ -339,7 +339,8 @@ int main(int argc, char** argv)
         return 0;
     }
 
-    auto views = create_log_views(processed_sources, tracked_sources, controller, *command_palette_controller, *log_view2_command_palette_controller, screen, header_text, model_mutex);
+    auto right_view_data = std::make_shared<slayerlog::AllTrackedSourcesLogView2Data>(tracked_sources, model_mutex);
+    auto views           = create_log_views(processed_sources, right_view_data, controller, *command_palette_controller, *log_view2_command_palette_controller, screen, header_text, model_mutex);
 
     {
         std::lock_guard lock(model_mutex);

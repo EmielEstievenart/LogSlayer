@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <iomanip>
 #include <sstream>
+#include <utility>
 
 #include "timestamp/log_timestamp.hpp"
 #include "tracked_sources/all_tracked_sources.hpp"
@@ -78,6 +79,16 @@ std::string AllTrackedSourcesLogView2Data::to_string(std::size_t index) const
     output << std::right << std::setw(_widest_source_width) << source << ' ';
     output << line->text;
     return output.str();
+}
+
+LogView2Data::CallbackId AllTrackedSourcesLogView2Data::add_update_callback(UpdateCallback callback)
+{
+    return _tracked_sources.add_lines_changed_callback(std::move(callback));
+}
+
+void AllTrackedSourcesLogView2Data::remove_update_callback(CallbackId callback_id)
+{
+    _tracked_sources.remove_lines_changed_callback(callback_id);
 }
 
 } // namespace slayerlog

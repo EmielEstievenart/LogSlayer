@@ -27,7 +27,7 @@ std::optional<LogTimestamp> earliest_new_timestamp(const std::vector<LogBatchSou
             continue;
         }
 
-        const auto& entry = (*source_range.entries)[source_range.first_entry_index];
+        const auto& entry    = (*source_range.entries)[source_range.first_entry_index];
         const auto timestamp = effective_timestamp(entry->metadata);
         if (!timestamp.has_value())
         {
@@ -47,7 +47,7 @@ std::size_t find_rewrite_start_index(const IndexedVector<std::shared_ptr<LogEntr
 {
     for (std::size_t line_index = 0; line_index < all_lines.size(); ++line_index)
     {
-        const auto& line = all_lines[AllLineIndex {static_cast<int>(line_index)}];
+        const auto& line     = all_lines[AllLineIndex {static_cast<int>(line_index)}];
         const auto timestamp = effective_timestamp(line->metadata);
         if (!timestamp.has_value())
         {
@@ -113,6 +113,7 @@ std::optional<std::string> AllTrackedSources::open_source(const LogSource& sourc
         _sources.push_back(std::move(source_state));
         rebuild_source_labels();
         rebuild_all_lines();
+        notify_lines_changed(VisibleLineIndex {0});
 
         SLAYERLOG_LOG_INFO("Opened source index=" << source_index << " source=" << source_display_path(source));
         return std::nullopt;
@@ -140,6 +141,7 @@ std::optional<std::string> AllTrackedSources::add_opened_source(std::unique_ptr<
     _sources.push_back(std::move(source_state));
     rebuild_source_labels();
     rebuild_all_lines();
+    notify_lines_changed(VisibleLineIndex {0});
 
     SLAYERLOG_LOG_INFO("Opened source index=" << source_index << " source=" << display_path);
     return std::nullopt;
@@ -160,6 +162,7 @@ std::optional<std::string> AllTrackedSources::close_source(std::size_t source_in
     _sources.erase(_sources.begin() + static_cast<std::ptrdiff_t>(source_index));
     rebuild_source_labels();
     rebuild_all_lines();
+    notify_lines_changed(VisibleLineIndex {0});
     return std::nullopt;
 }
 
@@ -201,7 +204,7 @@ std::optional<AllLineIndex> AllTrackedSources::poll()
     }
 
     std::vector<std::shared_ptr<LogEntry>> merged_lines;
-    const auto append_new_tail            = [&]() -> AllLineIndex
+    const auto append_new_tail = [&]() -> AllLineIndex
     {
         const AllLineIndex first_new_index {static_cast<int>(_all_lines.size())};
         merge_log_batch(source_ranges, merged_lines);
@@ -213,7 +216,7 @@ std::optional<AllLineIndex> AllTrackedSources::poll()
     std::optional<LogTimestamp> min_new_timestamp;
     if (!_all_lines.empty())
     {
-        const auto& last_line = _all_lines[AllLineIndex {static_cast<int>(_all_lines.size() - 1)}];
+        const auto& last_line     = _all_lines[AllLineIndex {static_cast<int>(_all_lines.size() - 1)}];
         const auto last_timestamp = effective_timestamp(last_line->metadata);
         if (last_timestamp.has_value())
         {
@@ -227,18 +230,24 @@ std::optional<AllLineIndex> AllTrackedSources::poll()
 
     if (can_append_to_tail)
     {
-        return append_new_tail();
+        const auto first_changed_line = append_new_tail();
+        notify_lines_changed(VisibleLineIndex {first_changed_line.value});
+        return first_changed_line;
     }
 
     if (!min_new_timestamp.has_value())
     {
-        return append_new_tail();
+        const auto first_changed_line = append_new_tail();
+        notify_lines_changed(VisibleLineIndex {first_changed_line.value});
+        return first_changed_line;
     }
 
     const std::size_t rewrite_start_index = find_rewrite_start_index(_all_lines, min_new_timestamp.value());
     if (rewrite_start_index >= _all_lines.size())
     {
-        return append_new_tail();
+        const auto first_changed_line = append_new_tail();
+        notify_lines_changed(VisibleLineIndex {first_changed_line.value});
+        return first_changed_line;
     }
 
     std::vector<std::shared_ptr<LogEntry>> existing_suffix;
@@ -276,7 +285,9 @@ std::optional<AllLineIndex> AllTrackedSources::poll()
         update_widest_line_width(merged_lines[merged_index]);
     }
 
-    return AllLineIndex {static_cast<int>(rewrite_start_index)};
+    const AllLineIndex first_changed_line {static_cast<int>(rewrite_start_index)};
+    notify_lines_changed(VisibleLineIndex {first_changed_line.value});
+    return first_changed_line;
 }
 
 const IndexedVector<std::shared_ptr<LogEntry>, AllLineIndex>& AllTrackedSources::all_lines() const
@@ -331,6 +342,20 @@ void AllTrackedSources::set_notifier(Notifier notifier)
     _notifier = std::move(notifier);
 }
 
+AllTrackedSources::CallbackId AllTrackedSources::add_lines_changed_callback(LinesChangedCallback callback) const
+{
+    std::lock_guard lock(_callbacks_mutex);
+    const CallbackId id = _next_callback_id++;
+    _callbacks.push_back({id, std::move(callback)});
+    return id;
+}
+
+void AllTrackedSources::remove_lines_changed_callback(CallbackId callback_id) const
+{
+    std::lock_guard lock(_callbacks_mutex);
+    _callbacks.erase(std::remove_if(_callbacks.begin(), _callbacks.end(), [callback_id](const CallbackRegistration& registration) { return registration.id == callback_id; }), _callbacks.end());
+}
+
 std::optional<std::string> AllTrackedSources::set_source_timestamp_format(std::size_t source_index, const std::string& format)
 {
     if (source_index >= _sources.size())
@@ -345,6 +370,7 @@ std::optional<std::string> AllTrackedSources::set_source_timestamp_format(std::s
 
     _sources[source_index]->set_timestamp_format(format);
     rebuild_all_lines();
+    notify_lines_changed(VisibleLineIndex {0});
     return std::nullopt;
 }
 
@@ -362,6 +388,7 @@ std::optional<std::string> AllTrackedSources::set_source_timestamp_offset(std::s
     }
 
     rebuild_all_lines();
+    notify_lines_changed(VisibleLineIndex {0});
     return std::nullopt;
 }
 
@@ -374,6 +401,7 @@ std::optional<std::string> AllTrackedSources::clear_source_timestamp_offset(std:
 
     _sources[source_index]->clear_timestamp_offset();
     rebuild_all_lines();
+    notify_lines_changed(VisibleLineIndex {0});
     return std::nullopt;
 }
 
@@ -437,6 +465,24 @@ void AllTrackedSources::rebuild_all_lines()
     (void)progress_notification.show_or_update(rebuild_progress_notification(100, "100% rebuilt (" + std::to_string(merged_lines.size()) + " log lines)"));
 }
 
+void AllTrackedSources::notify_lines_changed(VisibleLineIndex first_changed_line) const
+{
+    std::vector<LinesChangedCallback> callbacks;
+    {
+        std::lock_guard lock(_callbacks_mutex);
+        callbacks.reserve(_callbacks.size());
+        for (const auto& registration : _callbacks)
+        {
+            callbacks.push_back(registration.callback);
+        }
+    }
+
+    for (const auto& callback : callbacks)
+    {
+        callback(first_changed_line);
+    }
+}
+
 void AllTrackedSources::update_widest_line_width(const std::shared_ptr<LogEntry>& line)
 {
     if (line != nullptr)
@@ -445,8 +491,7 @@ void AllTrackedSources::update_widest_line_width(const std::shared_ptr<LogEntry>
     }
 }
 
-void AllTrackedSources::append_source_range(std::vector<LogBatchSourceRange>& source_ranges, const TrackedSourceBase& source, std::size_t source_index,
-                                            std::size_t first_entry_index) const
+void AllTrackedSources::append_source_range(std::vector<LogBatchSourceRange>& source_ranges, const TrackedSourceBase& source, std::size_t source_index, std::size_t first_entry_index) const
 {
     const auto& entries = source.entries();
     if (first_entry_index >= entries.size())
