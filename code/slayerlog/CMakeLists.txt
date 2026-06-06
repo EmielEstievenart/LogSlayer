@@ -32,6 +32,8 @@ set(SLAYERLOG_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/LogView/log_view_component.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LogView2/log_view2_data.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LogView2/log_view2_data.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/LogView2/log_view2_find_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/LogView2/log_view2_find_manager.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LogView2/log_view2_component.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LogView2/log_view2_component.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LogView2/log_view2_selection.cpp
@@ -97,6 +99,8 @@ set(SLAYERLOG_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/filter_out_command.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/find_command.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/find_command.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/log_view2_find_command.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/log_view2_find_command.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/go_to_line_command.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/go_to_line_command.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/hide_before_line_command.cpp

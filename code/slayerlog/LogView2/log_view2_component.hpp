@@ -12,6 +12,7 @@
 
 #include "command_palette_controller.hpp"
 #include "log_view2_data.hpp"
+#include "log_view2_find_manager.hpp"
 #include "log_view2_selection.hpp"
 
 namespace slayerlog
@@ -24,6 +25,10 @@ class LogView2Component : public ftxui::ComponentBase
 public:
     LogView2Component(std::string title, std::shared_ptr<LogView2Data> data, CommandPaletteController& command_palette_controller);
 
+    // The find manager owned by this view, exposed so the command palette can
+    // drive the same search state the view renders.
+    [[nodiscard]] LogView2FindManager& find_manager();
+
 private:
     ftxui::Element OnRender() override;
     bool OnEvent(ftxui::Event event) override;
@@ -35,6 +40,7 @@ private:
 
     std::string _title;
     std::shared_ptr<LogView2Data> _data;
+    LogView2FindManager _find_manager;
     CommandPaletteController& _command_palette_controller;
     std::shared_ptr<TextViewComponent> _text_view;
     LogView2Selection _selection;
