@@ -232,11 +232,6 @@ ftxui::Element LogView::render(const AllProcessedSources& processed_sources, Log
     {
         const auto active_find_index = controller.active_find_visible_index(processed_sources);
         const int row_count          = std::max(0, std::min(data.total_lines - data.first_visible_line, data.viewport_line_count));
-        const bool decorate_source_numbers = processed_sources.show_source_labels() && !processed_sources.hidden_columns().has_value();
-        const int source_column_start      = processed_sources.source_number_column_start();
-        const int source_column_end        = source_column_start + processed_sources.source_number_column_width();
-        std::vector<TextViewRangeDecoration> source_decorations;
-        source_decorations.reserve(static_cast<std::size_t>(row_count));
         rendered_rows.reserve(static_cast<std::size_t>(row_count));
 
         for (int row = 0; row < row_count; ++row)
@@ -256,29 +251,7 @@ ftxui::Element LogView::render(const AllProcessedSources& processed_sources, Log
                 rendered_row.style = style;
             }
 
-            if (decorate_source_numbers)
-            {
-                const auto entry_index = processed_sources.entry_index_for_visible_line(VisibleLineIndex {line_index});
-                if (entry_index.has_value())
-                {
-                    const auto& entry = processed_sources.entry_at(*entry_index);
-
-                    TextViewRangeDecoration source_decoration;
-                    source_decoration.line_index = line_index;
-                    source_decoration.col_start  = source_column_start;
-                    source_decoration.col_end    = source_column_end;
-                    source_decoration.style.foreground = theme::source_tag_color(entry.metadata.source_index);
-                    source_decoration.style.bold       = true;
-                    source_decorations.push_back(source_decoration);
-                }
-            }
-
             rendered_rows.push_back(std::move(rendered_row));
-        }
-
-        if (!source_decorations.empty())
-        {
-            data.range_decorations.insert(data.range_decorations.begin(), source_decorations.begin(), source_decorations.end());
         }
     }
 

@@ -18,8 +18,6 @@ namespace slayerlog
 namespace
 {
 
-constexpr int minimum_source_number_column_width = 2;
-
 int decimal_width(std::size_t value)
 {
     int width = 1;
@@ -163,7 +161,6 @@ void AllProcessedSources::reset()
     reset_column_width_cache();
 
     _updates_paused       = false;
-    _show_source_labels   = false;
     _show_original_time   = false;
     _hide_identical_lines = true;
 
@@ -307,17 +304,6 @@ bool AllProcessedSources::updates_paused() const
     return _updates_paused;
 }
 
-void AllProcessedSources::set_show_source_labels(bool show_source_labels)
-{
-    _show_source_labels = show_source_labels;
-    notify_lines_changed(VisibleLineIndex {0});
-}
-
-bool AllProcessedSources::show_source_labels() const
-{
-    return _show_source_labels;
-}
-
 void AllProcessedSources::set_show_original_time(bool show_original_time)
 {
     _show_original_time = show_original_time;
@@ -354,22 +340,6 @@ int AllProcessedSources::line_number_column_width() const
 int AllProcessedSources::timestamp_column_width() const
 {
     return _timestamp_column_width;
-}
-
-int AllProcessedSources::source_number_column_width() const
-{
-    return _source_number_column_width;
-}
-
-int AllProcessedSources::source_number_column_start() const
-{
-    int column_start = _line_number_column_width + 1;
-    if (_timestamp_column_width > 0)
-    {
-        column_start += _timestamp_column_width + 1;
-    }
-
-    return column_start;
 }
 
 bool AllProcessedSources::consume_column_width_growth()
@@ -731,11 +701,6 @@ std::string AllProcessedSources::render_entry(AllLineIndex entry_index) const
         output << std::left << std::setw(_timestamp_column_width) << render_timestamp_text(entry) << std::right << " ";
     }
 
-    if (_show_source_labels)
-    {
-        output << std::setw(_source_number_column_width) << std::right << (entry.metadata.source_index + 1) << " ";
-    }
-
     output << render_message_text(entry);
     return apply_hidden_columns(output.str());
 }
@@ -748,12 +713,6 @@ std::string AllProcessedSources::render_hidden_identical_row(const HiddenIdentic
     if (_timestamp_column_width > 0)
     {
         rendered_text += std::string(static_cast<std::size_t>(_timestamp_column_width), ' ');
-        rendered_text += ' ';
-    }
-
-    if (_show_source_labels)
-    {
-        rendered_text += std::string(static_cast<std::size_t>(_source_number_column_width), ' ');
         rendered_text += ' ';
     }
 
@@ -900,10 +859,9 @@ void AllProcessedSources::expand_visible_entries(AllLineIndex first_new_entry_in
 
 void AllProcessedSources::reset_column_width_cache()
 {
-    _line_number_column_width   = 1;
-    _timestamp_column_width     = 0;
-    _source_number_column_width = minimum_source_number_column_width;
-    _column_width_grew          = false;
+    _line_number_column_width = 1;
+    _timestamp_column_width   = 0;
+    _column_width_grew        = false;
 }
 
 void AllProcessedSources::observe_entry_widths(AllLineIndex entry_index, const LogEntry& entry)
@@ -922,13 +880,6 @@ void AllProcessedSources::observe_entry_widths(AllLineIndex entry_index, const L
     {
         _timestamp_column_width = timestamp_width;
         grew                    = true;
-    }
-
-    const int source_width = std::max(minimum_source_number_column_width, decimal_width(entry.metadata.source_index + 1));
-    if (source_width > _source_number_column_width)
-    {
-        _source_number_column_width = source_width;
-        grew                        = true;
     }
 
     _column_width_grew = _column_width_grew || grew;
@@ -975,6 +926,8 @@ std::string AllProcessedSources::render_message_text(const LogEntry& entry) cons
 
 bool AllProcessedSources::entry_matches_filters(const std::shared_ptr<LogEntry>& entry) const
 {
+    // The source mnemonic is embedded at the start of entry->text, so it is searchable without
+    // any special handling here; only the (separate) source label needs to be folded in.
     const std::string searchable_text = entry->metadata.source_label + "\n" + entry->text;
     const bool matches_include        = _include_filter_patterns.empty() || matches_any_pattern(searchable_text, _include_filter_patterns);
     const bool matches_exclude        = matches_any_pattern(searchable_text, _exclude_filter_patterns);

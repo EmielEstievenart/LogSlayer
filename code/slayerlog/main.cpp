@@ -26,6 +26,7 @@
 #include "commands/command_history.hpp"
 #include "debug_log.hpp"
 #include "tracked_sources/all_tracked_sources.hpp"
+#include "tracked_sources/tracked_source_factory.hpp"
 #include "log_controller.hpp"
 #include "timestamp/source_timestamp_parser.hpp"
 #include "log_view_component.hpp"
@@ -101,7 +102,7 @@ bool open_configured_sources(const slayerlog::Config& config, slayerlog::AllTrac
             return false;
         }
 
-        const auto error = tracked_sources.open_source(source);
+        const auto error = open_source(tracked_sources, source);
         if (error.has_value())
         {
             SLAYERLOG_LOG_ERROR("Initial source open failed file=" << file_path << " error=" << *error);
@@ -316,7 +317,6 @@ int main(int argc, char** argv)
 
     std::mutex model_mutex;
     slayerlog::AllProcessedSources processed_sources;
-    processed_sources.set_show_source_labels(tracked_sources.source_count() > 0);
 
     auto command_history = load_command_history(settings_store, settings_loaded, settings_error_message);
 

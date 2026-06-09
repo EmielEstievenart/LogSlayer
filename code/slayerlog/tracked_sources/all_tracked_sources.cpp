@@ -9,7 +9,6 @@
 
 #include "debug_log.hpp"
 #include "tracked_source_base.hpp"
-#include "tracked_source_factory.hpp"
 
 namespace slayerlog
 {
@@ -96,33 +95,6 @@ AllTrackedSources::AllTrackedSources(std::shared_ptr<const TimestampFormatCatalo
 
 AllTrackedSources::~AllTrackedSources() = default;
 
-std::optional<std::string> AllTrackedSources::open_source(const LogSource& source, Notifier notifier)
-{
-    if (is_source_open(source))
-    {
-        return "Source already open: " + source_display_path(source);
-    }
-
-    try
-    {
-        const std::size_t source_index = _sources.size();
-        auto source_state              = create_tracked_source(source, source_display_path(source), _timestamp_formats, std::move(notifier));
-
-        source_state->poll();
-
-        _sources.push_back(std::move(source_state));
-        rebuild_source_labels();
-        rebuild_all_lines();
-
-        SLAYERLOG_LOG_INFO("Opened source index=" << source_index << " source=" << source_display_path(source));
-        return std::nullopt;
-    }
-    catch (const std::exception& ex)
-    {
-        return ex.what();
-    }
-}
-
 std::optional<std::string> AllTrackedSources::add_opened_source(std::unique_ptr<TrackedSourceBase> source_state)
 {
     if (source_state == nullptr)
@@ -137,8 +109,10 @@ std::optional<std::string> AllTrackedSources::add_opened_source(std::unique_ptr<
 
     const std::size_t source_index = _sources.size();
     const std::string display_path = source_display_path(source_state->source());
+
     _sources.push_back(std::move(source_state));
     rebuild_source_labels();
+    update_mnemonic_visibility();
     rebuild_all_lines();
 
     SLAYERLOG_LOG_INFO("Opened source index=" << source_index << " source=" << display_path);
@@ -159,6 +133,7 @@ std::optional<std::string> AllTrackedSources::close_source(std::size_t source_in
 
     _sources.erase(_sources.begin() + static_cast<std::ptrdiff_t>(source_index));
     rebuild_source_labels();
+    update_mnemonic_visibility();
     rebuild_all_lines();
     return std::nullopt;
 }
@@ -320,6 +295,38 @@ std::vector<std::string> AllTrackedSources::source_labels() const
     return labels;
 }
 
+std::vector<std::string> AllTrackedSources::source_mnemonics() const
+{
+    std::vector<std::string> mnemonics;
+    mnemonics.reserve(_sources.size());
+    for (const auto& source : _sources)
+    {
+        mnemonics.push_back(source->source_mnemonic());
+    }
+
+    return mnemonics;
+}
+
+std::vector<std::string> AllTrackedSources::source_display_labels() const
+{
+    std::vector<std::string> display_labels;
+    display_labels.reserve(_sources.size());
+    for (const auto& source : _sources)
+    {
+        const std::string& mnemonic = source->source_mnemonic();
+        if (mnemonic.empty() || !source->mnemonic_visible())
+        {
+            display_labels.push_back(source->source_label());
+        }
+        else
+        {
+            display_labels.push_back(mnemonic + " \xe2\x80\x94 " + source->source_label());
+        }
+    }
+
+    return display_labels;
+}
+
 const std::vector<std::string>& AllTrackedSources::timestamp_formats() const
 {
     return _timestamp_formats->formats();
@@ -403,10 +410,23 @@ void AllTrackedSources::rebuild_source_labels()
         sources.push_back(source->source());
     }
 
+    // Labels (deduplicated basenames) are recomputed across all sources on every open/close.
+    // Mnemonics are intentionally left untouched here; the factory assigns them once at adoption.
     const auto labels = build_source_labels(sources);
     for (std::size_t index = 0; index < _sources.size(); ++index)
     {
         _sources[index]->set_source_label(labels[index]);
+    }
+}
+
+void AllTrackedSources::update_mnemonic_visibility()
+{
+    // A mnemonic only disambiguates interleaved sources, so it stays hidden until a second
+    // source is open. Each source rewrites its embedded prefix when its visibility flips.
+    const bool show_mnemonics = _sources.size() > 1;
+    for (const auto& source : _sources)
+    {
+        source->set_mnemonic_visible(show_mnemonics);
     }
 }
 

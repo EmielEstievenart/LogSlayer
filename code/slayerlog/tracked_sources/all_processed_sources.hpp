@@ -53,8 +53,6 @@ public:
 
     void toggle_pause();
     bool updates_paused() const;
-    void set_show_source_labels(bool show_source_labels);
-    bool show_source_labels() const;
     void set_show_original_time(bool show_original_time);
     bool show_original_time() const;
     void set_hide_identical_lines(bool hide_identical_lines);
@@ -85,8 +83,6 @@ public:
     int total_line_count() const;
     int line_number_column_width() const;
     int timestamp_column_width() const;
-    int source_number_column_width() const;
-    int source_number_column_start() const;
     bool consume_column_width_growth();
     std::string rendered_line(int index) const;
     std::vector<std::string> rendered_lines(int first_index, int count) const;
@@ -140,13 +136,11 @@ private:
     std::optional<int> _hidden_before_line_number;
     std::optional<HiddenColumnRange> _hidden_columns;
 
-    int _line_number_column_width   = 1;
-    int _timestamp_column_width     = 0;
-    int _source_number_column_width = 2;
-    bool _column_width_grew         = false;
+    int _line_number_column_width = 1;
+    int _timestamp_column_width   = 0;
+    bool _column_width_grew       = false;
 
     bool _updates_paused       = false;
-    bool _show_source_labels   = false;
     bool _show_original_time   = false;
     bool _hide_identical_lines = true;
 

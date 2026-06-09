@@ -1,9 +1,12 @@
 #include <gtest/gtest.h>
 
 #include <stdexcept>
+#include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "log_source.hpp"
+#include "tracked_sources/tracked_source_factory.hpp"
 
 namespace slayerlog
 {
@@ -85,6 +88,39 @@ TEST(LogSourceTest, UsesFullSourceWhenFolderBasenameCollides)
     ASSERT_EQ(labels.size(), 2U);
     EXPECT_EQ(labels[0], "first/archive");
     EXPECT_EQ(labels[1], "second/archive");
+}
+
+TEST(TrackedSourceFactoryTest, AssignsStableMnemonicPerSourceIdentity)
+{
+    const LogSource app    = parse_log_source("logs/app.log");
+    const LogSource server = parse_log_source("logs/server.log");
+
+    const std::string app_mnemonic = pick_unique_mnemonic(app, {});
+    EXPECT_FALSE(app_mnemonic.empty());
+    // Same identity and the same in-use set always yields the same mnemonic.
+    EXPECT_EQ(pick_unique_mnemonic(app, {}), app_mnemonic);
+
+    // Equivalent paths share a single identity and therefore the same mnemonic.
+    EXPECT_EQ(pick_unique_mnemonic(parse_log_source("logs/../logs/app.log"), {}), app_mnemonic);
+
+    // A second source assigned while the first is in use avoids the first mnemonic.
+    const std::string server_mnemonic = pick_unique_mnemonic(server, {app_mnemonic});
+    EXPECT_FALSE(server_mnemonic.empty());
+    EXPECT_NE(server_mnemonic, app_mnemonic);
+}
+
+TEST(TrackedSourceFactoryTest, KeepsMnemonicsUniqueWhenIdentitiesCollide)
+{
+    // Mirror the adoption loop: each source is assigned against the set already in use.
+    std::unordered_set<std::string> mnemonics_in_use;
+    for (int index = 0; index < 40; ++index)
+    {
+        const std::string mnemonic = pick_unique_mnemonic(parse_log_source("logs/app" + std::to_string(index) + ".log"), mnemonics_in_use);
+        EXPECT_EQ(mnemonics_in_use.count(mnemonic), 0U);
+        mnemonics_in_use.insert(mnemonic);
+    }
+
+    EXPECT_EQ(mnemonics_in_use.size(), 40U);
 }
 
 } // namespace slayerlog

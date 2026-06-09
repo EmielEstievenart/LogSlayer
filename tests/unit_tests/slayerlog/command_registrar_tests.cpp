@@ -20,6 +20,7 @@
 #include "log_controller.hpp"
 #include "tracked_sources/all_processed_sources.hpp"
 #include "tracked_sources/all_tracked_sources.hpp"
+#include "tracked_sources/tracked_source_factory.hpp"
 
 namespace slayerlog
 {
@@ -197,7 +198,7 @@ TEST(CommandRegistrarTest, ShowAndHideOriginalTimeCommandsToggleRenderedMessage)
 TEST(CommandRegistrarTest, ShowAndHideIdenticalLinesCommandsToggleCollapsing)
 {
     AllProcessedSources processed_sources;
-    LogEntry first  {"alpha.log", "INFO 2026-04-01 10:00:00 hello"};
+    LogEntry first {"alpha.log", "INFO 2026-04-01 10:00:00 hello"};
     LogEntry second {"alpha.log", "INFO 2026-04-01 10:00:01 hello"};
     first.metadata.extracted_time_start  = 5;
     first.metadata.extracted_time_end    = 24;
@@ -252,7 +253,7 @@ TEST(CommandRegistrarTest, OpenFileCommandShowsToastWhenSourceAlreadyOpen)
     std::string header_text;
     auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
     AllTrackedSources tracked_sources;
-    ASSERT_FALSE(tracked_sources.open_source(parse_log_source(log_path.string())).has_value());
+    ASSERT_FALSE(open_source(tracked_sources, parse_log_source(log_path.string())).has_value());
     auto sink = std::make_shared<RecordingNotificationSink>();
     register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen, Notifier(sink)});
 
@@ -302,7 +303,7 @@ TEST(CommandRegistrarTest, OpenFileCommandOpensFileInBackgroundWhenTaskRunnerExi
     EXPECT_NE(processed_sources.rendered_line(0).find("plain line"), std::string::npos);
     ASSERT_GE(sink->notifications.size(), 2U);
     bool saw_building_view = false;
-    bool saw_file_opened = false;
+    bool saw_file_opened   = false;
     for (const auto& notification : sink->notifications)
     {
         if (notification.title == "Building log view")
@@ -339,7 +340,7 @@ TEST(CommandRegistrarTest, OpenFolderCommandPreflightsAlreadyOpenSourceBeforeSta
     std::string header_text;
     auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
     AllTrackedSources tracked_sources;
-    ASSERT_FALSE(tracked_sources.open_source(make_local_folder_source(folder_path.string())).has_value());
+    ASSERT_FALSE(open_source(tracked_sources, make_local_folder_source(folder_path.string())).has_value());
     std::mutex model_mutex;
     std::vector<std::thread> background_tasks;
     auto sink = std::make_shared<RecordingNotificationSink>();
@@ -436,7 +437,7 @@ TEST(CommandRegistrarTest, SetTimeFormatCommandOpensSourceAndFormatPickers)
     std::string header_text;
     auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
     AllTrackedSources tracked_sources;
-    ASSERT_FALSE(tracked_sources.open_source(parse_log_source(log_path.string())).has_value());
+    ASSERT_FALSE(open_source(tracked_sources, parse_log_source(log_path.string())).has_value());
     register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen});
 
     const auto result = command_manager.execute("set-time-format");
@@ -479,8 +480,8 @@ TEST(CommandRegistrarTest, AlignTimeCommandSetsSourceOffsetFromOriginalTimestamp
     std::string header_text;
     auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
     AllTrackedSources tracked_sources;
-    ASSERT_FALSE(tracked_sources.open_source(parse_log_source(alpha_log.string())).has_value());
-    ASSERT_FALSE(tracked_sources.open_source(parse_log_source(beta_log.string())).has_value());
+    ASSERT_FALSE(open_source(tracked_sources, parse_log_source(alpha_log.string())).has_value());
+    ASSERT_FALSE(open_source(tracked_sources, parse_log_source(beta_log.string())).has_value());
     ASSERT_FALSE(tracked_sources.set_source_timestamp_offset(0, *parse_log_timestamp_offset("00 00:01:00")).has_value());
     reload_processed_sources(tracked_sources, header_text, processed_sources, controller, screen);
     controller.text_view_controller().scroll_to_top();

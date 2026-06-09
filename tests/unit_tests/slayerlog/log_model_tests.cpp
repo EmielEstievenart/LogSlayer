@@ -133,7 +133,6 @@ TEST(LogModelTest, PausedUpdatesAppendWhenResumed)
 TEST(LogModelTest, ReplaceBatchPreservesSessionState)
 {
     LogModel model;
-    model.set_show_source_labels(true);
     model.append_lines({
         LogEntry {"alpha.log", "error seed"},
     });
@@ -165,7 +164,6 @@ TEST(LogModelTest, ReplaceBatchPreservesSessionState)
 TEST(LogModelTest, ResetClearsAllLoadedAndDerivedState)
 {
     LogModel model;
-    model.set_show_source_labels(true);
 
     model.append_lines({
         LogEntry {"alpha.log", "error one"},
@@ -196,16 +194,34 @@ TEST(LogModelTest, ResetClearsAllLoadedAndDerivedState)
     EXPECT_EQ(model.rendered_line(0), "1 post-reset");
 }
 
-TEST(LogModelTest, RendersSourceNumbersWhenEnabled)
+TEST(LogModelTest, RendersEmbeddedMnemonicPrefixVerbatim)
 {
+    // The mnemonic is embedded at the start of the entry text by the tracked source, so the
+    // processed view renders it as part of the message with no dedicated source column.
     LogModel model;
-    model.set_show_source_labels(true);
 
     model.append_lines({
-        LogEntry {"alpha.log", "hello"},
+        LogEntry {0, "alpha.log", "Everest hello"},
+        LogEntry {1, "beta.log", "Denali world"},
     });
 
-    EXPECT_EQ(model.rendered_line(0), "1  1 hello");
+    EXPECT_EQ(model.rendered_line(0), "1 Everest hello");
+    EXPECT_EQ(model.rendered_line(1), "2 Denali world");
+}
+
+TEST(LogModelTest, FiltersMatchAgainstEmbeddedMnemonic)
+{
+    // Because the mnemonic lives in the text, filtering on it needs no special handling.
+    LogModel model;
+
+    model.append_lines({
+        LogEntry {0, "alpha.log", "Everest hello"},
+        LogEntry {1, "beta.log", "Denali world"},
+    });
+    model.add_include_filter("Everest");
+
+    ASSERT_EQ(model.line_count(), 1);
+    EXPECT_EQ(model.rendered_line(0), "1 Everest hello");
 }
 
 TEST(LogModelTest, HidesDetectedTimestampTextByDefault)
@@ -288,7 +304,6 @@ TEST(LogModelTest, ShowIdenticalLinesRestoresAllMatchingRows)
 TEST(LogModelTest, ReservesTimestampColumnWidthForRowsWithoutTimestamp)
 {
     LogModel model;
-    model.set_show_source_labels(true);
 
     model.append_lines({
         LogEntry {"alpha.log", "with timestamp", test_timestamp()},
@@ -298,12 +313,11 @@ TEST(LogModelTest, ReservesTimestampColumnWidthForRowsWithoutTimestamp)
     const auto first  = model.rendered_line(0);
     const auto second = model.rendered_line(1);
 
-    const int source_column_start = model.source_number_column_start();
-    const int source_column_width = model.source_number_column_width();
-    const int message_column      = source_column_start + source_column_width + 1;
+    // The timestamp column is reserved (and padded) for the row that has no timestamp, so the
+    // message text starts at the same column on both rows.
+    const int message_column = model.line_number_column_width() + 1 + model.timestamp_column_width() + 1;
 
-    EXPECT_EQ(first.substr(static_cast<std::size_t>(source_column_start), static_cast<std::size_t>(source_column_width)), " 1");
-    EXPECT_EQ(second.substr(static_cast<std::size_t>(source_column_start), static_cast<std::size_t>(source_column_width)), " 1");
+    EXPECT_GT(model.timestamp_column_width(), 0);
     EXPECT_EQ(first.substr(static_cast<std::size_t>(message_column)), "with timestamp");
     EXPECT_EQ(second.substr(static_cast<std::size_t>(message_column)), "without timestamp");
 }
@@ -311,7 +325,6 @@ TEST(LogModelTest, ReservesTimestampColumnWidthForRowsWithoutTimestamp)
 TEST(LogModelTest, ColumnWidthsGrowDynamicallyAndResetWhenModelBecomesEmpty)
 {
     LogModel model;
-    model.set_show_source_labels(true);
 
     model.append_lines({
         LogEntry {"alpha.log", "first", test_timestamp()},
@@ -319,20 +332,17 @@ TEST(LogModelTest, ColumnWidthsGrowDynamicallyAndResetWhenModelBecomesEmpty)
     });
 
     EXPECT_EQ(model.timestamp_column_width(), static_cast<int>(std::string("{2026-04-01 10:00:00}").size()));
-    EXPECT_GE(model.source_number_column_width(), 3);
 
     model.replace_batch({
         LogEntry {"alpha.log", "after replace"},
     });
 
     EXPECT_GT(model.timestamp_column_width(), 0);
-    EXPECT_GE(model.source_number_column_width(), 3);
 
     model.replace_batch(std::vector<LogEntry> {});
 
     EXPECT_EQ(model.line_count(), 0);
     EXPECT_EQ(model.timestamp_column_width(), 0);
-    EXPECT_EQ(model.source_number_column_width(), 2);
 }
 
 TEST(LogModelTest, RenderedLinesReturnsVisibleSlice)

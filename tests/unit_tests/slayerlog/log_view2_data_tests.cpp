@@ -11,6 +11,7 @@
 #include "LogView2/log_view2_data.hpp"
 #include "tracked_sources/all_processed_sources.hpp"
 #include "tracked_sources/all_tracked_sources.hpp"
+#include "tracked_sources/tracked_source_factory.hpp"
 
 namespace slayerlog
 {
@@ -77,7 +78,7 @@ TEST(LogView2DataTest, CallbackReceivesFirstChangedLineFromProcessedSources)
     std::optional<VisibleLineIndex> received_index;
     data.add_update_callback([&received_index](VisibleLineIndex first_changed_line) { received_index = first_changed_line; });
 
-    const auto error = tracked_sources.open_source(local_file_source(file.path()));
+    const auto error = open_source(tracked_sources, local_file_source(file.path()));
     processed_sources.rebuild_from_sources(tracked_sources);
 
     EXPECT_FALSE(error.has_value());
@@ -98,7 +99,7 @@ TEST(LogView2DataTest, RemovedCallbackIsNotCalled)
     const auto callback_id = data.add_update_callback([&call_count](VisibleLineIndex) { ++call_count; });
     data.remove_update_callback(callback_id);
 
-    const auto error = tracked_sources.open_source(local_file_source(file.path()));
+    const auto error = open_source(tracked_sources, local_file_source(file.path()));
     processed_sources.rebuild_from_sources(tracked_sources);
 
     EXPECT_FALSE(error.has_value());
@@ -110,7 +111,7 @@ TEST(LogView2DataTest, PollCallbackReceivesAppendStartIndex)
     ScopedLogFile file;
     file.write("first\n");
     AllTrackedSources tracked_sources;
-    ASSERT_FALSE(tracked_sources.open_source(local_file_source(file.path())).has_value());
+    ASSERT_FALSE(open_source(tracked_sources, local_file_source(file.path())).has_value());
     AllProcessedSources processed_sources;
     processed_sources.rebuild_from_sources(tracked_sources);
 

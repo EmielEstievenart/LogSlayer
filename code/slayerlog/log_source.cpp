@@ -83,6 +83,8 @@ std::string basename_for_path(const std::filesystem::path& path)
     return basename.string();
 }
 
+} // namespace
+
 std::string source_identity(const LogSource& source)
 {
     if (source.kind == LogSourceKind::SshRemoteFile)
@@ -97,8 +99,6 @@ std::string source_identity(const LogSource& source)
 
     return normalize_local_path_for_comparison(source.local_path);
 }
-
-} // namespace
 
 LogSource parse_log_source(std::string_view text)
 {

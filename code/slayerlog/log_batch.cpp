@@ -20,10 +20,10 @@ struct SharedSourceBatchState
 struct SourceRangeBatchState
 {
     const std::vector<std::shared_ptr<LogEntry>>* entries = nullptr;
-    std::size_t next_entry_index                           = 0;
-    std::size_t source_index                               = 0;
+    std::size_t next_entry_index                          = 0;
+    std::size_t source_index                              = 0;
     std::string source_label;
-    bool preserve_source_metadata                          = false;
+    bool preserve_source_metadata = false;
 };
 
 bool has_pending_entry(const SharedSourceBatchState& state)
@@ -118,7 +118,7 @@ std::vector<std::shared_ptr<LogEntry>> merge_shared_log_batch(const std::vector<
                 continue;
             }
 
-            const auto& entry = current_entry_pointer(source_state);
+            const auto& entry    = current_entry_pointer(source_state);
             const auto timestamp = effective_timestamp(entry->metadata);
             if (!timestamp.has_value())
             {
@@ -209,7 +209,7 @@ void merge_log_batch(const std::vector<LogBatchSourceRange>& source_ranges, std:
                 continue;
             }
 
-            const auto& entry = current_entry_pointer(source_state);
+            const auto& entry    = current_entry_pointer(source_state);
             const auto timestamp = effective_timestamp(entry->metadata);
             if (!timestamp.has_value())
             {
