@@ -1,4 +1,4 @@
-#include "implementations/show_identical_lines_command.hpp"
+#include "implementations/log_view1/show_identical_lines_command.hpp"
 
 #include <cctype>
 #include <string>

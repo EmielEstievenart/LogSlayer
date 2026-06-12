@@ -1,4 +1,4 @@
-#include "implementations/delete_filters_command.hpp"
+#include "implementations/log_view1/delete_filters_command.hpp"
 
 #include <cctype>
 #include <string>

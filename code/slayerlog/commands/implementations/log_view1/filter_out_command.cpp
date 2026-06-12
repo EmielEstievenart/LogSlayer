@@ -1,4 +1,4 @@
-#include "implementations/filter_out_command.hpp"
+#include "implementations/log_view1/filter_out_command.hpp"
 
 #include <stdexcept>
 #include <string>

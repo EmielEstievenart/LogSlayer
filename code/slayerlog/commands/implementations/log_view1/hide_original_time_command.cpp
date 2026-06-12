@@ -1,4 +1,4 @@
-#include "implementations/hide_original_time_command.hpp"
+#include "implementations/log_view1/hide_original_time_command.hpp"
 
 #include <cctype>
 #include <string>

@@ -1,4 +1,4 @@
-#include "implementations/export_visible_text_command.hpp"
+#include "implementations/log_view1/export_visible_text_command.hpp"
 
 #include <cctype>
 #include <filesystem>

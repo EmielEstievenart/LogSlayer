@@ -1,4 +1,4 @@
-#include "implementations/clear_time_offset_command.hpp"
+#include "implementations/log_view1/clear_time_offset_command.hpp"
 
 #include <cctype>
 #include <string>

@@ -1,4 +1,4 @@
-#include "implementations/go_to_line_command.hpp"
+#include "implementations/log_view1/go_to_line_command.hpp"
 
 #include <exception>
 #include <optional>

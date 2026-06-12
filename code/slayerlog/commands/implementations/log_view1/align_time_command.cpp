@@ -1,4 +1,4 @@
-#include "implementations/align_time_command.hpp"
+#include "implementations/log_view1/align_time_command.hpp"
 
 #include <cctype>
 #include <string>

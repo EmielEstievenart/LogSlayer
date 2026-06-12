@@ -1,4 +1,4 @@
-#include "implementations/hide_before_line_command.hpp"
+#include "implementations/log_view1/hide_before_line_command.hpp"
 
 #include <exception>
 #include <optional>

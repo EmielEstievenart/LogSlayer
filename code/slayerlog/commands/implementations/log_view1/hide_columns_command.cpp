@@ -1,4 +1,4 @@
-#include "implementations/hide_columns_command.hpp"
+#include "implementations/log_view1/hide_columns_command.hpp"
 
 #include <string>
 

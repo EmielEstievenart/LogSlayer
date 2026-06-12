@@ -1,4 +1,4 @@
-#include "implementations/hide_shown_lines_command.hpp"
+#include "implementations/log_view1/hide_shown_lines_command.hpp"
 
 #include <algorithm>
 #include <cctype>

@@ -1,4 +1,4 @@
-#include "implementations/find_command.hpp"
+#include "implementations/log_view1/find_command.hpp"
 
 #include <cctype>
 #include <stdexcept>

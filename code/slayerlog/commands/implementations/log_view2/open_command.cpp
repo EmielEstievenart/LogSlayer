@@ -1,4 +1,4 @@
-#include "implementations/open_command.hpp"
+#include "implementations/log_view2/open_command.hpp"
 
 #include <cctype>
 #include <filesystem>

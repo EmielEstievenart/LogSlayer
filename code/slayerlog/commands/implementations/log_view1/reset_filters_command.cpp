@@ -1,4 +1,4 @@
-#include "implementations/reset_filters_command.hpp"
+#include "implementations/log_view1/reset_filters_command.hpp"
 
 #include "log_controller.hpp"
 #include "tracked_sources/all_processed_sources.hpp"

@@ -1,4 +1,4 @@
-#include "implementations/copy_settings_path_command.hpp"
+#include "implementations/log_view1/copy_settings_path_command.hpp"
 
 #include <cctype>
 #include <utility>

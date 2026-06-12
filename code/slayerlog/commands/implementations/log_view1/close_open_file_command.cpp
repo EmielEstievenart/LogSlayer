@@ -1,4 +1,4 @@
-#include "implementations/close_open_file_command.hpp"
+#include "implementations/log_view1/close_open_file_command.hpp"
 
 #include <cctype>
 #include <string>

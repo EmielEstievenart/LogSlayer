@@ -1,4 +1,4 @@
-#include "implementations/set_time_format_command.hpp"
+#include "implementations/log_view1/set_time_format_command.hpp"
 
 #include <cctype>
 #include <string>

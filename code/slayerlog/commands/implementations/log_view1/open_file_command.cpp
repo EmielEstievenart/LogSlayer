@@ -1,4 +1,4 @@
-#include "implementations/open_file_command.hpp"
+#include "implementations/log_view1/open_file_command.hpp"
 
 #include <chrono>
 #include <cctype>
