@@ -1,4 +1,4 @@
-#include "implementations/set_time_offset_command.hpp"
+#include "implementations/log_view1/adjust_time_offset_command.hpp"
 
 #include <cctype>
 #include <string>
@@ -37,44 +37,45 @@ ftxui::Element picker_help(std::string enter_label)
 }
 }
 
-SetTimeOffsetCommand::SetTimeOffsetCommand(CommandContext context) : _context(context)
+AdjustTimeOffsetCommand::AdjustTimeOffsetCommand(CommandContext context) : _context(context)
 {
 }
 
-const CommandDescriptor& SetTimeOffsetCommand::descriptor() const
+const CommandDescriptor& AdjustTimeOffsetCommand::descriptor() const
 {
-    static const CommandDescriptor descriptor {
-        "set-time-offset",
-        "Set timestamp offset for one source",
-        "set-time-offset",
-        {"Opens a source picker, then an offset input prompt.", "Offset format is DD hh:mm:ss[.fraction], with an optional leading + or - sign.", "Example: set-time-offset, then enter 20 02:10:10.005"}};
+    static const CommandDescriptor descriptor {"adjust-time-offset",
+                                               "Add a timestamp offset to one source",
+                                               "adjust-time-offset",
+                                               {"Opens a source picker, then an offset input prompt.", "The entered offset is added on top of the source's current offset; use clear-time-offset to reset.",
+                                                "Offset format is DD hh:mm:ss[.fraction], with an optional leading + or - sign.", "Example: adjust-time-offset, then enter -00 00:00:10.005"}};
     return descriptor;
 }
 
-CommandResult SetTimeOffsetCommand::execute(std::string_view arguments)
+CommandResult AdjustTimeOffsetCommand::execute(std::string_view arguments)
 {
     if (!trim_text(arguments).empty())
     {
-        return {false, "Usage: set-time-offset"};
+        return {false, "Usage: adjust-time-offset"};
     }
     _labels = _context.tracked_sources.source_display_labels();
     if (_labels.empty())
     {
         return {false, "No open sources to configure"};
     }
-    _source_picker.emplace(_labels);
+    _picker_labels = source_labels_with_offsets(_context.tracked_sources);
+    _source_picker.emplace(_picker_labels);
     _input.reset();
     _selected_source_index = std::nullopt;
     _state                 = State::SourceSelection;
     return {true, "Select a source to offset", false};
 }
 
-bool SetTimeOffsetCommand::has_active_interaction() const
+bool AdjustTimeOffsetCommand::has_active_interaction() const
 {
     return _state != State::Inactive;
 }
 
-CommandEventResult SetTimeOffsetCommand::handle_event(const ftxui::Event& event)
+CommandEventResult AdjustTimeOffsetCommand::handle_event(const ftxui::Event& event)
 {
     if (_state == State::Inactive)
     {
@@ -114,16 +115,17 @@ CommandEventResult SetTimeOffsetCommand::handle_event(const ftxui::Event& event)
         }
 
         const auto source_index = *_selected_source_index;
-        const auto error        = _context.tracked_sources.set_source_timestamp_offset(source_index, *offset);
+        const auto error        = _context.tracked_sources.adjust_source_timestamp_offset(source_index, *offset);
         if (error.has_value())
         {
-            SLAYERLOG_LOG_ERROR("set-time-offset failed source_index=" << source_index << " error=" << *error);
+            SLAYERLOG_LOG_ERROR("adjust-time-offset failed source_index=" << source_index << " error=" << *error);
             return {true, CommandResult {false, *error, false}};
         }
 
         reload_processed_sources(_context.tracked_sources, _context.header_text, _context.processed_sources, _context.log_controller, _context.screen);
-        _state = State::Inactive;
-        return {true, CommandResult {true, "Set time offset for " + _labels[source_index] + ": " + format_log_timestamp_offset(*offset)}};
+        const auto total = _context.tracked_sources.source_timestamp_offset(source_index);
+        _state           = State::Inactive;
+        return {true, CommandResult {true, "Adjusted time offset for " + _labels[source_index] + " by " + format_log_timestamp_offset(*offset) + " to " + format_log_timestamp_offset(total.value_or(LogTimestampOffset {}))}};
     }
 
     const bool handled = _input->handle_event(event);
@@ -134,7 +136,7 @@ CommandEventResult SetTimeOffsetCommand::handle_event(const ftxui::Event& event)
     return {handled, std::nullopt};
 }
 
-ftxui::Element SetTimeOffsetCommand::render()
+ftxui::Element AdjustTimeOffsetCommand::render()
 {
     if (_state == State::SourceSelection && _source_picker.has_value())
     {
@@ -142,18 +144,21 @@ ftxui::Element SetTimeOffsetCommand::render()
     }
     if (_state == State::OffsetInput && _input.has_value())
     {
-        return ftxui::vbox({ftxui::text("Source: " + _labels[*_selected_source_index]) | ftxui::color(theme::muted), ftxui::text("Expected: DD hh:mm:ss[.fraction]") | ftxui::color(theme::muted),
-                            ftxui::text("Example: 20 02:10:10.005") | ftxui::color(theme::muted), ftxui::separator(), _input->render()});
+        const auto current      = selected_source_offset();
+        const auto current_text = current.has_value() ? format_log_timestamp_offset(*current) : std::string("none");
+        return ftxui::vbox({ftxui::text("Source: " + _labels[*_selected_source_index]) | ftxui::color(theme::muted), ftxui::text("Current offset: " + current_text) | ftxui::color(theme::muted),
+                            ftxui::text("Expected: DD hh:mm:ss[.fraction] (added to the current offset)") | ftxui::color(theme::muted), ftxui::text("Example: -00 00:00:10.005") | ftxui::color(theme::muted), ftxui::separator(),
+                            _input->render()});
     }
     return ftxui::emptyElement();
 }
 
-std::string SetTimeOffsetCommand::palette_title() const
+std::string AdjustTimeOffsetCommand::palette_title() const
 {
-    return _state == State::OffsetInput ? "Set Timestamp Offset" : "Select Log Source";
+    return _state == State::OffsetInput ? "Adjust Timestamp Offset" : "Select Log Source";
 }
 
-ftxui::Element SetTimeOffsetCommand::render_help() const
+ftxui::Element AdjustTimeOffsetCommand::render_help() const
 {
     if (_state == State::OffsetInput)
     {
@@ -163,21 +168,31 @@ ftxui::Element SetTimeOffsetCommand::render_help() const
     return picker_help("confirm");
 }
 
-void SetTimeOffsetCommand::cancel()
+void AdjustTimeOffsetCommand::cancel()
 {
     reset();
 }
 
-void SetTimeOffsetCommand::reset()
+void AdjustTimeOffsetCommand::reset()
 {
     _state = State::Inactive;
     _labels.clear();
+    _picker_labels.clear();
     _selected_source_index.reset();
     _source_picker.reset();
     _input.reset();
 }
 
-void SetTimeOffsetCommand::refresh_preview()
+std::optional<LogTimestampOffset> AdjustTimeOffsetCommand::selected_source_offset() const
+{
+    if (!_selected_source_index.has_value())
+    {
+        return std::nullopt;
+    }
+    return _context.tracked_sources.source_timestamp_offset(*_selected_source_index);
+}
+
+void AdjustTimeOffsetCommand::refresh_preview()
 {
     if (!_input.has_value())
     {
@@ -194,7 +209,14 @@ void SetTimeOffsetCommand::refresh_preview()
         _input->set_preview("Invalid offset: expected DD hh:mm:ss[.fraction]", true);
         return;
     }
-    _input->set_preview("Applies offset: " + format_log_timestamp_offset(*offset), false);
+
+    const auto total = add_offsets(selected_source_offset().value_or(LogTimestampOffset {}), *offset);
+    if (!total.has_value())
+    {
+        _input->set_preview("Offset would overflow", true);
+        return;
+    }
+    _input->set_preview("Adds " + format_log_timestamp_offset(*offset) + " -> total " + format_log_timestamp_offset(*total), false);
 }
 
 } // namespace slayerlog

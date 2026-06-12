@@ -24,8 +24,8 @@
 #include "implementations/log_view1/open_folder_command.hpp"
 #include "implementations/log_view1/reset_column_filter_command.hpp"
 #include "implementations/log_view1/reset_filters_command.hpp"
+#include "implementations/log_view1/adjust_time_offset_command.hpp"
 #include "implementations/log_view1/set_time_format_command.hpp"
-#include "implementations/log_view1/set_time_offset_command.hpp"
 #include "implementations/log_view1/show_identical_lines_command.hpp"
 #include "implementations/log_view1/show_original_time_command.hpp"
 #include "implementations/log_view2/log_view2_find_command.hpp"
@@ -55,7 +55,7 @@ void register_commands(CommandManager& command_manager, CommandContext context)
     command_manager.register_command(std::make_unique<CloseOpenFileCommand>(context));
 
     command_manager.register_command(std::make_unique<SetTimeFormatCommand>(context));
-    command_manager.register_command(std::make_unique<SetTimeOffsetCommand>(context));
+    command_manager.register_command(std::make_unique<AdjustTimeOffsetCommand>(context));
     command_manager.register_command(std::make_unique<AlignTimeCommand>(context));
     command_manager.register_command(std::make_unique<ClearTimeOffsetCommand>(context));
 

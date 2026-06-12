@@ -125,8 +125,8 @@ set(SLAYERLOG_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/log_view1/reset_filters_command.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/log_view1/set_time_format_command.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/log_view1/set_time_format_command.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/log_view1/set_time_offset_command.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/log_view1/set_time_offset_command.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/log_view1/adjust_time_offset_command.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/log_view1/adjust_time_offset_command.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/log_view1/show_identical_lines_command.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/log_view1/show_identical_lines_command.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/commands/implementations/log_view1/show_original_time_command.cpp

@@ -456,6 +456,62 @@ TEST(CommandRegistrarTest, SetTimeFormatCommandOpensSourceAndFormatPickers)
     remove_temp_export_file(log_path);
 }
 
+TEST(CommandRegistrarTest, AdjustTimeOffsetCommandAccumulatesOffsets)
+{
+    const auto log_path = make_temp_export_path();
+    {
+        std::ofstream output(log_path, std::ios::binary | std::ios::trunc);
+        ASSERT_TRUE(output.is_open());
+        output << "2026-04-01T10:00:00 alpha first\n";
+    }
+
+    AllProcessedSources processed_sources;
+    LogController controller;
+    CommandManager command_manager;
+    CommandPaletteModel command_palette_model;
+    CommandPaletteController command_palette_controller(command_palette_model, command_manager);
+    std::string header_text;
+    auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
+    AllTrackedSources tracked_sources;
+    ASSERT_FALSE(open_source(tracked_sources, parse_log_source(log_path.string())).has_value());
+    register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen});
+
+    const auto apply_offset = [&](const std::string& offset_text)
+    {
+        const auto result = command_manager.execute("adjust-time-offset");
+        ASSERT_TRUE(result.success);
+        ASSERT_NE(command_manager.active_command(), nullptr);
+
+        ASSERT_TRUE(command_manager.active_command()->handle_event(ftxui::Event::Return).handled);
+        for (const char character : offset_text)
+        {
+            ASSERT_TRUE(command_manager.active_command()->handle_event(ftxui::Event::Character(std::string(1, character))).handled);
+        }
+
+        const auto apply_result = command_manager.active_command()->handle_event(ftxui::Event::Return);
+        ASSERT_TRUE(apply_result.result.has_value());
+        ASSERT_TRUE(apply_result.result->success);
+        command_manager.clear_active_command();
+    };
+
+    apply_offset("00 00:01:00");
+    {
+        const auto offset = tracked_sources.source_timestamp_offset(0);
+        ASSERT_TRUE(offset.has_value());
+        EXPECT_EQ(offset->seconds, 60);
+    }
+
+    apply_offset("00 00:00:30.5");
+    {
+        const auto offset = tracked_sources.source_timestamp_offset(0);
+        ASSERT_TRUE(offset.has_value());
+        EXPECT_EQ(offset->seconds, 90);
+        EXPECT_EQ(offset->nanosecond, 500000000);
+    }
+
+    remove_temp_export_file(log_path);
+}
+
 TEST(CommandRegistrarTest, AlignTimeCommandSetsSourceOffsetFromOriginalTimestamp)
 {
     const auto alpha_log = make_temp_export_path();
