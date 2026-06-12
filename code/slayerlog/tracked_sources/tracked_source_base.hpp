@@ -102,9 +102,21 @@ public:
     virtual std::optional<std::string> set_timestamp_offset(LogTimestampOffset offset);
 
     /**
+     * @brief Adds @p delta on top of the currently configured timestamp offset.
+     *
+     * @return An error message if combining or applying the offset fails; otherwise `std::nullopt`.
+     */
+    std::optional<std::string> adjust_timestamp_offset(LogTimestampOffset delta);
+
+    /**
      * @brief Clears the active timestamp offset from this source and its entries.
      */
     virtual void clear_timestamp_offset();
+
+    /**
+     * @brief Returns the currently configured timestamp offset, if any.
+     */
+    const std::optional<LogTimestampOffset>& timestamp_offset() const;
 
     /**
      * @brief Polls the source for new or changed log entries.
@@ -123,11 +135,6 @@ protected:
      * @brief Returns the timestamp format catalog used by this source.
      */
     const std::shared_ptr<const TimestampFormatCatalog>& timestamp_formats() const;
-
-    /**
-     * @brief Returns the currently configured timestamp offset, if any.
-     */
-    const std::optional<LogTimestampOffset>& timestamp_offset() const;
 
     /**
      * @brief Replaces the timestamp format catalog.

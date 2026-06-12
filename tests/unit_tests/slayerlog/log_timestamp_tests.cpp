@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <limits>
+
 #include "timestamp/source_timestamp_parser.hpp"
 
 namespace slayerlog
@@ -292,6 +294,58 @@ TEST(LogTimestampTest, CalculatesNegativeOffsetBetweenTimestamps)
     EXPECT_EQ(offset->seconds, -5);
     EXPECT_EQ(offset->nanosecond, -500000000);
     EXPECT_EQ(add_offset(from, *offset), std::optional<LogTimestamp>(to));
+}
+
+TEST(LogTimestampTest, AddOffsetsCombinesComponents)
+{
+    const auto combined = add_offsets(LogTimestampOffset {10, 250000000}, LogTimestampOffset {5, 100000000});
+
+    ASSERT_TRUE(combined.has_value());
+    EXPECT_EQ(combined->seconds, 15);
+    EXPECT_EQ(combined->nanosecond, 350000000);
+
+    const auto identity = add_offsets(LogTimestampOffset {10, 250000000}, LogTimestampOffset {});
+    ASSERT_TRUE(identity.has_value());
+    EXPECT_EQ(identity->seconds, 10);
+    EXPECT_EQ(identity->nanosecond, 250000000);
+}
+
+TEST(LogTimestampTest, AddOffsetsCarriesNanosecondsIntoSeconds)
+{
+    const auto combined = add_offsets(LogTimestampOffset {0, 600000000}, LogTimestampOffset {0, 600000000});
+
+    ASSERT_TRUE(combined.has_value());
+    EXPECT_EQ(combined->seconds, 1);
+    EXPECT_EQ(combined->nanosecond, 200000000);
+
+    const auto negative = add_offsets(LogTimestampOffset {0, -600000000}, LogTimestampOffset {0, -600000000});
+    ASSERT_TRUE(negative.has_value());
+    EXPECT_EQ(negative->seconds, -1);
+    EXPECT_EQ(negative->nanosecond, -200000000);
+}
+
+TEST(LogTimestampTest, AddOffsetsNormalizesMixedSigns)
+{
+    const auto positive = add_offsets(LogTimestampOffset {1, 0}, LogTimestampOffset {0, -1});
+
+    ASSERT_TRUE(positive.has_value());
+    EXPECT_EQ(positive->seconds, 0);
+    EXPECT_EQ(positive->nanosecond, 999999999);
+
+    const auto negative = add_offsets(LogTimestampOffset {-1, 0}, LogTimestampOffset {0, 1});
+    ASSERT_TRUE(negative.has_value());
+    EXPECT_EQ(negative->seconds, 0);
+    EXPECT_EQ(negative->nanosecond, -999999999);
+}
+
+TEST(LogTimestampTest, AddOffsetsReturnsNulloptOnOverflow)
+{
+    const auto overflowed = add_offsets(LogTimestampOffset {(std::numeric_limits<std::int64_t>::max)(), 0}, LogTimestampOffset {1, 0});
+
+    EXPECT_FALSE(overflowed.has_value());
+
+    const auto carry_overflowed = add_offsets(LogTimestampOffset {(std::numeric_limits<std::int64_t>::max)(), 600000000}, LogTimestampOffset {0, 600000000});
+    EXPECT_FALSE(carry_overflowed.has_value());
 }
 
 } // namespace slayerlog

@@ -15,8 +15,8 @@ namespace slayerlog
 namespace
 {
 
-constexpr std::int64_t seconds_per_day = 86400;
-constexpr std::int64_t days_to_unix_epoch = 719468;
+constexpr std::int64_t seconds_per_day        = 86400;
+constexpr std::int64_t days_to_unix_epoch     = 719468;
 constexpr std::int64_t nanoseconds_per_second = 1000000000;
 
 struct OffsetParserEntry
@@ -135,37 +135,37 @@ unsigned max_day_in_month(int year, unsigned month)
 std::int64_t days_from_civil(int year, unsigned month, unsigned day)
 {
     year -= month <= 2 ? 1 : 0;
-    const std::int64_t era = (year >= 0 ? year : year - 399) / 400;
-    const unsigned year_of_era = static_cast<unsigned>(year - era * 400);
+    const std::int64_t era       = (year >= 0 ? year : year - 399) / 400;
+    const unsigned year_of_era   = static_cast<unsigned>(year - era * 400);
     const unsigned shifted_month = static_cast<unsigned>(static_cast<int>(month) + (month > 2 ? -3 : 9));
-    const unsigned day_of_year = (153 * shifted_month + 2) / 5 + day - 1;
-    const unsigned day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+    const unsigned day_of_year   = (153 * shifted_month + 2) / 5 + day - 1;
+    const unsigned day_of_era    = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
     return era * 146097 + static_cast<std::int64_t>(day_of_era) - days_to_unix_epoch;
 }
 
 LogCivilTime civil_from_days(std::int64_t days)
 {
     days += days_to_unix_epoch;
-    const std::int64_t era = (days >= 0 ? days : days - 146096) / 146097;
-    const unsigned day_of_era = static_cast<unsigned>(days - era * 146097);
+    const std::int64_t era     = (days >= 0 ? days : days - 146096) / 146097;
+    const unsigned day_of_era  = static_cast<unsigned>(days - era * 146097);
     const unsigned year_of_era = (day_of_era - day_of_era / 1460 + day_of_era / 36524 - day_of_era / 146096) / 365;
-    int year = static_cast<int>(year_of_era) + static_cast<int>(era * 400);
+    int year                   = static_cast<int>(year_of_era) + static_cast<int>(era * 400);
     const unsigned day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
     const unsigned month_prime = (5 * day_of_year + 2) / 153;
-    const unsigned day = day_of_year - (153 * month_prime + 2) / 5 + 1;
-    const unsigned month = static_cast<unsigned>(static_cast<int>(month_prime) + (month_prime < 10 ? 3 : -9));
+    const unsigned day         = day_of_year - (153 * month_prime + 2) / 5 + 1;
+    const unsigned month       = static_cast<unsigned>(static_cast<int>(month_prime) + (month_prime < 10 ? 3 : -9));
     year += month <= 2 ? 1 : 0;
 
     LogCivilTime civil;
-    civil.year = year;
+    civil.year  = year;
     civil.month = month;
-    civil.day = day;
+    civil.day   = day;
     return civil;
 }
 
 std::int64_t floor_div(std::int64_t lhs, std::int64_t rhs)
 {
-    const std::int64_t quotient = lhs / rhs;
+    const std::int64_t quotient  = lhs / rhs;
     const std::int64_t remainder = lhs % rhs;
     return remainder < 0 ? quotient - 1 : quotient;
 }
@@ -236,8 +236,7 @@ bool operator>=(LogTimestamp lhs, LogTimestamp rhs)
     return !(lhs < rhs);
 }
 
-std::optional<LogTimestamp> make_log_timestamp_utc(int year, unsigned month, unsigned day, unsigned hour, unsigned minute, unsigned second, unsigned nanosecond,
-                                                    std::optional<int> utc_offset_minutes)
+std::optional<LogTimestamp> make_log_timestamp_utc(int year, unsigned month, unsigned day, unsigned hour, unsigned minute, unsigned second, unsigned nanosecond, std::optional<int> utc_offset_minutes)
 {
     if (month < 1 || month > 12 || day < 1 || day > max_day_in_month(year, month) || hour > 23 || minute > 59 || second > 60 || nanosecond >= 1000000000)
     {
@@ -255,14 +254,14 @@ std::optional<LogTimestamp> make_log_timestamp_utc(int year, unsigned month, uns
 
 LogCivilTime to_utc_civil_time(LogTimestamp timestamp)
 {
-    const std::int64_t days = floor_div(timestamp.epoch_seconds, seconds_per_day);
+    const std::int64_t days           = floor_div(timestamp.epoch_seconds, seconds_per_day);
     const std::int64_t seconds_in_day = timestamp.epoch_seconds - days * seconds_per_day;
 
     LogCivilTime civil = civil_from_days(days);
-    civil.hour = static_cast<unsigned>(seconds_in_day / 3600);
-    civil.minute = static_cast<unsigned>((seconds_in_day % 3600) / 60);
-    civil.second = static_cast<unsigned>(seconds_in_day % 60);
-    civil.nanosecond = timestamp.nanosecond;
+    civil.hour         = static_cast<unsigned>(seconds_in_day / 3600);
+    civil.minute       = static_cast<unsigned>((seconds_in_day % 3600) / 60);
+    civil.second       = static_cast<unsigned>(seconds_in_day % 60);
+    civil.nanosecond   = timestamp.nanosecond;
     return civil;
 }
 
@@ -271,7 +270,8 @@ std::string format_log_timestamp_utc(LogTimestamp timestamp)
     const auto civil = to_utc_civil_time(timestamp);
 
     std::ostringstream output;
-    output << std::setw(4) << std::setfill('0') << civil.year << '-' << format_two_digits(civil.month) << '-' << format_two_digits(civil.day) << ' ' << format_two_digits(civil.hour) << ':' << format_two_digits(civil.minute) << ':' << format_two_digits(civil.second);
+    output << std::setw(4) << std::setfill('0') << civil.year << '-' << format_two_digits(civil.month) << '-' << format_two_digits(civil.day) << ' ' << format_two_digits(civil.hour) << ':' << format_two_digits(civil.minute) << ':'
+           << format_two_digits(civil.second);
 
     if (civil.nanosecond != 0)
     {
@@ -318,8 +318,8 @@ std::optional<LogTimestampOffset> parse_log_timestamp_offset(std::string_view te
         }
 
         std::int64_t total_seconds = 0;
-        if (add_overflows(days * seconds_per_day, static_cast<std::int64_t>(parsed.hour) * 3600, total_seconds) ||
-            add_overflows(total_seconds, static_cast<std::int64_t>(parsed.minute) * 60, total_seconds) || add_overflows(total_seconds, static_cast<std::int64_t>(parsed.second), total_seconds))
+        if (add_overflows(days * seconds_per_day, static_cast<std::int64_t>(parsed.hour) * 3600, total_seconds) || add_overflows(total_seconds, static_cast<std::int64_t>(parsed.minute) * 60, total_seconds) ||
+            add_overflows(total_seconds, static_cast<std::int64_t>(parsed.second), total_seconds))
         {
             return std::nullopt;
         }
@@ -332,15 +332,15 @@ std::optional<LogTimestampOffset> parse_log_timestamp_offset(std::string_view te
 
 std::string format_log_timestamp_offset(LogTimestampOffset offset)
 {
-    const bool negative = offset.seconds < 0 || offset.nanosecond < 0;
+    const bool negative                 = offset.seconds < 0 || offset.nanosecond < 0;
     const std::int64_t absolute_seconds = offset.seconds < 0 ? -offset.seconds : offset.seconds;
-    const unsigned absolute_nanosecond = static_cast<unsigned>(offset.nanosecond < 0 ? -offset.nanosecond : offset.nanosecond);
+    const unsigned absolute_nanosecond  = static_cast<unsigned>(offset.nanosecond < 0 ? -offset.nanosecond : offset.nanosecond);
 
-    const std::int64_t days = absolute_seconds / seconds_per_day;
+    const std::int64_t days               = absolute_seconds / seconds_per_day;
     const std::int64_t seconds_after_days = absolute_seconds % seconds_per_day;
-    const unsigned hours = static_cast<unsigned>(seconds_after_days / 3600);
-    const unsigned minutes = static_cast<unsigned>((seconds_after_days % 3600) / 60);
-    const unsigned seconds = static_cast<unsigned>(seconds_after_days % 60);
+    const unsigned hours                  = static_cast<unsigned>(seconds_after_days / 3600);
+    const unsigned minutes                = static_cast<unsigned>((seconds_after_days % 3600) / 60);
+    const unsigned seconds                = static_cast<unsigned>(seconds_after_days % 60);
 
     std::ostringstream output;
     output << (negative ? '-' : '+') << std::setw(2) << std::setfill('0') << days << "d " << format_two_digits(hours) << ':' << format_two_digits(minutes) << ':' << format_two_digits(seconds);
@@ -390,6 +390,47 @@ std::optional<LogTimestampOffset> offset_between(LogTimestamp from, LogTimestamp
     }
 
     std::int64_t nanosecond = static_cast<std::int64_t>(to.nanosecond) - static_cast<std::int64_t>(from.nanosecond);
+    if (seconds > 0 && nanosecond < 0)
+    {
+        --seconds;
+        nanosecond += nanoseconds_per_second;
+    }
+    else if (seconds < 0 && nanosecond > 0)
+    {
+        ++seconds;
+        nanosecond -= nanoseconds_per_second;
+    }
+
+    return LogTimestampOffset {seconds, static_cast<std::int32_t>(nanosecond)};
+}
+
+std::optional<LogTimestampOffset> add_offsets(LogTimestampOffset lhs, LogTimestampOffset rhs)
+{
+    std::int64_t seconds = 0;
+    if (add_overflows(lhs.seconds, rhs.seconds, seconds))
+    {
+        return std::nullopt;
+    }
+
+    std::int64_t nanosecond = static_cast<std::int64_t>(lhs.nanosecond) + rhs.nanosecond;
+    if (nanosecond >= nanoseconds_per_second)
+    {
+        if (add_overflows(seconds, 1, seconds))
+        {
+            return std::nullopt;
+        }
+        nanosecond -= nanoseconds_per_second;
+    }
+    else if (nanosecond <= -nanoseconds_per_second)
+    {
+        if (add_overflows(seconds, -1, seconds))
+        {
+            return std::nullopt;
+        }
+        nanosecond += nanoseconds_per_second;
+    }
+
+    // Keep the seconds and nanosecond signs consistent; formatting relies on it.
     if (seconds > 0 && nanosecond < 0)
     {
         --seconds;

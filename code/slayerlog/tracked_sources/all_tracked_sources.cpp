@@ -377,6 +377,33 @@ std::optional<std::string> AllTrackedSources::set_source_timestamp_offset(std::s
     return std::nullopt;
 }
 
+std::optional<std::string> AllTrackedSources::adjust_source_timestamp_offset(std::size_t source_index, LogTimestampOffset delta)
+{
+    if (source_index >= _sources.size())
+    {
+        return "Invalid source selection";
+    }
+
+    const auto error = _sources[source_index]->adjust_timestamp_offset(delta);
+    if (error.has_value())
+    {
+        return error;
+    }
+
+    rebuild_all_lines();
+    return std::nullopt;
+}
+
+std::optional<LogTimestampOffset> AllTrackedSources::source_timestamp_offset(std::size_t source_index) const
+{
+    if (source_index >= _sources.size())
+    {
+        return std::nullopt;
+    }
+
+    return _sources[source_index]->timestamp_offset();
+}
+
 std::optional<std::string> AllTrackedSources::clear_source_timestamp_offset(std::size_t source_index)
 {
     if (source_index >= _sources.size())

@@ -3,6 +3,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -241,6 +242,57 @@ TEST(TrackedSourceTest, TimestampOffsetReappliesFromOriginalTimestamp)
     EXPECT_FALSE(tracked_source.entries()[0]->metadata.offset_timestamp.has_value());
 }
 
+TEST(TrackedSourceTest, AdjustTimestampOffsetAccumulates)
+{
+    auto formats = std::make_shared<const TimestampFormatCatalog>(std::vector<std::string> {"YYYY-MM-DDThh:mm:ss.fff"});
+    TrackedSourceFile tracked_source(parse_log_source("alpha.log"), "alpha.log", formats);
+    tracked_source.add_entries_from_raw_strings({"2026-04-01T10:00:00.250 first"});
+    ASSERT_EQ(tracked_source.entries().size(), 1U);
+    ASSERT_TRUE(tracked_source.entries()[0]->metadata.timestamp.has_value());
+
+    ASSERT_FALSE(tracked_source.set_timestamp_offset(*parse_log_timestamp_offset("00 00:00:10.500")).has_value());
+    ASSERT_FALSE(tracked_source.adjust_timestamp_offset(*parse_log_timestamp_offset("00 00:00:20.000")).has_value());
+
+    ASSERT_TRUE(tracked_source.timestamp_offset().has_value());
+    EXPECT_EQ(tracked_source.timestamp_offset()->seconds, 30);
+    EXPECT_EQ(tracked_source.timestamp_offset()->nanosecond, 500000000);
+    ASSERT_TRUE(tracked_source.entries()[0]->metadata.offset_timestamp.has_value());
+    EXPECT_EQ(format_log_timestamp_utc(*tracked_source.entries()[0]->metadata.offset_timestamp), "2026-04-01 10:00:30.75");
+}
+
+TEST(TrackedSourceTest, AdjustTimestampOffsetActsAsSetWhenNoOffsetIsConfigured)
+{
+    auto formats = std::make_shared<const TimestampFormatCatalog>(std::vector<std::string> {"YYYY-MM-DDThh:mm:ss.fff"});
+    TrackedSourceFile tracked_source(parse_log_source("alpha.log"), "alpha.log", formats);
+    tracked_source.add_entries_from_raw_strings({"2026-04-01T10:00:00.250 first"});
+    ASSERT_EQ(tracked_source.entries().size(), 1U);
+
+    ASSERT_FALSE(tracked_source.adjust_timestamp_offset(*parse_log_timestamp_offset("-00 00:00:10.000")).has_value());
+
+    ASSERT_TRUE(tracked_source.timestamp_offset().has_value());
+    EXPECT_EQ(tracked_source.timestamp_offset()->seconds, -10);
+    ASSERT_TRUE(tracked_source.entries()[0]->metadata.offset_timestamp.has_value());
+    EXPECT_EQ(format_log_timestamp_utc(*tracked_source.entries()[0]->metadata.offset_timestamp), "2026-04-01 09:59:50.25");
+}
+
+TEST(TrackedSourceTest, AdjustTimestampOffsetOverflowKeepsPreviousState)
+{
+    auto formats = std::make_shared<const TimestampFormatCatalog>(std::vector<std::string> {"YYYY-MM-DDThh:mm:ss.fff"});
+    TrackedSourceFile tracked_source(parse_log_source("alpha.log"), "alpha.log", formats);
+    tracked_source.add_entries_from_raw_strings({"2026-04-01T10:00:00.250 first"});
+    ASSERT_EQ(tracked_source.entries().size(), 1U);
+
+    ASSERT_FALSE(tracked_source.set_timestamp_offset(*parse_log_timestamp_offset("00 00:00:10.500")).has_value());
+    const auto error = tracked_source.adjust_timestamp_offset(LogTimestampOffset {(std::numeric_limits<std::int64_t>::max)(), 0});
+
+    ASSERT_TRUE(error.has_value());
+    EXPECT_EQ(*error, "Timestamp offset would overflow");
+    ASSERT_TRUE(tracked_source.timestamp_offset().has_value());
+    EXPECT_EQ(tracked_source.timestamp_offset()->seconds, 10);
+    ASSERT_TRUE(tracked_source.entries()[0]->metadata.offset_timestamp.has_value());
+    EXPECT_EQ(format_log_timestamp_utc(*tracked_source.entries()[0]->metadata.offset_timestamp), "2026-04-01 10:00:10.75");
+}
+
 TEST(TrackedSourceTest, FilePollReadsZstdFileOnce)
 {
     ScopedTestFolder folder;
@@ -248,9 +300,9 @@ TEST(TrackedSourceTest, FilePollReadsZstdFileOnce)
 
     TrackedSourceFile tracked_source(parse_log_source((folder.path() / "single.log.zst").string()), "single.log.zst");
     expect_poll_lines(tracked_source, {
-                                        "2026-04-01T10:01:00 from zst",
-                                        "plain zst follow-up",
-                                    });
+                                          "2026-04-01T10:01:00 from zst",
+                                          "plain zst follow-up",
+                                      });
     expect_no_poll_lines(tracked_source);
 }
 
@@ -323,9 +375,9 @@ TEST(TrackedSourceTest, FolderPollDiscoversNewlyCreatedZstdFilesOnce)
 
     folder.write_zstd_file("beta.log.zst", "2026-04-01T10:01:00 from zst\nplain zst follow-up\n");
     expect_poll_lines(tracked_source, {
-                                        "2026-04-01T10:01:00 from zst",
-                                        "plain zst follow-up",
-                                    });
+                                          "2026-04-01T10:01:00 from zst",
+                                          "plain zst follow-up",
+                                      });
     expect_no_poll_lines(tracked_source);
 }
 
@@ -353,9 +405,9 @@ TEST(TrackedSourceTest, FolderPollMergesPlainAndZstdChildResultsByTimestamp)
 
     TrackedSourceFolder tracked_source(make_local_folder_source(folder.path().string()), "archive");
     expect_poll_lines(tracked_source, {
-                                        "2026-04-01T10:01:00 beta first",
-                                        "2026-04-01T10:02:00 alpha second",
-                                    });
+                                          "2026-04-01T10:01:00 beta first",
+                                          "2026-04-01T10:02:00 alpha second",
+                                      });
 
     const auto& entries = tracked_source.entries();
     ASSERT_EQ(entries.size(), 2U);

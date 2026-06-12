@@ -267,6 +267,43 @@ TEST(AllTrackedSourcesTest, SetSourceTimestampOffsetResortsByOffsetTimestamp)
                                           }));
 }
 
+TEST(AllTrackedSourcesTest, AdjustSourceTimestampOffsetAccumulatesAndRemerges)
+{
+    const auto root      = make_unique_test_path("");
+    const auto alpha_log = root / "alpha.log";
+    const auto beta_log  = root / "beta.log";
+    ScopedTestFile alpha_file(alpha_log);
+    ScopedTestFile beta_file(beta_log);
+    alpha_file.write("2026-04-01T10:00:00 alpha first\n");
+    beta_file.write("2026-04-01T10:05:00 beta second\n");
+
+    AllTrackedSources tracked_sources;
+    ASSERT_FALSE(open_source(tracked_sources, parse_log_source(alpha_log.string())).has_value());
+    ASSERT_FALSE(open_source(tracked_sources, parse_log_source(beta_log.string())).has_value());
+
+    EXPECT_FALSE(tracked_sources.source_timestamp_offset(1).has_value());
+
+    ASSERT_FALSE(tracked_sources.adjust_source_timestamp_offset(1, *parse_log_timestamp_offset("-00 00:04:00")).has_value());
+    EXPECT_EQ(all_texts(tracked_sources), (std::vector<std::string> {
+                                              "2026-04-01T10:00:00 alpha first",
+                                              "2026-04-01T10:05:00 beta second",
+                                          }));
+
+    ASSERT_FALSE(tracked_sources.adjust_source_timestamp_offset(1, *parse_log_timestamp_offset("-00 00:02:00")).has_value());
+    EXPECT_EQ(all_texts(tracked_sources), (std::vector<std::string> {
+                                              "2026-04-01T10:05:00 beta second",
+                                              "2026-04-01T10:00:00 alpha first",
+                                          }));
+
+    const auto offset = tracked_sources.source_timestamp_offset(1);
+    ASSERT_TRUE(offset.has_value());
+    EXPECT_EQ(offset->seconds, -360);
+    EXPECT_EQ(offset->nanosecond, 0);
+
+    EXPECT_FALSE(tracked_sources.source_timestamp_offset(5).has_value());
+    EXPECT_TRUE(tracked_sources.adjust_source_timestamp_offset(5, LogTimestampOffset {1, 0}).has_value());
+}
+
 TEST(AllTrackedSourcesTest, RebuildAllLinesReportsProgressThroughNotifier)
 {
     const auto path = make_unique_test_path();

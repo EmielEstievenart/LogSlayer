@@ -63,8 +63,27 @@ std::string TrackedSourceBase::mnemonic_prefix() const
 
 std::optional<std::string> TrackedSourceBase::set_timestamp_offset(LogTimestampOffset offset)
 {
-    _timestamp_offset = offset;
-    return apply_timestamp_offset_to_entries();
+    const auto previous_offset = _timestamp_offset;
+    _timestamp_offset          = offset;
+
+    const auto error = apply_timestamp_offset_to_entries();
+    if (error.has_value())
+    {
+        _timestamp_offset = previous_offset;
+    }
+
+    return error;
+}
+
+std::optional<std::string> TrackedSourceBase::adjust_timestamp_offset(LogTimestampOffset delta)
+{
+    const auto combined = add_offsets(_timestamp_offset.value_or(LogTimestampOffset {}), delta);
+    if (!combined.has_value())
+    {
+        return "Timestamp offset would overflow";
+    }
+
+    return set_timestamp_offset(*combined);
 }
 
 void TrackedSourceBase::clear_timestamp_offset()

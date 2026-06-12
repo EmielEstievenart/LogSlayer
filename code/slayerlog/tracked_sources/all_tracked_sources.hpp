@@ -97,6 +97,12 @@ public:
     /** Applies a timestamp offset to one source and rebuilds the merged view. */
     std::optional<std::string> set_source_timestamp_offset(std::size_t source_index, LogTimestampOffset offset);
 
+    /** Adds @p delta on top of one source's timestamp offset and rebuilds the merged view. */
+    std::optional<std::string> adjust_source_timestamp_offset(std::size_t source_index, LogTimestampOffset delta);
+
+    /** Returns one source's current timestamp offset, or std::nullopt if none is set (or the index is invalid). */
+    std::optional<LogTimestampOffset> source_timestamp_offset(std::size_t source_index) const;
+
     /** Removes the timestamp offset of one source and rebuilds the merged view. */
     std::optional<std::string> clear_source_timestamp_offset(std::size_t source_index);
 
