@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "debug_log.hpp"
+#include "log_entry_presentation.hpp"
 #include "tracked_source_base.hpp"
 
 namespace slayerlog
@@ -422,7 +423,7 @@ void AllTrackedSources::rebuild_source_labels()
 void AllTrackedSources::update_mnemonic_visibility()
 {
     // A mnemonic only disambiguates interleaved sources, so it stays hidden until a second
-    // source is open. Each source rewrites its embedded prefix when its visibility flips.
+    // source is open. Flipping visibility changes presentation only; entries remain raw.
     const bool show_mnemonics = _sources.size() > 1;
     for (const auto& source : _sources)
     {
@@ -465,7 +466,7 @@ void AllTrackedSources::update_widest_line_width(const std::shared_ptr<LogEntry>
 {
     if (line != nullptr)
     {
-        _widest_line_width = std::max(_widest_line_width, static_cast<int>(line->text.size()));
+        _widest_line_width = std::max(_widest_line_width, static_cast<int>(presented_prefix(*line).size() + line->text.size()));
     }
 }
 

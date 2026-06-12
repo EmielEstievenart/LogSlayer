@@ -14,6 +14,7 @@
 
 #include "tracked_sources/all_processed_sources.hpp"
 #include "tracked_sources/all_tracked_sources.hpp"
+#include "tracked_sources/log_entry_presentation.hpp"
 #include "tracked_sources/tracked_source_factory.hpp"
 #include "log_source.hpp"
 
@@ -118,35 +119,13 @@ public:
     std::vector<NotificationId> dismissed_ids;
 };
 
-// Each tracked source embeds its mnemonic as a "<mnemonic> " prefix in every line, so these
-// content-focused helpers peel it off to compare against the raw log text.
-std::string strip_mnemonic_prefix(std::string text, const std::vector<std::string>& mnemonics)
-{
-    for (const auto& mnemonic : mnemonics)
-    {
-        if (mnemonic.empty())
-        {
-            continue;
-        }
-
-        const std::string prefix = mnemonic + " ";
-        if (text.compare(0, prefix.size(), prefix) == 0)
-        {
-            return text.substr(prefix.size());
-        }
-    }
-
-    return text;
-}
-
 std::vector<std::string> all_texts(const AllTrackedSources& tracked_sources)
 {
-    const auto mnemonics = tracked_sources.source_mnemonics();
     std::vector<std::string> texts;
     texts.reserve(tracked_sources.all_lines().size());
     for (const auto& line : tracked_sources.all_lines())
     {
-        texts.push_back(strip_mnemonic_prefix(line->text, mnemonics));
+        texts.push_back(line->text);
     }
 
     return texts;
@@ -154,23 +133,22 @@ std::vector<std::string> all_texts(const AllTrackedSources& tracked_sources)
 
 std::vector<std::string> delta_texts(const AllTrackedSources& tracked_sources, AllLineIndex first_new_line_index)
 {
-    const auto mnemonics = tracked_sources.source_mnemonics();
     std::vector<std::string> texts;
     for (int index = first_new_line_index.value; index < tracked_sources.line_count(); ++index)
     {
-        texts.push_back(strip_mnemonic_prefix(tracked_sources.all_lines()[AllLineIndex {index}]->text, mnemonics));
+        texts.push_back(tracked_sources.all_lines()[AllLineIndex {index}]->text);
     }
 
     return texts;
 }
 
-std::vector<std::string> processed_texts(const AllProcessedSources& processed_sources, const std::vector<std::string>& mnemonics)
+std::vector<std::string> processed_texts(const AllProcessedSources& processed_sources)
 {
     std::vector<std::string> texts;
     texts.reserve(static_cast<std::size_t>(processed_sources.total_line_count()));
     for (int index = 0; index < processed_sources.total_line_count(); ++index)
     {
-        texts.push_back(strip_mnemonic_prefix(processed_sources.entry_at(AllLineIndex {index}).text, mnemonics));
+        texts.push_back(processed_sources.entry_at(AllLineIndex {index}).text);
     }
 
     return texts;
@@ -370,7 +348,7 @@ TEST(AllProcessedSourcesTest, ReplaceFromSourcesUpdatesOnlyChangedSuffix)
 
     processed_sources.replace_from_sources(tracked_sources, *first_changed_index);
 
-    EXPECT_EQ(processed_texts(processed_sources, tracked_sources.source_mnemonics()), (std::vector<std::string> {
+    EXPECT_EQ(processed_texts(processed_sources), (std::vector<std::string> {
                                                       "2026-04-01T10:00:00 alpha first",
                                                       "2026-04-01T10:10:00 beta second",
                                                       "2026-04-01T10:15:00 beta late",
@@ -409,7 +387,7 @@ TEST(AllProcessedSourcesTest, QueuesReplaceFromSourcesWhilePausedAndAppliesOnRes
     processed_sources.replace_from_sources(tracked_sources, *first_changed_index);
 
     EXPECT_EQ(processed_sources.total_line_count(), 3);
-    EXPECT_EQ(processed_texts(processed_sources, tracked_sources.source_mnemonics()), (std::vector<std::string> {
+    EXPECT_EQ(processed_texts(processed_sources), (std::vector<std::string> {
                                                       "2026-04-01T10:00:00 alpha first",
                                                       "2026-04-01T10:10:00 beta second",
                                                       "2026-04-01T10:20:00 alpha third",
@@ -424,7 +402,7 @@ TEST(AllProcessedSourcesTest, QueuesReplaceFromSourcesWhilePausedAndAppliesOnRes
 
     processed_sources.toggle_pause();
 
-    EXPECT_EQ(processed_texts(processed_sources, tracked_sources.source_mnemonics()), (std::vector<std::string> {
+    EXPECT_EQ(processed_texts(processed_sources), (std::vector<std::string> {
                                                       "2026-04-01T10:00:00 alpha first",
                                                       "2026-04-01T10:10:00 beta second",
                                                       "2026-04-01T10:15:00 beta late",
@@ -459,7 +437,7 @@ TEST(AllTrackedSourcesTest, RebuildsSourceLabelsWhenBasenameCollisionsChange)
     EXPECT_EQ(labels_without_collision[0], "app.log");
 }
 
-TEST(AllTrackedSourcesTest, EmbedsMnemonicPrefixWhileKeepingTimestampExtraction)
+TEST(AllTrackedSourcesTest, PresentsMnemonicPrefixWhileKeepingRawTimestampExtraction)
 {
     const auto root      = make_unique_test_path("");
     const auto alpha_log = root / "alpha.log";
@@ -478,13 +456,14 @@ TEST(AllTrackedSourcesTest, EmbedsMnemonicPrefixWhileKeepingTimestampExtraction)
     ASSERT_EQ(mnemonics.size(), 2U);
     const std::string alpha_prefix = mnemonics[0] + " ";
 
-    // alpha sorts first (earlier timestamp); its line carries alpha's mnemonic prefix.
+    // alpha sorts first (earlier timestamp); its stored text remains raw.
     ASSERT_GE(tracked_sources.line_count(), 1);
     const auto& entry = *tracked_sources.all_lines()[AllLineIndex {0}];
-    EXPECT_EQ(entry.text, alpha_prefix + "2026-04-01T10:00:00 hello world");
+    EXPECT_EQ(entry.text, "2026-04-01T10:00:00 hello world");
+    EXPECT_EQ(presented_prefix(entry), alpha_prefix);
+    EXPECT_EQ(presented_text(entry), alpha_prefix + "2026-04-01T10:00:00 hello world");
 
-    // The extracted-timestamp offsets were shifted past the prefix, so they still bracket the
-    // timestamp inside the prefixed text.
+    // The extracted-timestamp offsets stay in raw text coordinates.
     ASSERT_TRUE(entry.metadata.extracted_time_start.has_value());
     ASSERT_TRUE(entry.metadata.extracted_time_end.has_value());
     EXPECT_EQ(entry.text.substr(*entry.metadata.extracted_time_start, *entry.metadata.extracted_time_end - *entry.metadata.extracted_time_start), "2026-04-01T10:00:00");
@@ -515,7 +494,10 @@ TEST(AllTrackedSourcesTest, HidesMnemonicForLoneSourceAndShowsItWhenSecondOpens)
     // A lone source shows no mnemonic prefix, even though it has a mnemonic assigned.
     ASSERT_FALSE(tracked_sources.source_mnemonics()[0].empty());
     ASSERT_EQ(tracked_sources.line_count(), 1);
-    EXPECT_EQ(tracked_sources.all_lines()[AllLineIndex {0}]->text, "alpha one");
+    const auto& lone_entry = *tracked_sources.all_lines()[AllLineIndex {0}];
+    EXPECT_EQ(lone_entry.text, "alpha one");
+    EXPECT_EQ(presented_prefix(lone_entry), "");
+    EXPECT_EQ(presented_text(lone_entry), "alpha one");
 
     // Opening a second source reveals the prefix on every source's lines.
     ASSERT_FALSE(open_source(tracked_sources, parse_log_source(beta_log.string())).has_value());
@@ -525,7 +507,8 @@ TEST(AllTrackedSourcesTest, HidesMnemonicForLoneSourceAndShowsItWhenSecondOpens)
     bool any_prefixed = false;
     for (const auto& line : tracked_sources.all_lines())
     {
-        if (line->text.rfind(mnemonics[0] + " ", 0) == 0 || line->text.rfind(mnemonics[1] + " ", 0) == 0)
+        EXPECT_TRUE(line->text == "alpha one" || line->text == "beta one");
+        if (presented_text(*line).rfind(mnemonics[0] + " ", 0) == 0 || presented_text(*line).rfind(mnemonics[1] + " ", 0) == 0)
         {
             any_prefixed = true;
         }
@@ -535,7 +518,10 @@ TEST(AllTrackedSourcesTest, HidesMnemonicForLoneSourceAndShowsItWhenSecondOpens)
     // Closing back down to a single source hides the prefix again.
     ASSERT_FALSE(tracked_sources.close_source(1).has_value());
     ASSERT_EQ(tracked_sources.line_count(), 1);
-    EXPECT_EQ(tracked_sources.all_lines()[AllLineIndex {0}]->text, "alpha one");
+    const auto& remaining_entry = *tracked_sources.all_lines()[AllLineIndex {0}];
+    EXPECT_EQ(remaining_entry.text, "alpha one");
+    EXPECT_EQ(presented_prefix(remaining_entry), "");
+    EXPECT_EQ(presented_text(remaining_entry), "alpha one");
 }
 
 TEST(AllTrackedSourcesTest, ClosingSourceKeepsRemainingSourceMnemonicsStable)

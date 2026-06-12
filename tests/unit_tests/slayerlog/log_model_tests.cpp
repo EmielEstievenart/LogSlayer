@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "tracked_sources/all_processed_sources.hpp"
+#include "tracked_sources/tracked_source_base.hpp"
 
 namespace slayerlog
 {
@@ -65,6 +66,21 @@ LogEntry make_entry_with_extracted_time(std::size_t source_index, std::string so
     entry.text                          = std::move(text);
     entry.metadata.extracted_time_start = extracted_time_start;
     entry.metadata.extracted_time_end   = extracted_time_end;
+    return entry;
+}
+
+struct TestSource : TrackedSourceBase
+{
+    explicit TestSource(std::string source_label) : TrackedSourceBase(LogSource {}, std::move(source_label)) { }
+
+    void set_timestamp_format(std::string) override { }
+    bool poll() override { return false; }
+};
+
+LogEntry make_presented_entry(std::size_t source_index, std::string source_label, std::string text, TestSource& source)
+{
+    LogEntry entry {source_index, source_label, std::move(text)};
+    entry.metadata.source = &source;
     return entry;
 }
 
@@ -194,29 +210,40 @@ TEST(LogModelTest, ResetClearsAllLoadedAndDerivedState)
     EXPECT_EQ(model.rendered_line(0), "1 post-reset");
 }
 
-TEST(LogModelTest, RendersEmbeddedMnemonicPrefixVerbatim)
+TEST(LogModelTest, RendersPresentedMnemonicPrefixVerbatim)
 {
-    // The mnemonic is embedded at the start of the entry text by the tracked source, so the
-    // processed view renders it as part of the message with no dedicated source column.
     LogModel model;
+    TestSource alpha_source("alpha.log");
+    TestSource beta_source("beta.log");
+    alpha_source.set_source_mnemonic("Everest");
+    beta_source.set_source_mnemonic("Denali");
+    alpha_source.set_mnemonic_visible(true);
+    beta_source.set_mnemonic_visible(true);
 
     model.append_lines({
-        LogEntry {0, "alpha.log", "Everest hello"},
-        LogEntry {1, "beta.log", "Denali world"},
+        make_presented_entry(0, "alpha.log", "hello", alpha_source),
+        make_presented_entry(1, "beta.log", "world", beta_source),
+        LogEntry {2, "gamma.log", "plain"},
     });
 
     EXPECT_EQ(model.rendered_line(0), "1 Everest hello");
     EXPECT_EQ(model.rendered_line(1), "2 Denali world");
+    EXPECT_EQ(model.rendered_line(2), "3 plain");
 }
 
-TEST(LogModelTest, FiltersMatchAgainstEmbeddedMnemonic)
+TEST(LogModelTest, FiltersMatchAgainstPresentedMnemonic)
 {
-    // Because the mnemonic lives in the text, filtering on it needs no special handling.
     LogModel model;
+    TestSource alpha_source("alpha.log");
+    TestSource beta_source("beta.log");
+    alpha_source.set_source_mnemonic("Everest");
+    beta_source.set_source_mnemonic("Denali");
+    alpha_source.set_mnemonic_visible(true);
+    beta_source.set_mnemonic_visible(true);
 
     model.append_lines({
-        LogEntry {0, "alpha.log", "Everest hello"},
-        LogEntry {1, "beta.log", "Denali world"},
+        make_presented_entry(0, "alpha.log", "hello", alpha_source),
+        make_presented_entry(1, "beta.log", "world", beta_source),
     });
     model.add_include_filter("Everest");
 

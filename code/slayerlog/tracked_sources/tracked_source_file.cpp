@@ -66,15 +66,11 @@ void TrackedSourceFile::add_entries_from_raw_strings(std::vector<std::string> li
 
     for (std::size_t line_index = 0; line_index < lines.size(); ++line_index)
     {
-        auto& line       = lines[line_index];
+        auto& line      = lines[line_index];
         LogEntry& entry = append_entry();
         entry.text      = std::move(line);
         _timestamp_parser.parse(entry);
         (void)apply_timestamp_offset(entry);
-
-        // Embed the mnemonic only after parsing the raw line, so timestamp detection and its
-        // extracted offsets are computed against the original text and then shifted by the prefix.
-        inject_mnemonic_prefix(entry);
     }
 }
 

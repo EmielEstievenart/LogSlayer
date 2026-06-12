@@ -10,6 +10,7 @@
 #include <utility>
 
 #include "all_tracked_sources.hpp"
+#include "log_entry_presentation.hpp"
 #include "search_pattern.hpp"
 
 namespace slayerlog
@@ -918,17 +919,17 @@ std::string AllProcessedSources::render_message_text(const LogEntry& entry) cons
 {
     if (_show_original_time)
     {
-        return entry.text;
+        return presented_text(entry);
     }
 
-    return message_text_without_extracted_timestamp(entry);
+    return presented_prefix(entry) + message_text_without_extracted_timestamp(entry);
 }
 
 bool AllProcessedSources::entry_matches_filters(const std::shared_ptr<LogEntry>& entry) const
 {
-    // The source mnemonic is embedded at the start of entry->text, so it is searchable without
-    // any special handling here; only the (separate) source label needs to be folded in.
-    const std::string searchable_text = entry->metadata.source_label + "\n" + entry->text;
+    // Fold in the source label and presented text so filters match the same mnemonic-prefixed
+    // message that the user sees.
+    const std::string searchable_text = entry->metadata.source_label + "\n" + presented_text(*entry);
     const bool matches_include        = _include_filter_patterns.empty() || matches_any_pattern(searchable_text, _include_filter_patterns);
     const bool matches_exclude        = matches_any_pattern(searchable_text, _exclude_filter_patterns);
     return matches_include && !matches_exclude;

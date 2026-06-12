@@ -11,6 +11,8 @@ set(SLAYERLOG_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/tracked_sources/tracked_source_folder.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tracked_sources/tracked_source_factory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tracked_sources/tracked_source_factory.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tracked_sources/log_entry_presentation.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tracked_sources/log_entry_presentation.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/command_line_parser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/command_line_parser.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/debug_log.hpp

@@ -60,27 +60,31 @@ public:
     /**
      * @brief Updates the stable mnemonic assigned to this source.
      *
-     * The mnemonic is embedded as a fixed prefix at the start of every entry's
-     * text, so changing it rewrites the prefix on all existing entries (and any
-     * extracted-timestamp offsets shift to match). Pass an empty string to drop
-     * the prefix entirely.
+     * Pass an empty string to drop the display prefix entirely.
      */
     void set_source_mnemonic(std::string source_mnemonic);
 
     /**
-     * @brief Returns whether the mnemonic is currently embedded in entry text.
+     * @brief Returns whether the mnemonic is currently shown in presented text.
      */
     bool mnemonic_visible() const;
 
     /**
-     * @brief Shows or hides the embedded mnemonic prefix.
+     * @brief Shows or hides the mnemonic prefix in presented text.
      *
      * The mnemonic only helps when several sources are interleaved, so callers
-     * hide it for a lone source. Toggling rewrites the prefix on every existing
-     * entry (shifting extracted-timestamp offsets to match); newly ingested lines
-     * follow the current visibility.
+     * hide it for a lone source. Entries keep their raw text; toggling only
+     * changes presentation.
      */
     void set_mnemonic_visible(bool mnemonic_visible);
+
+    /**
+     * @brief Returns the prefix added to a source's entries when presented.
+     *
+     * Empty when the source has no visible mnemonic. Otherwise it is the mnemonic
+     * followed by a single space separator.
+     */
+    std::string mnemonic_prefix() const;
 
     /**
      * @brief Sets the timestamp format used by this source.
@@ -157,34 +161,9 @@ protected:
     void reserve_entries(std::size_t additional_count);
 
     /**
-     * @brief Returns the prefix embedded at the start of every entry's text.
-     *
-     * Empty when the source has no mnemonic. Otherwise it is the mnemonic
-     * followed by a single space separator.
-     */
-    std::string mnemonic_prefix() const;
-
-    /**
-     * @brief Embeds the mnemonic prefix at the start of @p entry.
-     *
-     * Shifts any extracted-timestamp offsets by the prefix length. A no-op when
-     * the source has no mnemonic. Callers must inject only entries whose text is
-     * still in raw (prefix-free) form, for example a freshly parsed line.
-     */
-    void inject_mnemonic_prefix(LogEntry& entry) const;
-
-    /**
      * @brief Appends a new empty entry and assigns source metadata.
      */
     LogEntry& append_entry();
-
-    /**
-     * @brief Replaces the @p old_prefix with @p new_prefix on every entry.
-     *
-     * Used when the mnemonic or its visibility changes. Shifts extracted-timestamp
-     * offsets to match; a no-op when the prefixes are identical.
-     */
-    void rewrite_prefix_on_entries(const std::string& old_prefix, const std::string& new_prefix);
 
     /**
      * @brief Appends merged entries from batch source ranges.
