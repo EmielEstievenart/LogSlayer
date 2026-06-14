@@ -19,8 +19,7 @@
 #include "command_manager.hpp"
 #include "command_support.hpp"
 #include "implementations/log_view1/copy_settings_path_command.hpp"
-#include "log_controller.hpp"
-#include "log_view_bridge.hpp"
+#include "log_view_service.hpp"
 #include "tracked_sources/all_processed_sources.hpp"
 #include "tracked_sources/all_tracked_sources.hpp"
 #include "tracked_sources/tracked_source_factory.hpp"
@@ -50,6 +49,28 @@ std::string read_file_contents(const std::filesystem::path& export_path)
     output << input.rdbuf();
     return output.str();
 }
+
+// Minimal LogViewService for command tests: commands only need *a* view service
+// to build their CommandContext. The one behaviour the tests rely on is reload
+// rebuilding the processed sources from the tracked sources (after open/close);
+// everything else is a no-op. The real view rendering is covered elsewhere.
+class StubLogViewService : public LogViewService
+{
+public:
+    void rebuild_view(const AllProcessedSources&) override { }
+    void reload(const AllTrackedSources& tracked_sources, AllProcessedSources& processed_sources) override { processed_sources.rebuild_from_sources(tracked_sources); }
+    bool go_to_line(const AllProcessedSources&, int) override { return false; }
+    int first_visible_line() const override { return 0; }
+    int viewport_line_count() const override { return 0; }
+    bool set_find_query(AllProcessedSources&, std::string) override { return false; }
+    int total_find_match_count() const override { return 0; }
+    int visible_find_match_count(const AllProcessedSources&) const override { return 0; }
+    const std::string& find_query() const override { return _empty_query; }
+    void start_time_alignment(TimeAlignmentApplyCallback) override { }
+
+private:
+    std::string _empty_query;
+};
 
 class RecordingNotificationSink : public NotificationSink
 {
@@ -110,12 +131,9 @@ TEST(CommandRegistrarTest, ExportVisibleTextWritesAllVisibleRenderedLines)
     ASSERT_EQ(processed_sources.line_count(), 2);
 
     CommandManager command_manager;
-    LogController controller;
     CommandPaletteModel command_palette_model;
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
-    std::string header_text;
-    auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
-    LogViewBridge log_view(controller, header_text, screen);
+    StubLogViewService log_view;
     AllTrackedSources tracked_sources;
     register_commands(command_manager, {processed_sources, log_view, tracked_sources});
 
@@ -132,10 +150,7 @@ TEST(CommandRegistrarTest, ExportVisibleTextWritesAllVisibleRenderedLines)
 TEST(CommandRegistrarTest, CopySettingsPathCommandCopiesConfiguredSettingsPath)
 {
     AllProcessedSources processed_sources;
-    LogController controller;
-    std::string header_text;
-    auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
-    LogViewBridge log_view(controller, header_text, screen);
+    StubLogViewService log_view;
     AllTrackedSources tracked_sources;
     const auto settings_path = std::filesystem::temp_directory_path() / "slayerlog_settings_test.ini";
 
@@ -157,10 +172,7 @@ TEST(CommandRegistrarTest, CopySettingsPathCommandCopiesConfiguredSettingsPath)
 TEST(CommandRegistrarTest, CopySettingsPathCommandRejectsArguments)
 {
     AllProcessedSources processed_sources;
-    LogController controller;
-    std::string header_text;
-    auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
-    LogViewBridge log_view(controller, header_text, screen);
+    StubLogViewService log_view;
     AllTrackedSources tracked_sources;
 
     CopySettingsPathCommand command({processed_sources, log_view, tracked_sources}, [](const std::string&, std::string&) { return true; });
@@ -180,12 +192,9 @@ TEST(CommandRegistrarTest, ShowAndHideOriginalTimeCommandsToggleRenderedMessage)
     processed_sources.append_lines({entry});
 
     CommandManager command_manager;
-    LogController controller;
     CommandPaletteModel command_palette_model;
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
-    std::string header_text;
-    auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
-    LogViewBridge log_view(controller, header_text, screen);
+    StubLogViewService log_view;
     AllTrackedSources tracked_sources;
     register_commands(command_manager, {processed_sources, log_view, tracked_sources});
 
@@ -214,12 +223,9 @@ TEST(CommandRegistrarTest, ShowAndHideIdenticalLinesCommandsToggleCollapsing)
     processed_sources.append_lines({first, second});
 
     CommandManager command_manager;
-    LogController controller;
     CommandPaletteModel command_palette_model;
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
-    std::string header_text;
-    auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
-    LogViewBridge log_view(controller, header_text, screen);
+    StubLogViewService log_view;
     AllTrackedSources tracked_sources;
     register_commands(command_manager, {processed_sources, log_view, tracked_sources});
 
@@ -255,12 +261,9 @@ TEST(CommandRegistrarTest, OpenFileCommandShowsToastWhenSourceAlreadyOpen)
 
     AllProcessedSources processed_sources;
     CommandManager command_manager;
-    LogController controller;
     CommandPaletteModel command_palette_model;
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
-    std::string header_text;
-    auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
-    LogViewBridge log_view(controller, header_text, screen);
+    StubLogViewService log_view;
     AllTrackedSources tracked_sources;
     ASSERT_FALSE(open_source(tracked_sources, parse_log_source(log_path.string())).has_value());
     auto sink = std::make_shared<RecordingNotificationSink>();
@@ -289,12 +292,9 @@ TEST(CommandRegistrarTest, OpenFileCommandOpensFileInBackgroundWhenTaskRunnerExi
 
     AllProcessedSources processed_sources;
     CommandManager command_manager;
-    LogController controller;
     CommandPaletteModel command_palette_model;
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
-    std::string header_text;
-    auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
-    LogViewBridge log_view(controller, header_text, screen);
+    StubLogViewService log_view;
     AllTrackedSources tracked_sources;
     std::mutex model_mutex;
     std::vector<std::thread> background_tasks;
@@ -344,12 +344,9 @@ TEST(CommandRegistrarTest, OpenFolderCommandPreflightsAlreadyOpenSourceBeforeSta
 
     AllProcessedSources processed_sources;
     CommandManager command_manager;
-    LogController controller;
     CommandPaletteModel command_palette_model;
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
-    std::string header_text;
-    auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
-    LogViewBridge log_view(controller, header_text, screen);
+    StubLogViewService log_view;
     AllTrackedSources tracked_sources;
     ASSERT_FALSE(open_source(tracked_sources, make_local_folder_source(folder_path.string())).has_value());
     std::mutex model_mutex;
@@ -384,12 +381,9 @@ TEST(CommandRegistrarTest, DeleteFiltersCommandOpensPickerAndRemovesSelectedFilt
     processed_sources.add_exclude_filter("beta");
 
     CommandManager command_manager;
-    LogController controller;
     CommandPaletteModel command_palette_model;
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
-    std::string header_text;
-    auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
-    LogViewBridge log_view(controller, header_text, screen);
+    StubLogViewService log_view;
     AllTrackedSources tracked_sources;
     register_commands(command_manager, {processed_sources, log_view, tracked_sources});
 
@@ -418,12 +412,9 @@ TEST(CommandRegistrarTest, DeleteFiltersCommandFailsWhenNoFiltersExist)
     AllProcessedSources processed_sources;
 
     CommandManager command_manager;
-    LogController controller;
     CommandPaletteModel command_palette_model;
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
-    std::string header_text;
-    auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
-    LogViewBridge log_view(controller, header_text, screen);
+    StubLogViewService log_view;
     AllTrackedSources tracked_sources;
     register_commands(command_manager, {processed_sources, log_view, tracked_sources});
 
@@ -443,13 +434,10 @@ TEST(CommandRegistrarTest, SetTimeFormatCommandOpensSourceAndFormatPickers)
     }
 
     AllProcessedSources processed_sources;
-    LogController controller;
     CommandManager command_manager;
     CommandPaletteModel command_palette_model;
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
-    std::string header_text;
-    auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
-    LogViewBridge log_view(controller, header_text, screen);
+    StubLogViewService log_view;
     AllTrackedSources tracked_sources;
     ASSERT_FALSE(open_source(tracked_sources, parse_log_source(log_path.string())).has_value());
     register_commands(command_manager, {processed_sources, log_view, tracked_sources});
@@ -480,13 +468,10 @@ TEST(CommandRegistrarTest, AdjustTimeOffsetCommandAccumulatesOffsets)
     }
 
     AllProcessedSources processed_sources;
-    LogController controller;
     CommandManager command_manager;
     CommandPaletteModel command_palette_model;
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
-    std::string header_text;
-    auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
-    LogViewBridge log_view(controller, header_text, screen);
+    StubLogViewService log_view;
     AllTrackedSources tracked_sources;
     ASSERT_FALSE(open_source(tracked_sources, parse_log_source(log_path.string())).has_value());
     register_commands(command_manager, {processed_sources, log_view, tracked_sources});
@@ -527,67 +512,8 @@ TEST(CommandRegistrarTest, AdjustTimeOffsetCommandAccumulatesOffsets)
     remove_temp_export_file(log_path);
 }
 
-TEST(CommandRegistrarTest, AlignTimeCommandSetsSourceOffsetFromOriginalTimestamp)
-{
-    const auto alpha_log = make_temp_export_path();
-    const auto beta_log  = make_temp_export_path();
-    {
-        std::ofstream output(alpha_log, std::ios::binary | std::ios::trunc);
-        ASSERT_TRUE(output.is_open());
-        output << "2026-04-01T10:00:00 alpha first\n";
-    }
-    {
-        std::ofstream output(beta_log, std::ios::binary | std::ios::trunc);
-        ASSERT_TRUE(output.is_open());
-        output << "2026-04-01T10:05:00 beta second\n";
-    }
-
-    AllProcessedSources processed_sources;
-    LogController controller;
-    controller.text_view_controller().update_viewport_line_count(10);
-    CommandManager command_manager;
-    CommandPaletteModel command_palette_model;
-    CommandPaletteController command_palette_controller(command_palette_model, command_manager);
-    std::string header_text;
-    auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
-    LogViewBridge log_view(controller, header_text, screen);
-    AllTrackedSources tracked_sources;
-    ASSERT_FALSE(open_source(tracked_sources, parse_log_source(alpha_log.string())).has_value());
-    ASSERT_FALSE(open_source(tracked_sources, parse_log_source(beta_log.string())).has_value());
-    ASSERT_FALSE(tracked_sources.set_source_timestamp_offset(0, *parse_log_timestamp_offset("00 00:01:00")).has_value());
-    reload_processed_sources(tracked_sources, header_text, processed_sources, controller, screen);
-    controller.text_view_controller().scroll_to_top();
-    register_commands(command_manager, {processed_sources, log_view, tracked_sources});
-
-    const auto result = command_manager.execute("align-time");
-    ASSERT_TRUE(result.success);
-    EXPECT_FALSE(command_manager.active_command());
-    ASSERT_TRUE(controller.time_alignment_active());
-
-    ASSERT_TRUE(controller.handle_event(processed_sources, ftxui::Event::Return, {}).handled);
-    ASSERT_TRUE(controller.handle_event(processed_sources, ftxui::Event::ArrowDown, {}).handled);
-    ASSERT_TRUE(controller.handle_event(processed_sources, ftxui::Event::Return, {}).handled);
-
-    EXPECT_FALSE(controller.time_alignment_active());
-    const LogEntry* alpha_entry = nullptr;
-    for (int index = 0; index < tracked_sources.line_count(); ++index)
-    {
-        const auto& entry = *tracked_sources.all_lines()[AllLineIndex {index}];
-        if (entry.text.find("alpha first") != std::string::npos)
-        {
-            alpha_entry = &entry;
-            break;
-        }
-    }
-
-    ASSERT_NE(alpha_entry, nullptr);
-    ASSERT_TRUE(alpha_entry->metadata.timestamp.has_value());
-    ASSERT_TRUE(alpha_entry->metadata.offset_timestamp.has_value());
-    EXPECT_EQ(format_log_timestamp_utc(*alpha_entry->metadata.timestamp), "2026-04-01 10:00:00");
-    EXPECT_EQ(format_log_timestamp_utc(*alpha_entry->metadata.offset_timestamp), "2026-04-01 10:05:00");
-
-    remove_temp_export_file(alpha_log);
-    remove_temp_export_file(beta_log);
-}
+// NOTE: the align-time in-view selection test was removed with LogView1. Time
+// alignment is not yet ported to LogView2; re-add a test once it is. See
+// docs/logview1-vs-logview2.md.
 
 } // namespace slayerlog

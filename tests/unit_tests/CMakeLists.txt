@@ -15,8 +15,6 @@ add_executable(
   slayerlog/log_batch_tests.cpp
   slayerlog/log_timestamp_tests.cpp
   slayerlog/log_model_tests.cpp
-  slayerlog/log_controller_tests.cpp
-  slayerlog/log_view_component_tests.cpp
   slayerlog/log_view2_data_tests.cpp
   slayerlog/toast_component_tests.cpp
   slayerlog/settings_ini_tests.cpp
