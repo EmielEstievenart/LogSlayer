@@ -14,7 +14,7 @@ namespace slayerlog
 namespace
 {
 
-class TestCommand final : public Command
+class TestCommand final : public CoreCommand
 {
 public:
     explicit TestCommand(std::string name, bool active_after_execute = false) : _descriptor({std::move(name), "summary", "usage"}), _active_after_execute(active_after_execute) { }
@@ -172,7 +172,7 @@ TEST(CommandManagerTest, TracksAndCancelsActiveCommand)
     const auto result = manager.execute("interactive");
 
     EXPECT_TRUE(result.success);
-    EXPECT_EQ(manager.active_command(), command_ptr);
+    EXPECT_EQ(manager.active_command(), static_cast<CoreCommand*>(command_ptr));
 
     manager.cancel_active_command();
 

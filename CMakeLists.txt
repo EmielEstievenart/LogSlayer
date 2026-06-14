@@ -110,5 +110,10 @@ add_subdirectory(libs/zstd)
 add_subdirectory(libs/nlohmann_json)
 add_subdirectory(libs/simpleini)
 add_subdirectory(libs/eestv)
-add_subdirectory(code/slayerlog)
+
+# LogSlayer is split into three projects so the core stays portable across UIs:
+#   core -> logslayer_core (no FTXUI)   ui -> logslayer_ui (FTXUI)   app -> LogSlayer
+add_subdirectory(code/LogSlayer/core)
+add_subdirectory(code/LogSlayer/ui)
+add_subdirectory(code/LogSlayer/app)
 add_subdirectory(tests/unit_tests)

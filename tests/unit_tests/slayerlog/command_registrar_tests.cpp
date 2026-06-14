@@ -12,12 +12,15 @@
 
 #include <ftxui/component/screen_interactive.hpp>
 
+#include "command.hpp"
 #include "command_palette_controller.hpp"
 #include "command_palette_model.hpp"
 #include "command_registrar.hpp"
 #include "command_manager.hpp"
+#include "command_support.hpp"
 #include "implementations/log_view1/copy_settings_path_command.hpp"
 #include "log_controller.hpp"
+#include "log_view_bridge.hpp"
 #include "tracked_sources/all_processed_sources.hpp"
 #include "tracked_sources/all_tracked_sources.hpp"
 #include "tracked_sources/tracked_source_factory.hpp"
@@ -112,8 +115,9 @@ TEST(CommandRegistrarTest, ExportVisibleTextWritesAllVisibleRenderedLines)
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
     std::string header_text;
     auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
+    LogViewBridge log_view(controller, header_text, screen);
     AllTrackedSources tracked_sources;
-    register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen});
+    register_commands(command_manager, {processed_sources, log_view, tracked_sources});
 
     const auto export_path = make_temp_export_path();
     const auto result      = command_manager.execute("export-visible-text " + export_path.string());
@@ -131,11 +135,12 @@ TEST(CommandRegistrarTest, CopySettingsPathCommandCopiesConfiguredSettingsPath)
     LogController controller;
     std::string header_text;
     auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
+    LogViewBridge log_view(controller, header_text, screen);
     AllTrackedSources tracked_sources;
     const auto settings_path = std::filesystem::temp_directory_path() / "slayerlog_settings_test.ini";
 
     std::string copied_text;
-    CopySettingsPathCommand command({processed_sources, controller, tracked_sources, header_text, screen, {}, nullptr, nullptr, settings_path},
+    CopySettingsPathCommand command({processed_sources, log_view, tracked_sources, {}, nullptr, nullptr, settings_path},
                                     [&](const std::string& text, std::string&)
                                     {
                                         copied_text = text;
@@ -155,9 +160,10 @@ TEST(CommandRegistrarTest, CopySettingsPathCommandRejectsArguments)
     LogController controller;
     std::string header_text;
     auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
+    LogViewBridge log_view(controller, header_text, screen);
     AllTrackedSources tracked_sources;
 
-    CopySettingsPathCommand command({processed_sources, controller, tracked_sources, header_text, screen}, [](const std::string&, std::string&) { return true; });
+    CopySettingsPathCommand command({processed_sources, log_view, tracked_sources}, [](const std::string&, std::string&) { return true; });
 
     const auto result = command.execute("unexpected");
 
@@ -179,8 +185,9 @@ TEST(CommandRegistrarTest, ShowAndHideOriginalTimeCommandsToggleRenderedMessage)
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
     std::string header_text;
     auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
+    LogViewBridge log_view(controller, header_text, screen);
     AllTrackedSources tracked_sources;
-    register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen});
+    register_commands(command_manager, {processed_sources, log_view, tracked_sources});
 
     EXPECT_EQ(processed_sources.rendered_line(0), "1 {2026-04-01 10:00:00} INFO  hello");
 
@@ -212,8 +219,9 @@ TEST(CommandRegistrarTest, ShowAndHideIdenticalLinesCommandsToggleCollapsing)
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
     std::string header_text;
     auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
+    LogViewBridge log_view(controller, header_text, screen);
     AllTrackedSources tracked_sources;
-    register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen});
+    register_commands(command_manager, {processed_sources, log_view, tracked_sources});
 
     ASSERT_EQ(processed_sources.line_count(), 2);
     EXPECT_EQ(processed_sources.rendered_line(1), "  hiding 1 identical messages above");
@@ -252,10 +260,11 @@ TEST(CommandRegistrarTest, OpenFileCommandShowsToastWhenSourceAlreadyOpen)
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
     std::string header_text;
     auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
+    LogViewBridge log_view(controller, header_text, screen);
     AllTrackedSources tracked_sources;
     ASSERT_FALSE(open_source(tracked_sources, parse_log_source(log_path.string())).has_value());
     auto sink = std::make_shared<RecordingNotificationSink>();
-    register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen, Notifier(sink)});
+    register_commands(command_manager, {processed_sources, log_view, tracked_sources, Notifier(sink)});
 
     const auto result = command_manager.execute("open-file " + log_path.string());
 
@@ -285,11 +294,12 @@ TEST(CommandRegistrarTest, OpenFileCommandOpensFileInBackgroundWhenTaskRunnerExi
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
     std::string header_text;
     auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
+    LogViewBridge log_view(controller, header_text, screen);
     AllTrackedSources tracked_sources;
     std::mutex model_mutex;
     std::vector<std::thread> background_tasks;
     auto sink = std::make_shared<RecordingNotificationSink>();
-    register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen, Notifier(sink), &model_mutex, &background_tasks});
+    register_commands(command_manager, {processed_sources, log_view, tracked_sources, Notifier(sink), &model_mutex, &background_tasks});
 
     const auto result = command_manager.execute("open-file " + log_path.string());
 
@@ -339,12 +349,13 @@ TEST(CommandRegistrarTest, OpenFolderCommandPreflightsAlreadyOpenSourceBeforeSta
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
     std::string header_text;
     auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
+    LogViewBridge log_view(controller, header_text, screen);
     AllTrackedSources tracked_sources;
     ASSERT_FALSE(open_source(tracked_sources, make_local_folder_source(folder_path.string())).has_value());
     std::mutex model_mutex;
     std::vector<std::thread> background_tasks;
     auto sink = std::make_shared<RecordingNotificationSink>();
-    register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen, Notifier(sink), &model_mutex, &background_tasks});
+    register_commands(command_manager, {processed_sources, log_view, tracked_sources, Notifier(sink), &model_mutex, &background_tasks});
 
     const auto result = command_manager.execute("open-folder " + folder_path.string());
 
@@ -378,8 +389,9 @@ TEST(CommandRegistrarTest, DeleteFiltersCommandOpensPickerAndRemovesSelectedFilt
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
     std::string header_text;
     auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
+    LogViewBridge log_view(controller, header_text, screen);
     AllTrackedSources tracked_sources;
-    register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen});
+    register_commands(command_manager, {processed_sources, log_view, tracked_sources});
 
     const auto result = command_manager.execute("delete-filters");
 
@@ -388,11 +400,11 @@ TEST(CommandRegistrarTest, DeleteFiltersCommandOpensPickerAndRemovesSelectedFilt
     EXPECT_EQ(result.message, "Mark filters to delete and press Enter");
     ASSERT_NE(command_manager.active_command(), nullptr);
 
-    ASSERT_TRUE(command_manager.active_command()->handle_event(ftxui::Event::Character(" ")).handled);
-    ASSERT_TRUE(command_manager.active_command()->handle_event(ftxui::Event::ArrowDown).handled);
-    ASSERT_TRUE(command_manager.active_command()->handle_event(ftxui::Event::ArrowDown).handled);
-    ASSERT_TRUE(command_manager.active_command()->handle_event(ftxui::Event::Character(" ")).handled);
-    const auto delete_result = command_manager.active_command()->handle_event(ftxui::Event::Return);
+    ASSERT_TRUE(dynamic_cast<Command*>(command_manager.active_command())->handle_event(ftxui::Event::Character(" ")).handled);
+    ASSERT_TRUE(dynamic_cast<Command*>(command_manager.active_command())->handle_event(ftxui::Event::ArrowDown).handled);
+    ASSERT_TRUE(dynamic_cast<Command*>(command_manager.active_command())->handle_event(ftxui::Event::ArrowDown).handled);
+    ASSERT_TRUE(dynamic_cast<Command*>(command_manager.active_command())->handle_event(ftxui::Event::Character(" ")).handled);
+    const auto delete_result = dynamic_cast<Command*>(command_manager.active_command())->handle_event(ftxui::Event::Return);
 
     ASSERT_TRUE(delete_result.result.has_value());
     EXPECT_TRUE(delete_result.result->success);
@@ -411,8 +423,9 @@ TEST(CommandRegistrarTest, DeleteFiltersCommandFailsWhenNoFiltersExist)
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
     std::string header_text;
     auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
+    LogViewBridge log_view(controller, header_text, screen);
     AllTrackedSources tracked_sources;
-    register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen});
+    register_commands(command_manager, {processed_sources, log_view, tracked_sources});
 
     const auto result = command_manager.execute("delete-filters");
 
@@ -436,9 +449,10 @@ TEST(CommandRegistrarTest, SetTimeFormatCommandOpensSourceAndFormatPickers)
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
     std::string header_text;
     auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
+    LogViewBridge log_view(controller, header_text, screen);
     AllTrackedSources tracked_sources;
     ASSERT_FALSE(open_source(tracked_sources, parse_log_source(log_path.string())).has_value());
-    register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen});
+    register_commands(command_manager, {processed_sources, log_view, tracked_sources});
 
     const auto result = command_manager.execute("set-time-format");
 
@@ -447,7 +461,7 @@ TEST(CommandRegistrarTest, SetTimeFormatCommandOpensSourceAndFormatPickers)
     EXPECT_EQ(result.message, "Select a source to configure");
     ASSERT_NE(command_manager.active_command(), nullptr);
 
-    const auto source_result = command_manager.active_command()->handle_event(ftxui::Event::Return);
+    const auto source_result = dynamic_cast<Command*>(command_manager.active_command())->handle_event(ftxui::Event::Return);
     ASSERT_TRUE(source_result.result.has_value());
     EXPECT_TRUE(source_result.result->success);
     EXPECT_FALSE(source_result.result->close_palette_on_success);
@@ -472,9 +486,10 @@ TEST(CommandRegistrarTest, AdjustTimeOffsetCommandAccumulatesOffsets)
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
     std::string header_text;
     auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
+    LogViewBridge log_view(controller, header_text, screen);
     AllTrackedSources tracked_sources;
     ASSERT_FALSE(open_source(tracked_sources, parse_log_source(log_path.string())).has_value());
-    register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen});
+    register_commands(command_manager, {processed_sources, log_view, tracked_sources});
 
     const auto apply_offset = [&](const std::string& offset_text)
     {
@@ -482,13 +497,13 @@ TEST(CommandRegistrarTest, AdjustTimeOffsetCommandAccumulatesOffsets)
         ASSERT_TRUE(result.success);
         ASSERT_NE(command_manager.active_command(), nullptr);
 
-        ASSERT_TRUE(command_manager.active_command()->handle_event(ftxui::Event::Return).handled);
+        ASSERT_TRUE(dynamic_cast<Command*>(command_manager.active_command())->handle_event(ftxui::Event::Return).handled);
         for (const char character : offset_text)
         {
-            ASSERT_TRUE(command_manager.active_command()->handle_event(ftxui::Event::Character(std::string(1, character))).handled);
+            ASSERT_TRUE(dynamic_cast<Command*>(command_manager.active_command())->handle_event(ftxui::Event::Character(std::string(1, character))).handled);
         }
 
-        const auto apply_result = command_manager.active_command()->handle_event(ftxui::Event::Return);
+        const auto apply_result = dynamic_cast<Command*>(command_manager.active_command())->handle_event(ftxui::Event::Return);
         ASSERT_TRUE(apply_result.result.has_value());
         ASSERT_TRUE(apply_result.result->success);
         command_manager.clear_active_command();
@@ -535,13 +550,14 @@ TEST(CommandRegistrarTest, AlignTimeCommandSetsSourceOffsetFromOriginalTimestamp
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
     std::string header_text;
     auto screen = ftxui::ScreenInteractive::FixedSize(80, 24);
+    LogViewBridge log_view(controller, header_text, screen);
     AllTrackedSources tracked_sources;
     ASSERT_FALSE(open_source(tracked_sources, parse_log_source(alpha_log.string())).has_value());
     ASSERT_FALSE(open_source(tracked_sources, parse_log_source(beta_log.string())).has_value());
     ASSERT_FALSE(tracked_sources.set_source_timestamp_offset(0, *parse_log_timestamp_offset("00 00:01:00")).has_value());
     reload_processed_sources(tracked_sources, header_text, processed_sources, controller, screen);
     controller.text_view_controller().scroll_to_top();
-    register_commands(command_manager, {processed_sources, controller, tracked_sources, header_text, screen});
+    register_commands(command_manager, {processed_sources, log_view, tracked_sources});
 
     const auto result = command_manager.execute("align-time");
     ASSERT_TRUE(result.success);

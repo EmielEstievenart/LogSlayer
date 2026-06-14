@@ -1,0 +1,111 @@
+#pragma once
+
+#include <functional>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include <ftxui/component/event.hpp>
+
+#include <ftxui_components/text_view_controller.hpp>
+
+#include "tracked_sources/all_processed_sources.hpp"
+#include "find_state.hpp"
+#include "time_alignment_controller.hpp"
+
+namespace slayerlog
+{
+
+struct LogEventResult
+{
+    bool handled      = false;
+    bool request_exit = false;
+};
+
+class LogController
+{
+public:
+    LogController();
+
+    void reset();
+
+    // --- Content management ---
+
+    // Full rebuild: renders all visible lines into inactive buffer, swaps to active.
+    // Call after filter changes, model resets, replace_batch, hide_columns, etc.
+    void rebuild_view(const AllProcessedSources& processed_sources);
+
+    // Incremental update: appends new rendered lines to active buffer.
+    // Call after append_batch / append_lines for streaming.
+    void sync_view(const AllProcessedSources& processed_sources);
+
+    // --- Domain-specific navigation ---
+
+    bool go_to_line(const AllProcessedSources& processed_sources, int line_number);
+
+    // --- Find ---
+
+    bool set_find_query(AllProcessedSources& processed_sources, std::string query);
+    void clear_find(AllProcessedSources& processed_sources);
+    bool find_active() const;
+    const std::string& find_query() const;
+    int total_find_match_count() const;
+    int visible_find_match_count(const AllProcessedSources& processed_sources) const;
+    bool visible_line_matches_find(const AllProcessedSources& processed_sources, int visible_index) const;
+    bool go_to_next_find_match(const AllProcessedSources& processed_sources);
+    bool go_to_previous_find_match(const AllProcessedSources& processed_sources);
+    std::optional<VisibleLineIndex> active_find_visible_index(const AllProcessedSources& processed_sources) const;
+
+    // --- Time alignment ---
+
+    bool time_alignment_active() const;
+    TimeAlignmentController& time_alignment_controller();
+    const TimeAlignmentController& time_alignment_controller() const;
+
+    // --- Text selection ---
+
+    void begin_selection(TextViewPosition position);
+    void update_selection(TextViewPosition position);
+    void end_selection(std::optional<TextViewPosition> position);
+    void clear_selection();
+
+    [[nodiscard]] bool selection_in_progress() const;
+    [[nodiscard]] std::optional<std::pair<TextViewPosition, TextViewPosition>> selection_bounds() const;
+    [[nodiscard]] std::string selection_text() const;
+    [[nodiscard]] std::vector<TextViewRangeDecoration> selection_decorations() const;
+    [[nodiscard]] bool copy_selection_to_clipboard() const;
+
+    // --- Event handling ---
+
+    LogEventResult handle_event(AllProcessedSources& processed_sources, ftxui::Event event, const std::function<std::optional<TextViewPosition>(int, int)>& text_position_at);
+
+    // --- Access to underlying text view ---
+
+    TextViewController& text_view_controller();
+    const TextViewController& text_view_controller() const;
+    const std::string& line_at(int index) const;
+
+private:
+    std::vector<std::string>& active_buffer();
+    const std::vector<std::string>& active_buffer() const;
+    std::vector<std::string>& inactive_buffer();
+    [[nodiscard]] TextViewPosition clamp_selection_position(TextViewPosition position) const;
+
+    TextViewController _text_view_controller;
+
+    std::vector<std::string> _buffer_a;
+    std::vector<std::string> _buffer_b;
+    bool _active_buffer_is_a = true;
+    int _synced_line_count   = 0;
+    int _max_line_width      = 0;
+
+    FindState _find_state;
+    TimeAlignmentController _time_alignment_controller;
+
+    bool _selection_in_progress = false;
+    std::optional<TextViewPosition> _selection_anchor;
+    std::optional<TextViewPosition> _selection_focus;
+};
+
+} // namespace slayerlog

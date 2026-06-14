@@ -20,40 +20,13 @@ add_executable(
   slayerlog/log_view2_data_tests.cpp
   slayerlog/toast_component_tests.cpp
   slayerlog/settings_ini_tests.cpp
-  slayerlog/settings_store_tests.cpp
-  ${SLAYERLOG_CORE_SOURCES})
+  slayerlog/settings_store_tests.cpp)
 
-target_link_libraries(
-  unit_tests
-  PRIVATE eestv_lib
-          ftxui_components
-          component
-          GTest::gtest_main
-          Boost::log
-          Boost::log_setup
-          Boost::filesystem
-          Boost::thread
-          Boost::program_options
-          log4cplus::log4cplus
-          libzstd
-          nlohmann_json::nlohmann_json
-          SimpleIni::SimpleIni)
-
-target_compile_definitions(unit_tests PRIVATE BOOST_ALL_NO_LIB BOOST_USE_WINAPI_VERSION=0x0602)
-
-if(WIN32)
-  target_link_libraries(unit_tests PRIVATE user32)
-endif()
-
-target_include_directories(
-  unit_tests
-  PRIVATE ${CMAKE_SOURCE_DIR}/code/slayerlog
-          ${CMAKE_SOURCE_DIR}/code/slayerlog/LogView
-          ${CMAKE_SOURCE_DIR}/code/slayerlog/LogView2
-          ${CMAKE_SOURCE_DIR}/code/slayerlog/commands
-          ${CMAKE_SOURCE_DIR}/code/slayerlog/notifications
-          ${CMAKE_SOURCE_DIR}/code/slayerlog/tracked_sources
-          ${CMAKE_SOURCE_DIR}/libs/eestv)
+# The tests link the two LogSlayer libraries (core + ui) rather than recompiling
+# the sources. All include directories, compile definitions and third-party
+# dependencies are inherited transitively from the PUBLIC interfaces of the libs.
+target_link_libraries(unit_tests PRIVATE logslayer_core logslayer_ui
+                                         GTest::gtest_main)
 
 if(ENABLE_CTEST)
   include(GoogleTest)
