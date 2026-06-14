@@ -1,16 +1,132 @@
 #include "log_view2_component.hpp"
 
 #include <algorithm>
+#include <cstddef>
+#include <optional>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include <ftxui/dom/canvas.hpp>
 
 #include "clipboard.hpp"
+#include "log_types.hpp"
 #include "log_view2_utils.hpp"
 #include "view_theme.hpp"
 
 namespace slayerlog
 {
+
+namespace
+{
+
+// A frame-local snapshot of the view-model state shown in the status bar,
+// read once under the data lock so the status rows can be built afterwards.
+struct StatusSnapshot
+{
+    bool paused = false;
+    std::vector<std::string> include_filters;
+    std::vector<std::string> exclude_filters;
+    std::optional<int> hidden_before;
+    std::optional<HiddenColumnRange> hidden_columns;
+
+    bool find_active = false;
+    std::string find_query;
+    std::size_t find_match_count = 0;
+    std::optional<std::size_t> find_active_line;
+};
+
+std::string join(const std::vector<std::string>& items)
+{
+    std::string result;
+    for (std::size_t i = 0; i < items.size(); ++i)
+    {
+        if (i > 0)
+        {
+            result += ", ";
+        }
+        result += items[i];
+    }
+    return result;
+}
+
+ftxui::Element build_filter_status(const StatusSnapshot& status)
+{
+    ftxui::Elements parts;
+    parts.push_back(theme::badge("FILTER", theme::label_filter_fg));
+
+    if (status.include_filters.empty() && status.exclude_filters.empty() && !status.hidden_before.has_value() && !status.hidden_columns.has_value())
+    {
+        parts.push_back(ftxui::text(" none") | ftxui::color(theme::muted));
+        return ftxui::hbox(std::move(parts));
+    }
+
+    if (!status.include_filters.empty())
+    {
+        parts.push_back(ftxui::text(" in(" + join(status.include_filters) + ")"));
+    }
+
+    if (!status.exclude_filters.empty())
+    {
+        parts.push_back(ftxui::text(" out(" + join(status.exclude_filters) + ")"));
+    }
+
+    if (status.hidden_before.has_value())
+    {
+        parts.push_back(ftxui::text(" | before line " + std::to_string(*status.hidden_before)) | ftxui::color(theme::muted));
+    }
+
+    if (status.hidden_columns.has_value())
+    {
+        parts.push_back(ftxui::text(" | columns " + std::to_string(status.hidden_columns->start) + "-" + std::to_string(status.hidden_columns->end)) | ftxui::color(theme::muted));
+    }
+
+    return ftxui::hbox(std::move(parts));
+}
+
+ftxui::Element build_find_status(const StatusSnapshot& status)
+{
+    ftxui::Elements parts;
+    parts.push_back(theme::badge("FIND", theme::label_find_fg));
+
+    if (!status.find_active)
+    {
+        parts.push_back(ftxui::text(" off") | ftxui::color(theme::muted));
+        return ftxui::hbox(std::move(parts));
+    }
+
+    parts.push_back(ftxui::text(" \"" + status.find_query + "\""));
+    parts.push_back(ftxui::text(" " + std::to_string(status.find_match_count) + " matches") | ftxui::color(theme::muted));
+
+    if (status.find_active_line.has_value())
+    {
+        parts.push_back(ftxui::text(" | line " + std::to_string(*status.find_active_line + 1)) | ftxui::color(theme::muted));
+    }
+
+    return ftxui::hbox(std::move(parts));
+}
+
+ftxui::Element build_key_hints()
+{
+    auto sep = []() { return ftxui::text("  "); };
+    return ftxui::hbox({
+        theme::key_hint("Ctrl+P", "commands"),
+        sep(),
+        theme::key_hint("Ctrl+F", "find"),
+        sep(),
+        theme::key_hint("Ctrl+R", "history"),
+        sep(),
+        theme::key_hint("\xe2\x86\x92", "next"),
+        sep(),
+        theme::key_hint("\xe2\x86\x90", "prev"),
+        sep(),
+        theme::key_hint("Esc", "close find"),
+        sep(),
+        theme::key_hint("q", "quit"),
+    });
+}
+
+} // namespace
 
 LogView2Component::LogView2Component(std::string title, std::shared_ptr<LogView2Data> data, CommandPaletteController& command_palette_controller, std::function<void()> on_exit)
     : _title(std::move(title)), _data(std::move(data)), _find_manager(_data), _command_palette_controller(command_palette_controller), _on_exit(std::move(on_exit))
@@ -61,6 +177,7 @@ TextViewController& LogView2Component::text_view_controller()
 
 ftxui::Element LogView2Component::OnRender()
 {
+    StatusSnapshot status;
     if (_data != nullptr)
     {
         auto lock = _data->lock();
@@ -70,15 +187,37 @@ ftxui::Element LogView2Component::OnRender()
         {
             _text_view->controller().center_on_line(static_cast<int>(*pending_focus_line));
         }
+
+        status.paused          = _data->updates_paused();
+        status.include_filters = _data->include_filters();
+        status.exclude_filters = _data->exclude_filters();
+        status.hidden_before   = _data->hidden_before_line();
+        status.hidden_columns  = _data->hidden_columns();
+        status.find_active     = _find_manager.active();
+        if (status.find_active)
+        {
+            status.find_query       = _find_manager.query();
+            status.find_match_count = _find_manager.match_count();
+            status.find_active_line = _find_manager.active_match_line();
+        }
     }
 
     const bool focused  = Focused();
     ftxui::Element body = _text_view->Render() | ftxui::flex;
 
-    ftxui::Element title           = focused ? (ftxui::text(_title) | ftxui::bold | ftxui::color(theme::active_view_fg)) : ftxui::text(_title);
+    ftxui::Element title_text = focused ? (ftxui::text(_title) | ftxui::bold | ftxui::color(theme::active_view_fg)) : ftxui::text(_title);
+    ftxui::Element title      = status.paused ? ftxui::hbox({std::move(title_text), ftxui::text(" "), theme::badge("PAUSED", theme::paused_fg)}) : std::move(title_text);
     const ftxui::BorderStyle frame = focused ? ftxui::DOUBLE : ftxui::LIGHT;
 
-    ftxui::Element panel = ftxui::window(std::move(title), std::move(body), frame);
+    ftxui::Element content = ftxui::vbox({
+        std::move(body),
+        ftxui::separator(),
+        build_filter_status(status),
+        build_find_status(status),
+        build_key_hints(),
+    });
+
+    ftxui::Element panel = ftxui::window(std::move(title), std::move(content), frame);
     if (!focused)
     {
         panel = std::move(panel) | ftxui::dim;

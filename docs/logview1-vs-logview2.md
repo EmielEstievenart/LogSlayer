@@ -116,8 +116,8 @@ Legend — **status**: `parity` (equivalent) · `partial` (weaker in LV2) · `mi
 |---|---|---|---|
 | Streaming incremental render | **partial** | LV2's on-demand pull redraw is simpler and renders correctly, but lacks LV1's append optimization; assess scaling for very large logs | M |
 | Line numbers / timestamp gutter / labels | **parity** | baked in upstream by `AllProcessedSources` | S |
-| Window / header + focus framing | **partial** | framing matches; **no source-label header line, no PAUSED badge** | S |
-| Status bars (filter / find / align / key-hints) | **missing** | **no status bars at all**; build the four rows | M |
+| Window / header + focus framing | **partial** | framing matches; PAUSED badge **done** (in the window title); **no source-label header line** | S |
+| Status bars (filter / find / align / key-hints) | **parity¹** | filter, find, key-hints rows **done** (`LogView2Component::OnRender`, read via new read-only `LogView2Data` status accessors). ¹align row intentionally omitted — alignment is a full-screen takeover (`AlignTimeController::render`) so the main view is never on screen then; find shows `N matches` (visible==total in LV2). Long filter rows truncate (same as LV1, uncapped). | M |
 | Empty-state messaging | **missing** | no `<empty file>` / `<no matching lines>` placeholder | S |
 | Reset / clear view + reload after source change | **partial** | reflects passively via shared model; **no reload facade of its own** | M |
 

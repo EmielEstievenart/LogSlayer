@@ -45,4 +45,29 @@ void AllProcessedSourcesLogView2Data::remove_update_callback(CallbackId callback
     _processed_sources.remove_lines_changed_callback(callback_id);
 }
 
+std::vector<std::string> AllProcessedSourcesLogView2Data::include_filters() const
+{
+    return _processed_sources.include_filters();
+}
+
+std::vector<std::string> AllProcessedSourcesLogView2Data::exclude_filters() const
+{
+    return _processed_sources.exclude_filters();
+}
+
+std::optional<int> AllProcessedSourcesLogView2Data::hidden_before_line() const
+{
+    return _processed_sources.hidden_before_line_number();
+}
+
+std::optional<HiddenColumnRange> AllProcessedSourcesLogView2Data::hidden_columns() const
+{
+    return _processed_sources.hidden_columns();
+}
+
+bool AllProcessedSourcesLogView2Data::updates_paused() const
+{
+    return _processed_sources.updates_paused();
+}
+
 } // namespace slayerlog
