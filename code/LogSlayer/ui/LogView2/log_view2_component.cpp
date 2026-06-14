@@ -12,8 +12,8 @@
 namespace slayerlog
 {
 
-LogView2Component::LogView2Component(std::string title, std::shared_ptr<LogView2Data> data, CommandPaletteController& command_palette_controller)
-    : _title(std::move(title)), _data(std::move(data)), _find_manager(_data), _command_palette_controller(command_palette_controller)
+LogView2Component::LogView2Component(std::string title, std::shared_ptr<LogView2Data> data, CommandPaletteController& command_palette_controller, std::function<void()> on_exit)
+    : _title(std::move(title)), _data(std::move(data)), _find_manager(_data), _command_palette_controller(command_palette_controller), _on_exit(std::move(on_exit))
 {
     TextViewComponentOption option;
     option.draw_content = [this](ftxui::Canvas& canvas, int first_line, int line_count, int first_col, int col_count)
@@ -52,6 +52,11 @@ LogView2Component::LogView2Component(std::string title, std::shared_ptr<LogView2
 LogView2FindManager& LogView2Component::find_manager()
 {
     return _find_manager;
+}
+
+TextViewController& LogView2Component::text_view_controller()
+{
+    return _text_view->controller();
 }
 
 ftxui::Element LogView2Component::OnRender()
@@ -135,15 +140,30 @@ bool LogView2Component::OnEvent(ftxui::Event event)
         return true;
     }
 
+    if (event == ftxui::Event::Character("q"))
+    {
+        if (_on_exit)
+        {
+            _on_exit();
+        }
+        return true;
+    }
+
     if (_data != nullptr && event == ftxui::Event::Escape)
     {
-        auto lock = _data->lock();
-        if (!_find_manager.active())
         {
-            return true;
+            auto lock = _data->lock();
+            if (_find_manager.active())
+            {
+                _find_manager.clear();
+                return true;
+            }
         }
 
-        _find_manager.clear();
+        if (_on_exit)
+        {
+            _on_exit();
+        }
         return true;
     }
 

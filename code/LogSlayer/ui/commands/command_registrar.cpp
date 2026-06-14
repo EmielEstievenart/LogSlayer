@@ -33,8 +33,13 @@
 
 namespace slayerlog
 {
+namespace
+{
 
-void register_commands(CommandManager& command_manager, CommandContext context)
+// The commands common to any log view: everything that drives the processed
+// sources or tracked sources through the UI-agnostic CommandContext. Find and
+// time alignment are view-specific and registered by the per-view entry points.
+void register_shared_view_commands(CommandManager& command_manager, const CommandContext& context)
 {
     command_manager.register_command(std::make_unique<FilterInCommand>(context));
     command_manager.register_command(std::make_unique<FilterOutCommand>(context));
@@ -56,7 +61,6 @@ void register_commands(CommandManager& command_manager, CommandContext context)
 
     command_manager.register_command(std::make_unique<SetTimeFormatCommand>(context));
     command_manager.register_command(std::make_unique<AdjustTimeOffsetCommand>(context));
-    command_manager.register_command(std::make_unique<AlignTimeCommand>(context));
     command_manager.register_command(std::make_unique<ClearTimeOffsetCommand>(context));
 
     command_manager.register_command(std::make_unique<GoToLineCommand>(context));
@@ -65,11 +69,20 @@ void register_commands(CommandManager& command_manager, CommandContext context)
 
     command_manager.register_command(std::make_unique<ExportVisibleTextCommand>(context));
     command_manager.register_command(std::make_unique<CopySettingsPathCommand>(context));
+}
+
+} // namespace
+
+void register_commands(CommandManager& command_manager, CommandContext context)
+{
+    register_shared_view_commands(command_manager, context);
+    command_manager.register_command(std::make_unique<AlignTimeCommand>(context));
     command_manager.register_command(std::make_unique<FindCommand>(context));
 }
 
 void register_log_view2_commands(CommandManager& command_manager, CommandContext context, LogView2FindManager& find_manager)
 {
+    register_shared_view_commands(command_manager, context);
     command_manager.register_command(std::make_unique<OpenCommand>(context));
     command_manager.register_command(std::make_unique<LogView2FindCommand>(find_manager));
 }

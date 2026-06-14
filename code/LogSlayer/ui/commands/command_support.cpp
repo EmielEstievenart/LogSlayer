@@ -40,6 +40,14 @@ void reload_processed_sources(const AllTrackedSources& tracked_sources, std::str
     screen.PostEvent(ftxui::Event::Custom);
 }
 
+void reload_processed_sources(const AllTrackedSources& tracked_sources, std::string& header_text, AllProcessedSources& processed_sources, ftxui::ScreenInteractive& screen)
+{
+    header_text = build_header_text(tracked_sources.source_display_labels());
+    processed_sources.rebuild_from_sources(tracked_sources);
+    (void)processed_sources.consume_column_width_growth();
+    screen.PostEvent(ftxui::Event::Custom);
+}
+
 std::vector<std::string> source_labels_with_offsets(const AllTrackedSources& tracked_sources)
 {
     auto labels = tracked_sources.source_display_labels();
