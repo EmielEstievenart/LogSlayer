@@ -30,6 +30,7 @@
 #include "tracked_sources/all_tracked_sources.hpp"
 #include "tracked_sources/tracked_source_factory.hpp"
 #include "timestamp/timestamp_format_catalog.hpp"
+#include "LogView2/align_time_controller.hpp"
 #include "log_view2_bridge.hpp"
 #include "log_view2_component.hpp"
 #include "notifications/ftxui_toast_notification_sink.hpp"
@@ -160,11 +161,19 @@ bool handle_help_request(const slayerlog::Config& config, slayerlog::CommandMana
     return true;
 }
 
-ftxui::Component create_viewer(ftxui::Component view, slayerlog::CommandPaletteController& command_palette_controller, slayerlog::CommandPaletteView& command_palette_view, ftxui::ScreenInteractive& screen, std::mutex& model_mutex)
+ftxui::Component create_viewer(ftxui::Component view, slayerlog::CommandPaletteController& command_palette_controller, slayerlog::CommandPaletteView& command_palette_view, ftxui::ScreenInteractive& screen, std::mutex& model_mutex,
+                               slayerlog::AlignTimeController& align_controller)
 {
     auto viewer = ftxui::Renderer(view,
-                                  [view, &command_palette_controller, &command_palette_view, &screen, &model_mutex]
+                                  [view, &command_palette_controller, &command_palette_view, &screen, &model_mutex, &align_controller]
                                   {
+                                      // The alignment mode takes over the whole view; it acquires the model mutex
+                                      // itself (per pane), so do not hold it here.
+                                      if (align_controller.active())
+                                      {
+                                          return align_controller.render(screen.dimy());
+                                      }
+
                                       auto base = view->Render();
                                       if (command_palette_controller.is_open())
                                       {
@@ -175,8 +184,16 @@ ftxui::Component create_viewer(ftxui::Component view, slayerlog::CommandPaletteC
                                   });
 
     viewer |= ftxui::CatchEvent(
-        [&command_palette_controller, &model_mutex](ftxui::Event event)
+        [&command_palette_controller, &model_mutex, &align_controller](ftxui::Event event)
         {
+            // While aligning, the controller owns all input (it swallows everything but
+            // redraw requests so nothing leaks to the hidden view).
+            if (align_controller.active())
+            {
+                std::lock_guard lock(model_mutex);
+                return align_controller.handle_event(event);
+            }
+
             if (!command_palette_controller.is_open())
             {
                 return false;
@@ -301,6 +318,9 @@ int main(int argc, char** argv)
     auto view      = std::make_shared<slayerlog::LogView2Component>("LogSlayer", view_data, *command_palette_controller, [&screen] { screen.Exit(); });
     slayerlog::LogView2Bridge log_view_bridge(*view, header_text, screen);
 
+    slayerlog::AlignTimeController align_controller(tracked_sources, processed_sources, log_view_bridge, model_mutex, screen);
+    log_view_bridge.set_align_controller(&align_controller);
+
     if (handle_help_request(config, command_manager, processed_sources, log_view_bridge, tracked_sources, view->find_manager(), settings_store))
     {
         return 0;
@@ -315,10 +335,11 @@ int main(int argc, char** argv)
     std::vector<std::thread> background_tasks;
     std::thread watcher_thread = start_watcher_thread(config.poll_interval_ms, tracked_sources, model_mutex, processed_sources, screen, keep_running);
 
-    auto viewer     = create_viewer(view, *command_palette_controller, command_palette_view, screen, model_mutex);
+    auto viewer     = create_viewer(view, *command_palette_controller, command_palette_view, screen, model_mutex, align_controller);
     auto toast_host = create_toast_host(viewer, screen);
     slayerlog::Notifier notifier(std::make_shared<slayerlog::FtxuiToastNotificationSink>(toast_host));
     tracked_sources.set_notifier(notifier);
+    align_controller.set_notifier(notifier);
 
     slayerlog::register_log_view2_commands(command_manager, {processed_sources, log_view_bridge, tracked_sources, notifier, &model_mutex, &background_tasks, settings_store.file_path()}, view->find_manager());
 

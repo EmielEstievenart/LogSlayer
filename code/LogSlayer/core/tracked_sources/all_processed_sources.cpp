@@ -4,8 +4,6 @@
 #include <charconv>
 #include <cctype>
 #include <cstddef>
-#include <iomanip>
-#include <sstream>
 #include <system_error>
 #include <utility>
 
@@ -29,17 +27,6 @@ int decimal_width(std::size_t value)
     }
 
     return width;
-}
-
-int rendered_timestamp_width(const LogEntry& entry)
-{
-    const auto timestamp = effective_timestamp(entry.metadata);
-    if (!timestamp.has_value())
-    {
-        return 0;
-    }
-
-    return static_cast<int>(format_log_timestamp_utc(*timestamp).size()) + 2;
 }
 
 std::string trim_text(std::string_view text)
@@ -102,25 +89,6 @@ std::vector<std::shared_ptr<LogEntry>> source_entries_from_index(const AllTracke
     }
 
     return entries;
-}
-
-std::string message_text_without_extracted_timestamp(const LogEntry& entry)
-{
-    if (!entry.metadata.extracted_time_start.has_value() || !entry.metadata.extracted_time_end.has_value())
-    {
-        return entry.text;
-    }
-
-    const std::size_t start = *entry.metadata.extracted_time_start;
-    const std::size_t end   = *entry.metadata.extracted_time_end;
-    if (start >= end || end > entry.text.size())
-    {
-        return entry.text;
-    }
-
-    std::string deduplication_text = entry.text;
-    deduplication_text.erase(start, end - start);
-    return deduplication_text;
 }
 
 } // namespace
@@ -694,16 +662,9 @@ int AllProcessedSources::max_rendered_line_width() const
 
 std::string AllProcessedSources::render_entry(AllLineIndex entry_index) const
 {
-    std::ostringstream output;
     const auto& entry = *_all_entries[entry_index];
-    output << std::setw(_line_number_column_width) << std::right << (entry_index.value + 1) << " ";
-    if (_timestamp_column_width > 0)
-    {
-        output << std::left << std::setw(_timestamp_column_width) << render_timestamp_text(entry) << std::right << " ";
-    }
-
-    output << render_message_text(entry);
-    return apply_hidden_columns(output.str());
+    const LogEntryColumnWidths widths {_line_number_column_width, _timestamp_column_width};
+    return apply_hidden_columns(render_log_entry_line(entry, entry_index.value + 1, widths, _show_original_time));
 }
 
 std::string AllProcessedSources::render_hidden_identical_row(const HiddenIdenticalRun& hidden_identical_run) const
@@ -809,7 +770,7 @@ void AllProcessedSources::rebuild_visible_entries()
     for (; index < _all_entries.size(); ++index)
     {
         const AllLineIndex entry_index {static_cast<int>(index)};
-        if (entry_matches_filters(_all_entries[entry_index]))
+        if (entry_matches_active_filters(*_all_entries[entry_index]))
         {
             if (!_hide_identical_lines)
             {
@@ -876,7 +837,7 @@ void AllProcessedSources::observe_entry_widths(AllLineIndex entry_index, const L
         grew                      = true;
     }
 
-    const int timestamp_width = rendered_timestamp_width(entry);
+    const int timestamp_width = log_entry_timestamp_field_width(entry);
     if (timestamp_width > _timestamp_column_width)
     {
         _timestamp_column_width = timestamp_width;
@@ -904,32 +865,11 @@ void AllProcessedSources::notify_lines_changed(VisibleLineIndex first_changed_li
     }
 }
 
-std::string AllProcessedSources::render_timestamp_text(const LogEntry& entry) const
-{
-    const auto timestamp = effective_timestamp(entry.metadata);
-    if (!timestamp.has_value())
-    {
-        return {};
-    }
-
-    return "{" + format_log_timestamp_utc(*timestamp) + "}";
-}
-
-std::string AllProcessedSources::render_message_text(const LogEntry& entry) const
-{
-    if (_show_original_time)
-    {
-        return presented_text(entry);
-    }
-
-    return presented_prefix(entry) + message_text_without_extracted_timestamp(entry);
-}
-
-bool AllProcessedSources::entry_matches_filters(const std::shared_ptr<LogEntry>& entry) const
+bool AllProcessedSources::entry_matches_active_filters(const LogEntry& entry) const
 {
     // Fold in the source label and presented text so filters match the same mnemonic-prefixed
     // message that the user sees.
-    const std::string searchable_text = entry->metadata.source_label + "\n" + presented_text(*entry);
+    const std::string searchable_text = entry.metadata.source_label + "\n" + presented_text(entry);
     const bool matches_include        = _include_filter_patterns.empty() || matches_any_pattern(searchable_text, _include_filter_patterns);
     const bool matches_exclude        = matches_any_pattern(searchable_text, _exclude_filter_patterns);
     return matches_include && !matches_exclude;

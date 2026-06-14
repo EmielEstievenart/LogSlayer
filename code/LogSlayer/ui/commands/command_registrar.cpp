@@ -28,6 +28,7 @@
 #include "implementations/log_view1/set_time_format_command.hpp"
 #include "implementations/log_view1/show_identical_lines_command.hpp"
 #include "implementations/log_view1/show_original_time_command.hpp"
+#include "implementations/log_view2/align_time_view_command.hpp"
 #include "implementations/log_view2/log_view2_find_command.hpp"
 #include "implementations/log_view2/open_command.hpp"
 
@@ -84,6 +85,7 @@ void register_log_view2_commands(CommandManager& command_manager, CommandContext
 {
     register_shared_view_commands(command_manager, context);
     command_manager.register_command(std::make_unique<OpenCommand>(context));
+    command_manager.register_command(std::make_unique<AlignTimeViewCommand>(context));
     command_manager.register_command(std::make_unique<LogView2FindCommand>(find_manager));
 }
 

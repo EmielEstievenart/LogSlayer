@@ -4,6 +4,7 @@
 
 #include <ftxui/component/event.hpp>
 
+#include "LogView2/align_time_controller.hpp"
 #include "command_support.hpp"
 #include "debug_log.hpp"
 #include "log_view2_component.hpp"
@@ -15,6 +16,11 @@ namespace slayerlog
 
 LogView2Bridge::LogView2Bridge(LogView2Component& view, std::string& header_text, ftxui::ScreenInteractive& screen) : _view(view), _header_text(header_text), _screen(screen)
 {
+}
+
+void LogView2Bridge::set_align_controller(AlignTimeController* align_controller)
+{
+    _align_controller = align_controller;
 }
 
 void LogView2Bridge::rebuild_view(const AllProcessedSources& /*processed_sources*/)
@@ -77,9 +83,20 @@ const std::string& LogView2Bridge::find_query() const
 
 void LogView2Bridge::start_time_alignment(TimeAlignmentApplyCallback /*apply*/)
 {
-    // Not yet ported to LogView2; align-time is intentionally not registered for
-    // this view, so this is never invoked in practice.
-    SLAYERLOG_LOG_WARNING("start_time_alignment is not yet implemented for LogView2");
+    // The legacy two-step (select source/destination) flow is not used by LogView2,
+    // which has its own dual-pane alignment mode reached via begin_time_alignment().
+    SLAYERLOG_LOG_WARNING("start_time_alignment is not implemented for LogView2; use begin_time_alignment");
+}
+
+void LogView2Bridge::begin_time_alignment(std::size_t aligning_source_index)
+{
+    if (_align_controller == nullptr)
+    {
+        SLAYERLOG_LOG_WARNING("begin_time_alignment called before the align controller was wired");
+        return;
+    }
+
+    _align_controller->begin(aligning_source_index);
 }
 
 } // namespace slayerlog

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <string>
 
 #include "time_alignment_apply.hpp"
@@ -36,21 +37,27 @@ public:
     /// line is hidden by the current filters or line cutoff.
     virtual bool go_to_line(const AllProcessedSources& processed_sources, int line_number) = 0;
 
-    virtual int first_visible_line() const = 0;
+    virtual int first_visible_line() const  = 0;
     virtual int viewport_line_count() const = 0;
 
     // --- Find ---
 
-    virtual bool set_find_query(AllProcessedSources& processed_sources, std::string query) = 0;
-    virtual int total_find_match_count() const = 0;
+    virtual bool set_find_query(AllProcessedSources& processed_sources, std::string query)   = 0;
+    virtual int total_find_match_count() const                                               = 0;
     virtual int visible_find_match_count(const AllProcessedSources& processed_sources) const = 0;
-    virtual const std::string& find_query() const = 0;
+    virtual const std::string& find_query() const                                            = 0;
 
     // --- Time alignment ---
 
     /// Begin the interactive two-step time-alignment selection, invoking the
     /// (UI-agnostic) callback once a source and destination entry are chosen.
     virtual void start_time_alignment(TimeAlignmentApplyCallback apply) = 0;
+
+    /// Begin the dual-pane "align time" mode for the source at @p aligning_source_index.
+    /// The view shows the other sources beside that source's lines and lets the user
+    /// pick a line plus one or two references, then nudge a preview offset before
+    /// committing it. Views that do not implement this mode leave it a no-op.
+    virtual void begin_time_alignment(std::size_t aligning_source_index) { (void)aligning_source_index; }
 };
 
 } // namespace slayerlog

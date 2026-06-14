@@ -73,6 +73,10 @@ public:
     void remove_lines_changed_callback(CallbackId callback_id) const;
 
     const LogEntry& entry_at(AllLineIndex entry_index) const;
+    /// Whether @p entry would pass the active include/exclude filters (independent of
+    /// deduplication and the hide-before cutoff). Exposed so transient views (e.g. time
+    /// alignment) can reproduce the same backdrop the user currently sees.
+    bool entry_matches_active_filters(const LogEntry& entry) const;
     std::optional<AllLineIndex> entry_index_for_visible_line(VisibleLineIndex visible_line_index) const;
     std::optional<VisibleLineIndex> visible_line_index_for_entry(AllLineIndex entry_index) const;
     std::optional<int> line_number_for_visible_line(VisibleLineIndex visible_line_index) const;
@@ -118,9 +122,6 @@ private:
     void reset_column_width_cache();
     void observe_entry_widths(AllLineIndex entry_index, const LogEntry& entry);
     void notify_lines_changed(VisibleLineIndex first_changed_line) const;
-    std::string render_timestamp_text(const LogEntry& entry) const;
-    std::string render_message_text(const LogEntry& entry) const;
-    bool entry_matches_filters(const std::shared_ptr<LogEntry>& entry) const;
     std::string apply_hidden_columns(std::string text) const;
 
     IndexedVector<std::shared_ptr<LogEntry>, AllLineIndex> _all_entries;
