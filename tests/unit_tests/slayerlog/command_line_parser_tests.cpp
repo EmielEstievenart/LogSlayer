@@ -139,6 +139,8 @@ TEST(CommandLineParserTest, BuildHelpTextIncludesRegisteredCommands)
     EXPECT_NE(help_text.find("ssh://user@example.com/var/log/app.log"), std::string::npos);
     EXPECT_NE(help_text.find("app.log worker.log"), std::string::npos);
     EXPECT_NE(help_text.find("Source to open on startup."), std::string::npos);
+    EXPECT_NE(help_text.find("--ui"), std::string::npos);
+    EXPECT_NE(help_text.find("'gui' (WxWidgets)"), std::string::npos);
     EXPECT_NE(help_text.find(default_settings_file_path().string()), std::string::npos);
     EXPECT_NE(help_text.find("Settings, command history, and timestamp formats are stored in:"), std::string::npos);
     EXPECT_NE(help_text.find("Windows default: %LOCALAPPDATA%/slayerlog/settings.ini"), std::string::npos);
@@ -156,6 +158,31 @@ TEST(CommandLineParserTest, BuildHelpTextIncludesRegisteredCommands)
 TEST(CommandLineParserTest, ThrowsOnNonPositivePollInterval)
 {
     ArgumentBuffer arguments {"slayerlog", "--poll-interval-ms", "0"};
+
+    EXPECT_THROW(parse_command_line(arguments.argc(), arguments.argv()), boost::program_options::error);
+}
+
+TEST(CommandLineParserTest, DefaultsToTerminalUi)
+{
+    ArgumentBuffer arguments {"slayerlog"};
+
+    const auto config = parse_command_line(arguments.argc(), arguments.argv());
+
+    EXPECT_EQ(config.ui, UiKind::Tui);
+}
+
+TEST(CommandLineParserTest, ParsesExplicitUiSelection)
+{
+    ArgumentBuffer gui_arguments {"slayerlog", "--ui", "gui"};
+    ArgumentBuffer tui_arguments {"slayerlog", "--ui", "tui"};
+
+    EXPECT_EQ(parse_command_line(gui_arguments.argc(), gui_arguments.argv()).ui, UiKind::Gui);
+    EXPECT_EQ(parse_command_line(tui_arguments.argc(), tui_arguments.argv()).ui, UiKind::Tui);
+}
+
+TEST(CommandLineParserTest, ThrowsOnUnknownUi)
+{
+    ArgumentBuffer arguments {"slayerlog", "--ui", "curses"};
 
     EXPECT_THROW(parse_command_line(arguments.argc(), arguments.argv()), boost::program_options::error);
 }

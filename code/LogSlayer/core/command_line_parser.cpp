@@ -24,7 +24,8 @@ void add_command_line_options(boost::program_options::options_description& desc)
     desc.add_options()
         ("help,h", "Show help message")
         ("file,f", po::value<std::vector<std::string>>()->composing(), "Source to open on startup. Repeat for multiple sources; also supports positional sources and ssh://user@host/absolute/path.log.")
-        ("poll-interval-ms", po::value<int>()->default_value(250), "Polling interval in milliseconds");
+        ("poll-interval-ms", po::value<int>()->default_value(250), "Polling interval in milliseconds")
+        ("ui", po::value<std::string>()->default_value("tui"), "User interface to run: 'tui' (terminal) or 'gui' (WxWidgets)");
     // clang-format on
 }
 
@@ -99,6 +100,20 @@ Config parse_command_line(int argc, char* argv[])
         if (config.poll_interval_ms <= 0)
         {
             throw po::error("--poll-interval-ms must be greater than 0");
+        }
+
+        const auto& ui_name = variables["ui"].as<std::string>();
+        if (ui_name == "tui")
+        {
+            config.ui = UiKind::Tui;
+        }
+        else if (ui_name == "gui")
+        {
+            config.ui = UiKind::Gui;
+        }
+        else
+        {
+            throw po::error("--ui must be 'tui' or 'gui'");
         }
 
         return config;

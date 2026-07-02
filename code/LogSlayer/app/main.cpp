@@ -283,7 +283,24 @@ int main(int argc, char** argv)
 {
     initialize_debug_log(argc, argv);
 
-    const auto config       = slayerlog::parse_command_line(argc, argv);
+    slayerlog::Config config;
+    try
+    {
+        config = slayerlog::parse_command_line(argc, argv);
+    }
+    catch (const std::exception&)
+    {
+        // parse_command_line already printed the error and usage to stderr.
+        return 2;
+    }
+
+    if (config.ui == slayerlog::UiKind::Gui && !config.show_help)
+    {
+        // Placeholder until the WxWidgets composition lands (docs/wx-ui-plan.md, M1).
+        std::cerr << "The WxWidgets UI is not available yet; run with --ui tui.\n";
+        return 1;
+    }
+
     std::string header_text = slayerlog::build_header_text({});
 
     slayerlog::SettingsStore settings_store(slayerlog::default_settings_file_path());
