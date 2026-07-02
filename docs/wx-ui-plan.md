@@ -85,7 +85,7 @@ but FTXUI leaks past it in these places, all of which the wx UI needs:
 - [x] M0c — core `RedrawScheduler` + watcher loop/`model_refresh` in core; `header_text` removed (2026-07-02)
 - [x] M1 — wxWidgets v3.3.2 submodule (builds clean under `windows-clang-debug`, no fallback needed); `ui_wx` skeleton (`WxLogView`/`WxMainFrame`/`WxRedrawScheduler`); `main.cpp` dispatches to `run_tui`/`run_gui`; GUI verified live: renders, tails appends, closes clean (2026-07-02)
 - [x] M2 — palette state machine extracted to core `CommandPaletteSession` (controller now a thin FTXUI adapter, public API unchanged; 13 new session tests, 218 total green; adversarial review: 0 confirmed findings) (2026-07-02)
-- [ ] M3
+- [x] M3 — wx Ctrl+P palette over the shared core session: core registrar seam (`register_core_view_commands` with picker-slot factory, TUI order unchanged), shared result-line formatter (`build_command_palette_result_lines`), `WxLogViewService`, `WxCommandPalette` overlay, shared command history, find highlighting + Left/Right match navigation in `WxLogView`; pickers/toasts/align stay TUI-only (M4/M5/M6); 12 new core tests, 230 total green (2026-07-02)
 - [ ] M4
 - [ ] M5
 - [ ] M6

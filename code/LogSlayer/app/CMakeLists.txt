@@ -6,7 +6,7 @@
 # lives in logslayer_core (logic) and logslayer_ui / logslayer_ui_wx
 # (presentation).
 
-set(LOGSLAYER_APP_SOURCES main.cpp run_tui.cpp)
+set(LOGSLAYER_APP_SOURCES main.cpp run_tui.cpp command_history_loader.cpp)
 if(LOGSLAYER_ENABLE_WX_UI)
   list(APPEND LOGSLAYER_APP_SOURCES run_gui.cpp)
 else()
