@@ -33,6 +33,8 @@
 #include "LogView2/align_time_controller.hpp"
 #include "log_view2_bridge.hpp"
 #include "log_view2_component.hpp"
+#include "log_view2_find_manager.hpp"
+#include "null_log_view_service.hpp"
 #include "notifications/ftxui_toast_notification_sink.hpp"
 #include "tracked_sources/all_processed_sources.hpp"
 #include "settings_store.hpp"
@@ -148,15 +150,20 @@ void initialize_command_palette_controller(std::optional<slayerlog::CommandPalet
     command_palette_controller.emplace(command_palette_model, command_manager);
 }
 
-bool handle_help_request(const slayerlog::Config& config, slayerlog::CommandManager& command_manager, slayerlog::AllProcessedSources& processed_sources, slayerlog::LogViewService& log_view, slayerlog::AllTrackedSources& tracked_sources,
-                         slayerlog::LogView2FindManager& find_manager, const slayerlog::SettingsStore& settings_store)
+/// Print --help and return true when requested. Registers the command set over
+/// throwaway null/inert services so no UI (FTXUI or wx) has to be constructed
+/// just to enumerate command descriptors.
+bool handle_help_request(const slayerlog::Config& config, slayerlog::AllProcessedSources& processed_sources, slayerlog::AllTrackedSources& tracked_sources, const slayerlog::SettingsStore& settings_store)
 {
     if (!config.show_help)
     {
         return false;
     }
 
-    slayerlog::register_log_view2_commands(command_manager, {processed_sources, log_view, tracked_sources, {}, nullptr, nullptr, settings_store.file_path()}, find_manager);
+    slayerlog::NullLogViewService null_log_view;
+    slayerlog::LogView2FindManager find_manager(nullptr);
+    slayerlog::CommandManager command_manager;
+    slayerlog::register_log_view2_commands(command_manager, {processed_sources, null_log_view, tracked_sources, {}, nullptr, nullptr, settings_store.file_path()}, find_manager);
     std::cout << slayerlog::build_help_text(command_manager);
     return true;
 }
@@ -316,11 +323,16 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    auto screen = ftxui::ScreenInteractive::Fullscreen();
-    screen.TrackMouse();
-
     std::mutex model_mutex;
     slayerlog::AllProcessedSources processed_sources;
+
+    if (handle_help_request(config, processed_sources, tracked_sources, settings_store))
+    {
+        return 0;
+    }
+
+    auto screen = ftxui::ScreenInteractive::Fullscreen();
+    screen.TrackMouse();
 
     auto command_history = load_command_history(settings_store, settings_loaded, settings_error_message);
 
@@ -337,11 +349,6 @@ int main(int argc, char** argv)
 
     slayerlog::AlignTimeController align_controller(tracked_sources, processed_sources, log_view_bridge, model_mutex, screen);
     log_view_bridge.set_align_controller(&align_controller);
-
-    if (handle_help_request(config, command_manager, processed_sources, log_view_bridge, tracked_sources, view->find_manager(), settings_store))
-    {
-        return 0;
-    }
 
     {
         std::lock_guard lock(model_mutex);
