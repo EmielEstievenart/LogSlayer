@@ -45,8 +45,8 @@ ftxui::Element hints(std::initializer_list<ftxui::Element> items)
 
 } // namespace
 
-AlignTimeController::AlignTimeController(AllTrackedSources& tracked_sources, AllProcessedSources& processed_sources, LogViewService& log_view, std::mutex& model_mutex, ftxui::ScreenInteractive& screen)
-    : _tracked_sources(tracked_sources), _processed_sources(processed_sources), _log_view(log_view), _model_mutex(model_mutex), _screen(screen)
+AlignTimeController::AlignTimeController(AllTrackedSources& tracked_sources, AllProcessedSources& processed_sources, LogViewService& log_view, std::mutex& model_mutex, RedrawScheduler& redraw_scheduler)
+    : _tracked_sources(tracked_sources), _processed_sources(processed_sources), _log_view(log_view), _model_mutex(model_mutex), _redraw_scheduler(redraw_scheduler)
 {
 }
 
@@ -76,7 +76,7 @@ void AlignTimeController::begin(std::size_t aligning_source_index)
     _right_data = std::make_shared<AlignTimeLogView2Data>(*_session, _model_mutex, AlignTimeLogView2Data::Side::Right);
     _left_pane  = make_pane(_left_data);
     _right_pane = make_pane(_right_data);
-    _screen.PostEvent(ftxui::Event::Custom);
+    _redraw_scheduler.request_redraw();
 }
 
 bool AlignTimeController::handle_event(const ftxui::Event& event)
@@ -102,20 +102,20 @@ bool AlignTimeController::handle_event(const ftxui::Event& event)
         else
         {
             _session->advance();
-            _screen.PostEvent(ftxui::Event::Custom);
+            _redraw_scheduler.request_redraw();
         }
         return true;
     }
     if (event == ftxui::Event::ArrowUp)
     {
         nudging ? _session->nudge(-1) : _session->move_cursor(-1);
-        _screen.PostEvent(ftxui::Event::Custom);
+        _redraw_scheduler.request_redraw();
         return true;
     }
     if (event == ftxui::Event::ArrowDown)
     {
         nudging ? _session->nudge(1) : _session->move_cursor(1);
-        _screen.PostEvent(ftxui::Event::Custom);
+        _redraw_scheduler.request_redraw();
         return true;
     }
     if (event == ftxui::Event::PageUp)
@@ -123,7 +123,7 @@ bool AlignTimeController::handle_event(const ftxui::Event& event)
         if (!nudging)
         {
             _session->move_cursor(-10);
-            _screen.PostEvent(ftxui::Event::Custom);
+            _redraw_scheduler.request_redraw();
         }
         return true;
     }
@@ -132,7 +132,7 @@ bool AlignTimeController::handle_event(const ftxui::Event& event)
         if (!nudging)
         {
             _session->move_cursor(10);
-            _screen.PostEvent(ftxui::Event::Custom);
+            _redraw_scheduler.request_redraw();
         }
         return true;
     }
@@ -141,7 +141,7 @@ bool AlignTimeController::handle_event(const ftxui::Event& event)
         if (!nudging)
         {
             _session->move_cursor(-1'000'000);
-            _screen.PostEvent(ftxui::Event::Custom);
+            _redraw_scheduler.request_redraw();
         }
         return true;
     }
@@ -150,20 +150,20 @@ bool AlignTimeController::handle_event(const ftxui::Event& event)
         if (!nudging)
         {
             _session->move_cursor(1'000'000);
-            _screen.PostEvent(ftxui::Event::Custom);
+            _redraw_scheduler.request_redraw();
         }
         return true;
     }
     if (event == ftxui::Event::Backspace)
     {
         _session->step_back();
-        _screen.PostEvent(ftxui::Event::Custom);
+        _redraw_scheduler.request_redraw();
         return true;
     }
     if (event == ftxui::Event::Character(" "))
     {
         _session->toggle_left_selection();
-        _screen.PostEvent(ftxui::Event::Custom);
+        _redraw_scheduler.request_redraw();
         return true;
     }
 
@@ -322,7 +322,7 @@ void AlignTimeController::deactivate()
     _left_data.reset();
     _right_data.reset();
     _session.reset();
-    _screen.PostEvent(ftxui::Event::Custom);
+    _redraw_scheduler.request_redraw();
 }
 
 } // namespace slayerlog

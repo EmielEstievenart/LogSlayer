@@ -1,5 +1,4 @@
 #include <atomic>
-#include <chrono>
 #include <exception>
 #include <functional>
 #include <iostream>
@@ -24,9 +23,11 @@
 #include "command_palette_view.hpp"
 #include "command_registrar.hpp"
 #include "command_manager.hpp"
-#include "command_support.hpp"
 #include "commands/command_history.hpp"
 #include "debug_log.hpp"
+#include "ftxui_redraw_scheduler.hpp"
+#include "model_refresh.hpp"
+#include "watcher_thread.hpp"
 #include "tracked_sources/all_tracked_sources.hpp"
 #include "tracked_sources/tracked_source_factory.hpp"
 #include "timestamp/timestamp_format_catalog.hpp"
@@ -243,47 +244,6 @@ void join_background_tasks(std::thread& watcher_thread, std::vector<std::thread>
     }
 }
 
-void append_sources_delta_to_processed_sources(const slayerlog::AllTrackedSources& tracked_sources, slayerlog::AllLineIndex first_new_line_index, slayerlog::AllProcessedSources& processed_sources, ftxui::ScreenInteractive& screen)
-{
-    if (first_new_line_index.value < processed_sources.total_line_count())
-    {
-        processed_sources.replace_from_sources(tracked_sources, first_new_line_index);
-    }
-    else
-    {
-        processed_sources.append_from_sources(tracked_sources, first_new_line_index);
-    }
-
-    // LogView2 re-renders straight from the processed sources, so consume the
-    // width-growth flag and request a redraw; there is no buffer to sync.
-    (void)processed_sources.consume_column_width_growth();
-    screen.PostEvent(ftxui::Event::Custom);
-}
-
-std::thread start_watcher_thread(int poll_interval_ms, slayerlog::AllTrackedSources& tracked_sources, std::mutex& model_mutex, slayerlog::AllProcessedSources& processed_sources, ftxui::ScreenInteractive& screen,
-                                 std::atomic<bool>& keep_running)
-{
-    return std::thread(
-        [poll_interval_ms, tracked_sources = &tracked_sources, model_mutex = &model_mutex, processed_sources = &processed_sources, screen = &screen, keep_running = &keep_running]
-        {
-            while (*keep_running)
-            {
-                std::this_thread::sleep_for(std::chrono::milliseconds(poll_interval_ms));
-                if (!*keep_running)
-                {
-                    break;
-                }
-
-                std::lock_guard lock(*model_mutex);
-                const auto first_new_line_index = tracked_sources->poll();
-                if (first_new_line_index.has_value())
-                {
-                    append_sources_delta_to_processed_sources(*tracked_sources, *first_new_line_index, *processed_sources, *screen);
-                }
-            }
-        });
-}
-
 } // namespace
 
 int main(int argc, char** argv)
@@ -308,8 +268,6 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    std::string header_text = slayerlog::build_header_text({});
-
     slayerlog::SettingsStore settings_store(slayerlog::default_settings_file_path());
     std::string settings_error_message;
     const bool settings_loaded = load_settings(settings_store, settings_error_message);
@@ -333,6 +291,7 @@ int main(int argc, char** argv)
 
     auto screen = ftxui::ScreenInteractive::Fullscreen();
     screen.TrackMouse();
+    slayerlog::FtxuiRedrawScheduler redraw_scheduler(screen);
 
     auto command_history = load_command_history(settings_store, settings_loaded, settings_error_message);
 
@@ -345,19 +304,19 @@ int main(int argc, char** argv)
 
     auto view_data = std::make_shared<slayerlog::AllProcessedSourcesLogView2Data>(processed_sources, model_mutex);
     auto view      = std::make_shared<slayerlog::LogView2Component>("LogSlayer", view_data, *command_palette_controller, [&screen] { screen.Exit(); });
-    slayerlog::LogView2Bridge log_view_bridge(*view, header_text, screen);
+    slayerlog::LogView2Bridge log_view_bridge(*view, redraw_scheduler);
 
-    slayerlog::AlignTimeController align_controller(tracked_sources, processed_sources, log_view_bridge, model_mutex, screen);
+    slayerlog::AlignTimeController align_controller(tracked_sources, processed_sources, log_view_bridge, model_mutex, redraw_scheduler);
     log_view_bridge.set_align_controller(&align_controller);
 
     {
         std::lock_guard lock(model_mutex);
-        slayerlog::reload_processed_sources(tracked_sources, header_text, processed_sources, screen);
+        slayerlog::reload_processed_sources(tracked_sources, processed_sources, redraw_scheduler);
     }
 
     std::atomic<bool> keep_running = true;
     std::vector<std::thread> background_tasks;
-    std::thread watcher_thread = start_watcher_thread(config.poll_interval_ms, tracked_sources, model_mutex, processed_sources, screen, keep_running);
+    std::thread watcher_thread = slayerlog::start_watcher_thread(config.poll_interval_ms, tracked_sources, model_mutex, processed_sources, redraw_scheduler, keep_running);
 
     auto viewer     = create_viewer(view, *command_palette_controller, command_palette_view, screen, model_mutex, align_controller);
     auto toast_host = create_toast_host(viewer, screen);

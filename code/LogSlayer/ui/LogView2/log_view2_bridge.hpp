@@ -3,9 +3,8 @@
 #include <cstddef>
 #include <string>
 
-#include <ftxui/component/screen_interactive.hpp>
-
 #include "log_view_service.hpp"
+#include "redraw_scheduler.hpp"
 
 namespace slayerlog
 {
@@ -23,7 +22,7 @@ class AlignTimeController;
 class LogView2Bridge final : public LogViewService
 {
 public:
-    LogView2Bridge(LogView2Component& view, std::string& header_text, ftxui::ScreenInteractive& screen);
+    LogView2Bridge(LogView2Component& view, RedrawScheduler& redraw_scheduler);
 
     /// Wire the dual-pane alignment controller that begin_time_alignment() drives.
     void set_align_controller(AlignTimeController* align_controller);
@@ -42,8 +41,7 @@ public:
 
 private:
     LogView2Component& _view;
-    std::string& _header_text;
-    ftxui::ScreenInteractive& _screen;
+    RedrawScheduler& _redraw_scheduler;
     AlignTimeController* _align_controller = nullptr;
 };
 

@@ -2,19 +2,17 @@
 
 #include <utility>
 
-#include <ftxui/component/event.hpp>
-
 #include "LogView2/align_time_controller.hpp"
-#include "command_support.hpp"
 #include "debug_log.hpp"
 #include "log_view2_component.hpp"
 #include "log_view2_find_manager.hpp"
+#include "model_refresh.hpp"
 #include "tracked_sources/all_processed_sources.hpp"
 
 namespace slayerlog
 {
 
-LogView2Bridge::LogView2Bridge(LogView2Component& view, std::string& header_text, ftxui::ScreenInteractive& screen) : _view(view), _header_text(header_text), _screen(screen)
+LogView2Bridge::LogView2Bridge(LogView2Component& view, RedrawScheduler& redraw_scheduler) : _view(view), _redraw_scheduler(redraw_scheduler)
 {
 }
 
@@ -27,12 +25,12 @@ void LogView2Bridge::rebuild_view(const AllProcessedSources& /*processed_sources
 {
     // LogView2 renders straight from the processed sources every frame, so a
     // refresh is just a redraw request.
-    _screen.PostEvent(ftxui::Event::Custom);
+    _redraw_scheduler.request_redraw();
 }
 
 void LogView2Bridge::reload(const AllTrackedSources& tracked_sources, AllProcessedSources& processed_sources)
 {
-    reload_processed_sources(tracked_sources, _header_text, processed_sources, _screen);
+    reload_processed_sources(tracked_sources, processed_sources, _redraw_scheduler);
 }
 
 bool LogView2Bridge::go_to_line(const AllProcessedSources& processed_sources, int line_number)
@@ -44,7 +42,7 @@ bool LogView2Bridge::go_to_line(const AllProcessedSources& processed_sources, in
     }
 
     _view.text_view_controller().center_on_line(visible_line->value);
-    _screen.PostEvent(ftxui::Event::Custom);
+    _redraw_scheduler.request_redraw();
     return true;
 }
 
@@ -61,7 +59,7 @@ int LogView2Bridge::viewport_line_count() const
 bool LogView2Bridge::set_find_query(AllProcessedSources& /*processed_sources*/, std::string query)
 {
     const bool focused = _view.find_manager().set_query(std::move(query));
-    _screen.PostEvent(ftxui::Event::Custom);
+    _redraw_scheduler.request_redraw();
     return focused;
 }
 

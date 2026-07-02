@@ -243,13 +243,6 @@ TEST(CommandRegistrarTest, ShowAndHideIdenticalLinesCommandsToggleCollapsing)
     EXPECT_EQ(processed_sources.rendered_line(1), "  hiding 1 identical messages above");
 }
 
-TEST(CommandRegistrarTest, BuildHeaderTextIncludesNumberedSourceTags)
-{
-    EXPECT_EQ(build_header_text({}), "No files opened (use open-file <path> or open-folder <path>)");
-    EXPECT_EQ(build_header_text({"file1.txt", "file2.txt"}), "file1.txt:1 | file2.txt:2");
-    EXPECT_EQ(build_header_text({"single.log"}), "single.log:1");
-}
-
 TEST(CommandRegistrarTest, OpenFileCommandShowsToastWhenSourceAlreadyOpen)
 {
     const auto log_path = make_temp_export_path();

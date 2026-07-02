@@ -13,6 +13,7 @@ add_executable(
   slayerlog/command_manager_tests.cpp
   slayerlog/command_widget_tests.cpp
   slayerlog/log_batch_tests.cpp
+  slayerlog/model_refresh_tests.cpp
   slayerlog/log_timestamp_tests.cpp
   slayerlog/align_time_session_tests.cpp
   slayerlog/log_model_tests.cpp

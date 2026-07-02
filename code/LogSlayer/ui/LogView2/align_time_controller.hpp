@@ -5,11 +5,11 @@
 #include <mutex>
 
 #include <ftxui/component/event.hpp>
-#include <ftxui/component/screen_interactive.hpp>
 #include <ftxui/dom/elements.hpp>
 
 #include "LogView2/align_time_log_view2_data.hpp"
 #include "notifications/notification.hpp"
+#include "redraw_scheduler.hpp"
 
 class TextViewComponent;
 
@@ -32,7 +32,7 @@ class LogView2Data;
 class AlignTimeController
 {
 public:
-    AlignTimeController(AllTrackedSources& tracked_sources, AllProcessedSources& processed_sources, LogViewService& log_view, std::mutex& model_mutex, ftxui::ScreenInteractive& screen);
+    AlignTimeController(AllTrackedSources& tracked_sources, AllProcessedSources& processed_sources, LogViewService& log_view, std::mutex& model_mutex, RedrawScheduler& redraw_scheduler);
     // Defined in the .cpp so the unique_ptr<AlignTimeSession> member can destroy a
     // complete type (this header only forward-declares AlignTimeSession).
     ~AlignTimeController();
@@ -66,7 +66,7 @@ private:
     AllProcessedSources& _processed_sources;
     LogViewService& _log_view;
     std::mutex& _model_mutex;
-    ftxui::ScreenInteractive& _screen;
+    RedrawScheduler& _redraw_scheduler;
     Notifier _notifier;
 
     std::unique_ptr<AlignTimeSession> _session;
