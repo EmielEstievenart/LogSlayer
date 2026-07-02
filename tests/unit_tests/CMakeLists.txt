@@ -7,6 +7,7 @@ add_executable(
   slayerlog/tracked_source_manager_tests.cpp
   slayerlog/stream_line_buffer_tests.cpp
   slayerlog/command_palette_controller_tests.cpp
+  slayerlog/command_palette_session_tests.cpp
   slayerlog/command_registrar_tests.cpp
   slayerlog/command_line_parser_tests.cpp
   slayerlog/command_history_tests.cpp

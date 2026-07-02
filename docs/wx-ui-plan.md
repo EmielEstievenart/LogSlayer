@@ -84,7 +84,7 @@ but FTXUI leaks past it in these places, all of which the wx UI needs:
 - [x] M0b — `--help` decoupled from FTXUI via core `NullLogViewService` (2026-07-02)
 - [x] M0c — core `RedrawScheduler` + watcher loop/`model_refresh` in core; `header_text` removed (2026-07-02)
 - [x] M1 — wxWidgets v3.3.2 submodule (builds clean under `windows-clang-debug`, no fallback needed); `ui_wx` skeleton (`WxLogView`/`WxMainFrame`/`WxRedrawScheduler`); `main.cpp` dispatches to `run_tui`/`run_gui`; GUI verified live: renders, tails appends, closes clean (2026-07-02)
-- [ ] M2
+- [x] M2 — palette state machine extracted to core `CommandPaletteSession` (controller now a thin FTXUI adapter, public API unchanged; 13 new session tests, 218 total green; adversarial review: 0 confirmed findings) (2026-07-02)
 - [ ] M3
 - [ ] M4
 - [ ] M5
