@@ -120,7 +120,7 @@ int run_gui(int argc, char** argv, const Config& config, SettingsStore& settings
     // Toasts arrive with the wx NotificationSink in M5 (docs/wx-ui-plan.md);
     // until then commands run against an empty Notifier.
     std::vector<std::thread> background_tasks;
-    register_wx_view_commands(command_manager, {processed_sources, log_view_service, tracked_sources, Notifier {}, &model_mutex, &background_tasks, settings_store.file_path()}, frame->log_view().find_manager());
+    register_wx_view_commands(command_manager, {processed_sources, log_view_service, tracked_sources, Notifier {}, &model_mutex, &background_tasks, settings_store.file_path()}, frame->log_view().find_manager(), *command_palette_session);
     frame->attach_command_palette(*command_palette_session, model_mutex);
 
     {

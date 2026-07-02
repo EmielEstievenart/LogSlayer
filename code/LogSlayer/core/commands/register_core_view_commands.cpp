@@ -3,9 +3,13 @@
 #include <memory>
 
 #include "command_manager.hpp"
+#include "implementations/log_view1/adjust_time_offset_command.hpp"
 #include "implementations/log_view1/clear_column_filters_command.hpp"
 #include "implementations/log_view1/clear_filters_command.hpp"
+#include "implementations/log_view1/clear_time_offset_command.hpp"
+#include "implementations/log_view1/close_open_file_command.hpp"
 #include "implementations/log_view1/copy_settings_path_command.hpp"
+#include "implementations/log_view1/delete_filters_command.hpp"
 #include "implementations/log_view1/export_visible_text_command.hpp"
 #include "implementations/log_view1/filter_in_command.hpp"
 #include "implementations/log_view1/filter_out_command.hpp"
@@ -19,36 +23,19 @@
 #include "implementations/log_view1/open_folder_command.hpp"
 #include "implementations/log_view1/reset_column_filter_command.hpp"
 #include "implementations/log_view1/reset_filters_command.hpp"
+#include "implementations/log_view1/set_time_format_command.hpp"
 #include "implementations/log_view1/show_identical_lines_command.hpp"
 #include "implementations/log_view1/show_original_time_command.hpp"
 
 namespace slayerlog
 {
 
-namespace
-{
-
-void register_picker(CommandManager& command_manager, const ViewPickerCommandFactory& picker_factory, ViewPickerCommandSlot slot)
-{
-    if (!picker_factory)
-    {
-        return;
-    }
-
-    if (auto command = picker_factory(slot))
-    {
-        command_manager.register_command(std::move(command));
-    }
-}
-
-} // namespace
-
-void register_core_view_commands(CommandManager& command_manager, const CommandContext& context, const ViewPickerCommandFactory& picker_factory)
+void register_core_view_commands(CommandManager& command_manager, const CommandContext& context, CommandPaletteSession& palette_session)
 {
     command_manager.register_command(std::make_unique<FilterInCommand>(context));
     command_manager.register_command(std::make_unique<FilterOutCommand>(context));
     command_manager.register_command(std::make_unique<ResetFiltersCommand>(context));
-    register_picker(command_manager, picker_factory, ViewPickerCommandSlot::DeleteFilters);
+    command_manager.register_command(std::make_unique<DeleteFiltersCommand>(context, palette_session));
     command_manager.register_command(std::make_unique<ClearFiltersCommand>(context));
 
     command_manager.register_command(std::make_unique<HideColumnsCommand>(context));
@@ -61,11 +48,11 @@ void register_core_view_commands(CommandManager& command_manager, const CommandC
 
     command_manager.register_command(std::make_unique<OpenFileCommand>(context));
     command_manager.register_command(std::make_unique<OpenFolderCommand>(context));
-    register_picker(command_manager, picker_factory, ViewPickerCommandSlot::CloseOpenFile);
+    command_manager.register_command(std::make_unique<CloseOpenFileCommand>(context, palette_session));
 
-    register_picker(command_manager, picker_factory, ViewPickerCommandSlot::SetTimeFormat);
-    register_picker(command_manager, picker_factory, ViewPickerCommandSlot::AdjustTimeOffset);
-    register_picker(command_manager, picker_factory, ViewPickerCommandSlot::ClearTimeOffset);
+    command_manager.register_command(std::make_unique<SetTimeFormatCommand>(context, palette_session));
+    command_manager.register_command(std::make_unique<AdjustTimeOffsetCommand>(context, palette_session));
+    command_manager.register_command(std::make_unique<ClearTimeOffsetCommand>(context, palette_session));
 
     command_manager.register_command(std::make_unique<GoToLineCommand>(context));
     command_manager.register_command(std::make_unique<HideBeforeLineCommand>(context));

@@ -8,6 +8,8 @@
 
 #include "command_line_parser.hpp"
 #include "command_manager.hpp"
+#include "command_palette_model.hpp"
+#include "command_palette_session.hpp"
 #include "command_registrar.hpp"
 #include "debug_log.hpp"
 #include "log_view2_find_manager.hpp"
@@ -111,7 +113,9 @@ bool handle_help_request(const slayerlog::Config& config, slayerlog::AllProcesse
     slayerlog::NullLogViewService null_log_view;
     slayerlog::LogView2FindManager find_manager(nullptr);
     slayerlog::CommandManager command_manager;
-    slayerlog::register_log_view2_commands(command_manager, {processed_sources, null_log_view, tracked_sources, {}, nullptr, nullptr, settings_store.file_path()}, find_manager);
+    slayerlog::CommandPaletteModel palette_model;
+    slayerlog::CommandPaletteSession palette_session(palette_model, command_manager);
+    slayerlog::register_log_view2_commands(command_manager, {processed_sources, null_log_view, tracked_sources, {}, nullptr, nullptr, settings_store.file_path()}, find_manager, palette_session);
     std::cout << slayerlog::build_help_text(command_manager);
     return true;
 }

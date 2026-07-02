@@ -59,6 +59,11 @@ const CommandPaletteModel& CommandPaletteController::model() const
     return _session.model();
 }
 
+CommandPaletteSession& CommandPaletteController::session()
+{
+    return _session;
+}
+
 Command* CommandPaletteController::active_command()
 {
     return dynamic_cast<Command*>(_command_manager.active_command());

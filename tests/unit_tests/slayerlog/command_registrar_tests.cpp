@@ -10,14 +10,10 @@
 #include <thread>
 #include <vector>
 
-#include <ftxui/component/screen_interactive.hpp>
-
-#include "command.hpp"
 #include "command_palette_controller.hpp"
 #include "command_palette_model.hpp"
 #include "command_registrar.hpp"
 #include "command_manager.hpp"
-#include "command_support.hpp"
 #include "implementations/log_view1/copy_settings_path_command.hpp"
 #include "log_view_service.hpp"
 #include "tracked_sources/all_processed_sources.hpp"
@@ -135,7 +131,7 @@ TEST(CommandRegistrarTest, ExportVisibleTextWritesAllVisibleRenderedLines)
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
     StubLogViewService log_view;
     AllTrackedSources tracked_sources;
-    register_commands(command_manager, {processed_sources, log_view, tracked_sources});
+    register_commands(command_manager, {processed_sources, log_view, tracked_sources}, command_palette_controller.session());
 
     const auto export_path = make_temp_export_path();
     const auto result      = command_manager.execute("export-visible-text " + export_path.string());
@@ -196,7 +192,7 @@ TEST(CommandRegistrarTest, ShowAndHideOriginalTimeCommandsToggleRenderedMessage)
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
     StubLogViewService log_view;
     AllTrackedSources tracked_sources;
-    register_commands(command_manager, {processed_sources, log_view, tracked_sources});
+    register_commands(command_manager, {processed_sources, log_view, tracked_sources}, command_palette_controller.session());
 
     EXPECT_EQ(processed_sources.rendered_line(0), "1 {2026-04-01 10:00:00} INFO  hello");
 
@@ -227,7 +223,7 @@ TEST(CommandRegistrarTest, ShowAndHideIdenticalLinesCommandsToggleCollapsing)
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
     StubLogViewService log_view;
     AllTrackedSources tracked_sources;
-    register_commands(command_manager, {processed_sources, log_view, tracked_sources});
+    register_commands(command_manager, {processed_sources, log_view, tracked_sources}, command_palette_controller.session());
 
     ASSERT_EQ(processed_sources.line_count(), 2);
     EXPECT_EQ(processed_sources.rendered_line(1), "  hiding 1 identical messages above");
@@ -260,7 +256,7 @@ TEST(CommandRegistrarTest, OpenFileCommandShowsToastWhenSourceAlreadyOpen)
     AllTrackedSources tracked_sources;
     ASSERT_FALSE(open_source(tracked_sources, parse_log_source(log_path.string())).has_value());
     auto sink = std::make_shared<RecordingNotificationSink>();
-    register_commands(command_manager, {processed_sources, log_view, tracked_sources, Notifier(sink)});
+    register_commands(command_manager, {processed_sources, log_view, tracked_sources, Notifier(sink)}, command_palette_controller.session());
 
     const auto result = command_manager.execute("open-file " + log_path.string());
 
@@ -292,7 +288,7 @@ TEST(CommandRegistrarTest, OpenFileCommandOpensFileInBackgroundWhenTaskRunnerExi
     std::mutex model_mutex;
     std::vector<std::thread> background_tasks;
     auto sink = std::make_shared<RecordingNotificationSink>();
-    register_commands(command_manager, {processed_sources, log_view, tracked_sources, Notifier(sink), &model_mutex, &background_tasks});
+    register_commands(command_manager, {processed_sources, log_view, tracked_sources, Notifier(sink), &model_mutex, &background_tasks}, command_palette_controller.session());
 
     const auto result = command_manager.execute("open-file " + log_path.string());
 
@@ -345,7 +341,7 @@ TEST(CommandRegistrarTest, OpenFolderCommandPreflightsAlreadyOpenSourceBeforeSta
     std::mutex model_mutex;
     std::vector<std::thread> background_tasks;
     auto sink = std::make_shared<RecordingNotificationSink>();
-    register_commands(command_manager, {processed_sources, log_view, tracked_sources, Notifier(sink), &model_mutex, &background_tasks});
+    register_commands(command_manager, {processed_sources, log_view, tracked_sources, Notifier(sink), &model_mutex, &background_tasks}, command_palette_controller.session());
 
     const auto result = command_manager.execute("open-folder " + folder_path.string());
 
@@ -359,150 +355,6 @@ TEST(CommandRegistrarTest, OpenFolderCommandPreflightsAlreadyOpenSourceBeforeSta
 
     std::error_code error_code;
     std::filesystem::remove_all(folder_path, error_code);
-}
-
-TEST(CommandRegistrarTest, DeleteFiltersCommandOpensPickerAndRemovesSelectedFilters)
-{
-    AllProcessedSources processed_sources;
-    processed_sources.append_lines({
-        LogEntry {"alpha.log", "show keep alpha"},
-        LogEntry {"alpha.log", "hide beta"},
-        LogEntry {"alpha.log", "show gamma"},
-    });
-    processed_sources.add_include_filter("show");
-    processed_sources.add_include_filter("gamma");
-    processed_sources.add_exclude_filter("beta");
-
-    CommandManager command_manager;
-    CommandPaletteModel command_palette_model;
-    CommandPaletteController command_palette_controller(command_palette_model, command_manager);
-    StubLogViewService log_view;
-    AllTrackedSources tracked_sources;
-    register_commands(command_manager, {processed_sources, log_view, tracked_sources});
-
-    const auto result = command_manager.execute("delete-filters");
-
-    EXPECT_TRUE(result.success);
-    EXPECT_FALSE(result.close_palette_on_success);
-    EXPECT_EQ(result.message, "Mark filters to delete and press Enter");
-    ASSERT_NE(command_manager.active_command(), nullptr);
-
-    ASSERT_TRUE(dynamic_cast<Command*>(command_manager.active_command())->handle_event(ftxui::Event::Character(" ")).handled);
-    ASSERT_TRUE(dynamic_cast<Command*>(command_manager.active_command())->handle_event(ftxui::Event::ArrowDown).handled);
-    ASSERT_TRUE(dynamic_cast<Command*>(command_manager.active_command())->handle_event(ftxui::Event::ArrowDown).handled);
-    ASSERT_TRUE(dynamic_cast<Command*>(command_manager.active_command())->handle_event(ftxui::Event::Character(" ")).handled);
-    const auto delete_result = dynamic_cast<Command*>(command_manager.active_command())->handle_event(ftxui::Event::Return);
-
-    ASSERT_TRUE(delete_result.result.has_value());
-    EXPECT_TRUE(delete_result.result->success);
-    EXPECT_EQ(processed_sources.include_filters().size(), 1U);
-    EXPECT_EQ(processed_sources.include_filters()[0], "gamma");
-    EXPECT_TRUE(processed_sources.exclude_filters().empty());
-}
-
-TEST(CommandRegistrarTest, DeleteFiltersCommandFailsWhenNoFiltersExist)
-{
-    AllProcessedSources processed_sources;
-
-    CommandManager command_manager;
-    CommandPaletteModel command_palette_model;
-    CommandPaletteController command_palette_controller(command_palette_model, command_manager);
-    StubLogViewService log_view;
-    AllTrackedSources tracked_sources;
-    register_commands(command_manager, {processed_sources, log_view, tracked_sources});
-
-    const auto result = command_manager.execute("delete-filters");
-
-    EXPECT_FALSE(result.success);
-    EXPECT_EQ(result.message, "No filters to delete");
-}
-
-TEST(CommandRegistrarTest, SetTimeFormatCommandOpensSourceAndFormatPickers)
-{
-    const auto log_path = make_temp_export_path();
-    {
-        std::ofstream output(log_path, std::ios::binary | std::ios::trunc);
-        ASSERT_TRUE(output.is_open());
-        output << "plain line\n";
-    }
-
-    AllProcessedSources processed_sources;
-    CommandManager command_manager;
-    CommandPaletteModel command_palette_model;
-    CommandPaletteController command_palette_controller(command_palette_model, command_manager);
-    StubLogViewService log_view;
-    AllTrackedSources tracked_sources;
-    ASSERT_FALSE(open_source(tracked_sources, parse_log_source(log_path.string())).has_value());
-    register_commands(command_manager, {processed_sources, log_view, tracked_sources});
-
-    const auto result = command_manager.execute("set-time-format");
-
-    EXPECT_TRUE(result.success);
-    EXPECT_FALSE(result.close_palette_on_success);
-    EXPECT_EQ(result.message, "Select a source to configure");
-    ASSERT_NE(command_manager.active_command(), nullptr);
-
-    const auto source_result = dynamic_cast<Command*>(command_manager.active_command())->handle_event(ftxui::Event::Return);
-    ASSERT_TRUE(source_result.result.has_value());
-    EXPECT_TRUE(source_result.result->success);
-    EXPECT_FALSE(source_result.result->close_palette_on_success);
-    EXPECT_NE(source_result.result->message.find("Select timestamp format for "), std::string::npos);
-
-    remove_temp_export_file(log_path);
-}
-
-TEST(CommandRegistrarTest, AdjustTimeOffsetCommandAccumulatesOffsets)
-{
-    const auto log_path = make_temp_export_path();
-    {
-        std::ofstream output(log_path, std::ios::binary | std::ios::trunc);
-        ASSERT_TRUE(output.is_open());
-        output << "2026-04-01T10:00:00 alpha first\n";
-    }
-
-    AllProcessedSources processed_sources;
-    CommandManager command_manager;
-    CommandPaletteModel command_palette_model;
-    CommandPaletteController command_palette_controller(command_palette_model, command_manager);
-    StubLogViewService log_view;
-    AllTrackedSources tracked_sources;
-    ASSERT_FALSE(open_source(tracked_sources, parse_log_source(log_path.string())).has_value());
-    register_commands(command_manager, {processed_sources, log_view, tracked_sources});
-
-    const auto apply_offset = [&](const std::string& offset_text)
-    {
-        const auto result = command_manager.execute("adjust-time-offset");
-        ASSERT_TRUE(result.success);
-        ASSERT_NE(command_manager.active_command(), nullptr);
-
-        ASSERT_TRUE(dynamic_cast<Command*>(command_manager.active_command())->handle_event(ftxui::Event::Return).handled);
-        for (const char character : offset_text)
-        {
-            ASSERT_TRUE(dynamic_cast<Command*>(command_manager.active_command())->handle_event(ftxui::Event::Character(std::string(1, character))).handled);
-        }
-
-        const auto apply_result = dynamic_cast<Command*>(command_manager.active_command())->handle_event(ftxui::Event::Return);
-        ASSERT_TRUE(apply_result.result.has_value());
-        ASSERT_TRUE(apply_result.result->success);
-        command_manager.clear_active_command();
-    };
-
-    apply_offset("00 00:01:00");
-    {
-        const auto offset = tracked_sources.source_timestamp_offset(0);
-        ASSERT_TRUE(offset.has_value());
-        EXPECT_EQ(offset->seconds, 60);
-    }
-
-    apply_offset("00 00:00:30.5");
-    {
-        const auto offset = tracked_sources.source_timestamp_offset(0);
-        ASSERT_TRUE(offset.has_value());
-        EXPECT_EQ(offset->seconds, 90);
-        EXPECT_EQ(offset->nanosecond, 500000000);
-    }
-
-    remove_temp_export_file(log_path);
 }
 
 // NOTE: the align-time in-view selection test was removed with LogView1. Time

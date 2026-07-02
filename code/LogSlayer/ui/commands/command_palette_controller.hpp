@@ -33,6 +33,9 @@ public:
 
     bool is_open() const;
     const CommandPaletteModel& model() const;
+    /// The core palette session this controller adapts. Command registration
+    /// needs it: the interactive picker commands drive the session directly.
+    CommandPaletteSession& session();
     Command* active_command();
     const Command* active_command() const;
 

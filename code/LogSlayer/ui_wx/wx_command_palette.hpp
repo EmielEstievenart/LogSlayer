@@ -12,17 +12,18 @@
 #include "command_palette_result_lines.hpp"
 #include "command_palette_session.hpp"
 
+class wxDC;
+
 namespace slayerlog
 {
 
 /// Custom-drawn command palette overlay for the wx UI: a centered-top child
 /// panel of the main frame, shown while the shared core CommandPaletteSession
 /// is open. Every key is translated into a session call (the session owns all
-/// palette behavior; this class only draws the model and mirrors the session's
-/// result list via the two session callbacks), and every session mutation runs
-/// under the model mutex, exactly like the TUI's event path. The interactive
-/// picker modes are unreachable in the wx UI until their commands are
-/// registered (docs/wx-ui-plan.md, M4).
+/// palette behavior, including the interactive picker modes; this class only
+/// draws the model and mirrors the session's result list via the two session
+/// callbacks), and every session mutation runs under the model mutex, exactly
+/// like the TUI's event path.
 class WxCommandPalette : public wxPanel
 {
 public:
@@ -48,6 +49,7 @@ public:
 
 private:
     void on_paint(wxPaintEvent& event);
+    void draw_result_list_and_status(wxDC& dc, const wxSize& client_size, int y);
     void on_key_down(wxKeyEvent& event);
     void on_char(wxKeyEvent& event);
     void handle_results_changed();

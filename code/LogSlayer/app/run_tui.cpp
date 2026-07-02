@@ -169,7 +169,7 @@ int run_tui(const Config& config, SettingsStore& settings_store, bool settings_l
     tracked_sources.set_notifier(notifier);
     align_controller.set_notifier(notifier);
 
-    register_log_view2_commands(command_manager, {processed_sources, log_view_bridge, tracked_sources, notifier, &model_mutex, &background_tasks, settings_store.file_path()}, view->find_manager());
+    register_log_view2_commands(command_manager, {processed_sources, log_view_bridge, tracked_sources, notifier, &model_mutex, &background_tasks, settings_store.file_path()}, view->find_manager(), command_palette_controller->session());
 
     //This blocks until app is ready for shutdown.
     // Exception boundary: without it an escaping exception would destroy the

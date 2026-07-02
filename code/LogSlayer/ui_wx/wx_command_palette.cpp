@@ -58,7 +58,55 @@ std::string palette_key_hints(CommandPaletteMode mode)
         return "Enter execute   Tab copy to input   Ctrl+R commands   Esc close";
     }
 
+    if (mode == CommandPaletteMode::CloseOpenFile)
+    {
+        return "Up/Down select   Enter close file   Esc cancel";
+    }
+
+    if (mode == CommandPaletteMode::SelectTimestampSource || mode == CommandPaletteMode::SelectTimestampFormat)
+    {
+        return "Up/Down select   Enter confirm   Esc cancel";
+    }
+
+    if (mode == CommandPaletteMode::EnterTimestampOffset)
+    {
+        return "Enter apply   Esc cancel";
+    }
+
+    if (mode == CommandPaletteMode::DeleteFilters)
+    {
+        return "Up/Down select   Space toggle   Enter delete marked   Esc cancel";
+    }
+
     return "Tab complete   Enter execute   Ctrl+R history   Esc close";
+}
+
+/// Sub-header shown instead of the query prompt in the list-picker modes,
+/// matching the TUI palette; empty for the modes that edit a query.
+std::string picker_mode_header(CommandPaletteMode mode)
+{
+    switch (mode)
+    {
+    case CommandPaletteMode::CloseOpenFile:
+        return "Select file to close";
+    case CommandPaletteMode::SelectTimestampSource:
+        return "Select source to reparse";
+    case CommandPaletteMode::SelectTimestampFormat:
+        return "Select timestamp format";
+    case CommandPaletteMode::DeleteFilters:
+        return "Mark filters to delete";
+    case CommandPaletteMode::Commands:
+    case CommandPaletteMode::History:
+    case CommandPaletteMode::EnterTimestampOffset:
+        break;
+    }
+
+    return {};
+}
+
+bool is_list_picker_mode(CommandPaletteMode mode)
+{
+    return mode == CommandPaletteMode::CloseOpenFile || mode == CommandPaletteMode::SelectTimestampSource || mode == CommandPaletteMode::SelectTimestampFormat || mode == CommandPaletteMode::DeleteFilters;
 }
 
 } // namespace
@@ -165,6 +213,24 @@ void WxCommandPalette::on_paint(wxPaintEvent& /*event*/)
     dc.DrawText(wxString::FromUTF8(palette_title(model.mode)), text_left, y);
     y += _line_height;
 
+    // In the list-picker modes there is no query to edit: draw the picker's
+    // sub-header instead of the prompt, matching the TUI palette.
+    const std::string mode_header = picker_mode_header(model.mode);
+    if (!mode_header.empty())
+    {
+        dc.SetTextForeground(palette_muted_colour);
+        dc.DrawText(wxString::FromUTF8(mode_header), text_left, y);
+        y += _line_height + section_gap;
+
+        // Separator.
+        dc.SetPen(wxPen(palette_border_colour));
+        dc.DrawLine(text_left, y, client_size.GetWidth() - panel_padding, y);
+        y += 1 + section_gap;
+
+        draw_result_list_and_status(dc, client_size, y);
+        return;
+    }
+
     // Query row with a block cursor, matching the TUI's prompt.
     const wxString prompt = "> ";
     dc.SetTextForeground(palette_text_colour);
@@ -210,6 +276,14 @@ void WxCommandPalette::on_paint(wxPaintEvent& /*event*/)
     dc.DrawLine(text_left, y, client_size.GetWidth() - panel_padding, y);
     y += 1 + section_gap;
 
+    draw_result_list_and_status(dc, client_size, y);
+}
+
+void WxCommandPalette::draw_result_list_and_status(wxDC& dc, const wxSize& client_size, int y)
+{
+    const CommandPaletteModel& model = _session.model();
+    const int text_left              = panel_padding;
+
     // Result list.
     const bool selectable    = results_selectable();
     const int selected_index = model.selected_index;
@@ -242,11 +316,17 @@ void WxCommandPalette::on_paint(wxPaintEvent& /*event*/)
     dc.DrawLine(text_left, y, client_size.GetWidth() - panel_padding, y);
     y += 1 + section_gap;
 
-    // Status row: the last command result, or the key hints.
+    // Status row: the last command result, the live offset preview while
+    // entering a timestamp offset, or the key hints.
     if (!model.status_message.empty())
     {
         dc.SetTextForeground(model.status_is_error ? palette_error_colour : palette_success_colour);
         dc.DrawText(wxString::FromUTF8(model.status_message), text_left, y);
+    }
+    else if (model.mode == CommandPaletteMode::EnterTimestampOffset && !model.timestamp_offset_preview.empty())
+    {
+        dc.SetTextForeground(model.timestamp_offset_preview_is_error ? palette_error_colour : palette_success_colour);
+        dc.DrawText(wxString::FromUTF8(model.timestamp_offset_preview), text_left, y);
     }
     else
     {
@@ -263,6 +343,22 @@ void WxCommandPalette::on_key_down(wxKeyEvent& event)
     {
         with_model_lock([this] { _session.toggle_history_mode(); });
         Refresh();
+        return;
+    }
+
+    // The list-picker modes have no query to edit: Space toggles a mark in the
+    // delete-filters picker, and everything except selection movement,
+    // Enter, and Escape is swallowed, matching the TUI palette.
+    const CommandPaletteMode mode = _session.model().mode;
+    if (mode == CommandPaletteMode::DeleteFilters && key_code == WXK_SPACE)
+    {
+        with_model_lock([this] { _session.toggle_selected_filter(); });
+        Refresh();
+        return;
+    }
+
+    if (is_list_picker_mode(mode) && key_code != WXK_RETURN && key_code != WXK_NUMPAD_ENTER && key_code != WXK_ESCAPE && key_code != WXK_UP && key_code != WXK_DOWN && key_code != WXK_PAGEUP && key_code != WXK_PAGEDOWN)
+    {
         return;
     }
 
