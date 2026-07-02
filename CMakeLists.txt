@@ -111,9 +111,34 @@ add_subdirectory(libs/nlohmann_json)
 add_subdirectory(libs/simpleini)
 add_subdirectory(libs/eestv)
 
-# LogSlayer is split into three projects so the core stays portable across UIs:
-#   core -> logslayer_core (no FTXUI)   ui -> logslayer_ui (FTXUI)   app -> LogSlayer
+set(wxBUILD_SHARED
+    OFF
+    CACHE BOOL "Build wxWidgets statically in the superproject" FORCE)
+set(wxBUILD_SAMPLES
+    OFF
+    CACHE STRING "Disable wxWidgets samples in the superproject" FORCE)
+set(wxBUILD_TESTS
+    OFF
+    CACHE STRING "Disable wxWidgets tests in the superproject" FORCE)
+set(wxBUILD_DEMOS
+    OFF
+    CACHE BOOL "Disable wxWidgets demos in the superproject" FORCE)
+set(wxBUILD_BENCHMARKS
+    OFF
+    CACHE BOOL "Disable wxWidgets benchmarks in the superproject" FORCE)
+set(wxBUILD_INSTALL
+    OFF
+    CACHE BOOL "Disable wxWidgets install rules in the superproject" FORCE)
+set(wxUSE_WEBVIEW
+    OFF
+    CACHE BOOL "Disable wxWebView (avoids the WebView2 dependency)" FORCE)
+add_subdirectory(libs/wxwidgets)
+
+# LogSlayer is split into four projects so the core stays portable across UIs:
+#   core -> logslayer_core (no UI toolkit)   ui -> logslayer_ui (FTXUI)
+#   ui_wx -> logslayer_ui_wx (WxWidgets)     app -> LogSlayer
 add_subdirectory(code/LogSlayer/core)
 add_subdirectory(code/LogSlayer/ui)
+add_subdirectory(code/LogSlayer/ui_wx)
 add_subdirectory(code/LogSlayer/app)
 add_subdirectory(tests/unit_tests)

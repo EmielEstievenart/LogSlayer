@@ -80,10 +80,10 @@ but FTXUI leaks past it in these places, all of which the wx UI needs:
 ## Status
 
 - [x] Grilling interview: decisions above locked (2026-07-02)
-- [ ] M0a
-- [ ] M0b
-- [ ] M0c
-- [ ] M1
+- [x] M0a — `--ui <gui|tui>` + clean CLI error exit (2026-07-02)
+- [x] M0b — `--help` decoupled from FTXUI via core `NullLogViewService` (2026-07-02)
+- [x] M0c — core `RedrawScheduler` + watcher loop/`model_refresh` in core; `header_text` removed (2026-07-02)
+- [x] M1 — wxWidgets v3.3.2 submodule (builds clean under `windows-clang-debug`, no fallback needed); `ui_wx` skeleton (`WxLogView`/`WxMainFrame`/`WxRedrawScheduler`); `main.cpp` dispatches to `run_tui`/`run_gui`; GUI verified live: renders, tails appends, closes clean (2026-07-02)
 - [ ] M2
 - [ ] M3
 - [ ] M4

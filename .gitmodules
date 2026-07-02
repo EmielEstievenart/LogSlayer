@@ -23,3 +23,6 @@
 [submodule "libs/simpleini"]
 	path = libs/simpleini
 	url = https://github.com/brofield/simpleini.git
+[submodule "libs/wxwidgets"]
+	path = libs/wxwidgets
+	url = https://github.com/wxWidgets/wxWidgets.git

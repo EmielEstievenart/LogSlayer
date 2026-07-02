@@ -1,45 +1,24 @@
-#include <atomic>
 #include <exception>
-#include <functional>
 #include <iostream>
-#include <limits>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <string>
 #include <string_view>
-#include <thread>
-#include <utility>
 #include <vector>
 
-#include <ftxui/component/component.hpp>
-#include <ftxui/component/screen_interactive.hpp>
-#include <ftxui/dom/elements.hpp>
-#include <ftxui_components/toast_component.hpp>
-
 #include "command_line_parser.hpp"
-#include "command_palette_controller.hpp"
-#include "command_palette_model.hpp"
-#include "command_palette_view.hpp"
-#include "command_registrar.hpp"
 #include "command_manager.hpp"
-#include "commands/command_history.hpp"
+#include "command_registrar.hpp"
 #include "debug_log.hpp"
-#include "ftxui_redraw_scheduler.hpp"
-#include "model_refresh.hpp"
-#include "watcher_thread.hpp"
-#include "tracked_sources/all_tracked_sources.hpp"
-#include "tracked_sources/tracked_source_factory.hpp"
-#include "timestamp/timestamp_format_catalog.hpp"
-#include "LogView2/align_time_controller.hpp"
-#include "log_view2_bridge.hpp"
-#include "log_view2_component.hpp"
 #include "log_view2_find_manager.hpp"
 #include "null_log_view_service.hpp"
-#include "notifications/ftxui_toast_notification_sink.hpp"
-#include "tracked_sources/all_processed_sources.hpp"
+#include "run_gui.hpp"
+#include "run_tui.hpp"
 #include "settings_store.hpp"
-#include "view_theme.hpp"
+#include "timestamp/timestamp_format_catalog.hpp"
+#include "tracked_sources/all_processed_sources.hpp"
+#include "tracked_sources/all_tracked_sources.hpp"
+#include "tracked_sources/tracked_source_factory.hpp"
 
 namespace
 {
@@ -119,38 +98,6 @@ bool open_configured_sources(const slayerlog::Config& config, slayerlog::AllTrac
     return true;
 }
 
-std::optional<slayerlog::CommandHistory> load_command_history(slayerlog::SettingsStore& settings_store, bool settings_loaded, std::string& settings_error_message)
-{
-    if (!settings_loaded)
-    {
-        SLAYERLOG_LOG_WARNING("Command history is disabled because settings failed to load from " << settings_store.file_path());
-        return std::nullopt;
-    }
-
-    std::optional<slayerlog::CommandHistory> command_history;
-    command_history.emplace(settings_store);
-    if (command_history->load(settings_error_message))
-    {
-        return command_history;
-    }
-
-    SLAYERLOG_LOG_ERROR("Failed to load command history from " << settings_store.file_path() << ": " << settings_error_message << "; command history saves are disabled for this run");
-    settings_error_message.clear();
-    return std::nullopt;
-}
-
-void initialize_command_palette_controller(std::optional<slayerlog::CommandPaletteController>& command_palette_controller, slayerlog::CommandPaletteModel& command_palette_model, slayerlog::CommandManager& command_manager,
-                                           std::optional<slayerlog::CommandHistory>& command_history)
-{
-    if (command_history.has_value())
-    {
-        command_palette_controller.emplace(command_palette_model, command_manager, *command_history);
-        return;
-    }
-
-    command_palette_controller.emplace(command_palette_model, command_manager);
-}
-
 /// Print --help and return true when requested. Registers the command set over
 /// throwaway null/inert services so no UI (FTXUI or wx) has to be constructed
 /// just to enumerate command descriptors.
@@ -169,81 +116,6 @@ bool handle_help_request(const slayerlog::Config& config, slayerlog::AllProcesse
     return true;
 }
 
-ftxui::Component create_viewer(ftxui::Component view, slayerlog::CommandPaletteController& command_palette_controller, slayerlog::CommandPaletteView& command_palette_view, ftxui::ScreenInteractive& screen, std::mutex& model_mutex,
-                               slayerlog::AlignTimeController& align_controller)
-{
-    auto viewer = ftxui::Renderer(view,
-                                  [view, &command_palette_controller, &command_palette_view, &screen, &model_mutex, &align_controller]
-                                  {
-                                      // The alignment mode takes over the whole view; it acquires the model mutex
-                                      // itself (per pane), so do not hold it here.
-                                      if (align_controller.active())
-                                      {
-                                          return align_controller.render(screen.dimy());
-                                      }
-
-                                      auto base = view->Render();
-                                      if (command_palette_controller.is_open())
-                                      {
-                                          std::lock_guard lock(model_mutex);
-                                          base = ftxui::dbox({std::move(base), command_palette_view.render(command_palette_controller, screen.dimy())});
-                                      }
-                                      return base;
-                                  });
-
-    viewer |= ftxui::CatchEvent(
-        [&command_palette_controller, &model_mutex, &align_controller](ftxui::Event event)
-        {
-            // While aligning, the controller owns all input (it swallows everything but
-            // redraw requests so nothing leaks to the hidden view).
-            if (align_controller.active())
-            {
-                std::lock_guard lock(model_mutex);
-                return align_controller.handle_event(event);
-            }
-
-            if (!command_palette_controller.is_open())
-            {
-                return false;
-            }
-
-            std::lock_guard lock(model_mutex);
-            return command_palette_controller.handle_event(event);
-        });
-
-    return viewer;
-}
-
-std::shared_ptr<ToastHostComponent> create_toast_host(ftxui::Component viewer, ftxui::ScreenInteractive& screen)
-{
-    ToastHostOption toast_option;
-    toast_option.screen           = &screen;
-    toast_option.width            = 48;
-    toast_option.max_visible      = std::numeric_limits<int>::max();
-    toast_option.style.info       = slayerlog::theme::toast_info_fg;
-    toast_option.style.success    = slayerlog::theme::toast_success_fg;
-    toast_option.style.warning    = slayerlog::theme::toast_warning_fg;
-    toast_option.style.error      = slayerlog::theme::toast_error_fg;
-    toast_option.style.background = slayerlog::theme::toast_background_bg;
-    return std::make_shared<ToastHostComponent>(viewer, toast_option);
-}
-
-void join_background_tasks(std::thread& watcher_thread, std::vector<std::thread>& background_tasks)
-{
-    if (watcher_thread.joinable())
-    {
-        watcher_thread.join();
-    }
-
-    for (auto& background_task : background_tasks)
-    {
-        if (background_task.joinable())
-        {
-            background_task.join();
-        }
-    }
-}
-
 } // namespace
 
 int main(int argc, char** argv)
@@ -259,13 +131,6 @@ int main(int argc, char** argv)
     {
         // parse_command_line already printed the error and usage to stderr.
         return 2;
-    }
-
-    if (config.ui == slayerlog::UiKind::Gui && !config.show_help)
-    {
-        // Placeholder until the WxWidgets composition lands (docs/wx-ui-plan.md, M1).
-        std::cerr << "The WxWidgets UI is not available yet; run with --ui tui.\n";
-        return 1;
     }
 
     slayerlog::SettingsStore settings_store(slayerlog::default_settings_file_path());
@@ -289,51 +154,10 @@ int main(int argc, char** argv)
         return 0;
     }
 
-    auto screen = ftxui::ScreenInteractive::Fullscreen();
-    screen.TrackMouse();
-    slayerlog::FtxuiRedrawScheduler redraw_scheduler(screen);
-
-    auto command_history = load_command_history(settings_store, settings_loaded, settings_error_message);
-
-    slayerlog::CommandPaletteModel command_palette_model;
-    slayerlog::CommandManager command_manager;
-    slayerlog::CommandPaletteView command_palette_view;
-
-    std::optional<slayerlog::CommandPaletteController> command_palette_controller;
-    initialize_command_palette_controller(command_palette_controller, command_palette_model, command_manager, command_history);
-
-    auto view_data = std::make_shared<slayerlog::AllProcessedSourcesLogView2Data>(processed_sources, model_mutex);
-    auto view      = std::make_shared<slayerlog::LogView2Component>("LogSlayer", view_data, *command_palette_controller, [&screen] { screen.Exit(); });
-    slayerlog::LogView2Bridge log_view_bridge(*view, redraw_scheduler);
-
-    slayerlog::AlignTimeController align_controller(tracked_sources, processed_sources, log_view_bridge, model_mutex, redraw_scheduler);
-    log_view_bridge.set_align_controller(&align_controller);
-
+    if (config.ui == slayerlog::UiKind::Gui)
     {
-        std::lock_guard lock(model_mutex);
-        slayerlog::reload_processed_sources(tracked_sources, processed_sources, redraw_scheduler);
+        return slayerlog::run_gui(argc, argv, config, settings_store, settings_loaded, tracked_sources, model_mutex, processed_sources);
     }
 
-    std::atomic<bool> keep_running = true;
-    std::vector<std::thread> background_tasks;
-    std::thread watcher_thread = slayerlog::start_watcher_thread(config.poll_interval_ms, tracked_sources, model_mutex, processed_sources, redraw_scheduler, keep_running);
-
-    auto viewer     = create_viewer(view, *command_palette_controller, command_palette_view, screen, model_mutex, align_controller);
-    auto toast_host = create_toast_host(viewer, screen);
-    slayerlog::Notifier notifier(std::make_shared<slayerlog::FtxuiToastNotificationSink>(toast_host));
-    tracked_sources.set_notifier(notifier);
-    align_controller.set_notifier(notifier);
-
-    slayerlog::register_log_view2_commands(command_manager, {processed_sources, log_view_bridge, tracked_sources, notifier, &model_mutex, &background_tasks, settings_store.file_path()}, view->find_manager());
-
-    //This blocks until app is ready for shutdown.
-    screen.Loop(toast_host);
-
-    SLAYERLOG_LOG_INFO("Screen loop exited");
-    keep_running = false;
-    join_background_tasks(watcher_thread, background_tasks);
-
-    SLAYERLOG_LOG_INFO("Slayerlog shutdown complete");
-
-    return 0;
+    return slayerlog::run_tui(config, settings_store, settings_loaded, tracked_sources, model_mutex, processed_sources);
 }
