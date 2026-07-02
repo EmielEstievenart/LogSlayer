@@ -1,6 +1,7 @@
 #include "run_gui.hpp"
 
 #include <atomic>
+#include <exception>
 #include <memory>
 #include <thread>
 
@@ -100,7 +101,22 @@ int run_gui(int argc, char** argv, const Config& config, SettingsStore& /*settin
     frame->Show(true);
     wxTheApp->SetTopWindow(frame);
 
-    const int exit_code = wxTheApp->OnRun();
+    // Exception boundary: wx's default OnExceptionInMainLoop rethrows out of
+    // OnRun; without this the joinable watcher thread would terminate the
+    // process before any shutdown ran.
+    int exit_code = 1;
+    try
+    {
+        exit_code = wxTheApp->OnRun();
+    }
+    catch (const std::exception& ex)
+    {
+        SLAYERLOG_LOG_ERROR("Unhandled exception escaped the GUI event loop: " << ex.what());
+    }
+    catch (...)
+    {
+        SLAYERLOG_LOG_ERROR("Unhandled non-std exception escaped the GUI event loop");
+    }
 
     SLAYERLOG_LOG_INFO("GUI loop exited");
     keep_running = false;

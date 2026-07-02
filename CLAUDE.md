@@ -13,6 +13,7 @@ CMake project driven entirely by presets (`CMakePresets.json`). Requires CMake 3
 Prerequisites:
 - `git submodule update --init --recursive` — note `libs/ftxui_components` uses an SSH GitHub URL, so submodule init needs GitHub SSH access unless that URL is changed locally. `libs/wxwidgets` (https, pinned to a v3.3.x tag) is large and has nested third-party submodules; `--recursive` covers them.
 - Set `BOOST_ROOT` (env var, read by presets via `$penv{BOOST_ROOT}`, or `-DBOOST_ROOT=<path>`) to a Boost source tree. CMake `add_subdirectory`s it and builds: asio, system, program_options, log, filesystem, thread, regex, date_time, atomic. A missing `BOOST_ROOT` is a hard configure error.
+- The WxWidgets GUI tier is gated by `LOGSLAYER_ENABLE_WX_UI` (default ON on Windows/macOS, OFF on Linux — building wx there needs GTK3/X11 dev packages such as `libgtk-3-dev`). When off, `--ui gui` prints that the build has no GUI and exits 1.
 
 Configure + build. On Windows, **prefer the clang preset over msvc**:
 ```sh

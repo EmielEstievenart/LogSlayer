@@ -111,34 +111,49 @@ add_subdirectory(libs/nlohmann_json)
 add_subdirectory(libs/simpleini)
 add_subdirectory(libs/eestv)
 
-set(wxBUILD_SHARED
-    OFF
-    CACHE BOOL "Build wxWidgets statically in the superproject" FORCE)
-set(wxBUILD_SAMPLES
-    OFF
-    CACHE STRING "Disable wxWidgets samples in the superproject" FORCE)
-set(wxBUILD_TESTS
-    OFF
-    CACHE STRING "Disable wxWidgets tests in the superproject" FORCE)
-set(wxBUILD_DEMOS
-    OFF
-    CACHE BOOL "Disable wxWidgets demos in the superproject" FORCE)
-set(wxBUILD_BENCHMARKS
-    OFF
-    CACHE BOOL "Disable wxWidgets benchmarks in the superproject" FORCE)
-set(wxBUILD_INSTALL
-    OFF
-    CACHE BOOL "Disable wxWidgets install rules in the superproject" FORCE)
-set(wxUSE_WEBVIEW
-    OFF
-    CACHE BOOL "Disable wxWebView (avoids the WebView2 dependency)" FORCE)
-add_subdirectory(libs/wxwidgets)
+# The wx GUI tier is optional: on Linux, building wxWidgets requires GTK3/X11
+# dev packages at configure time, so it defaults off there (and sanitizer runs
+# never need it). Without it, --ui gui reports that the build has no GUI.
+if(WIN32 OR APPLE)
+  set(LOGSLAYER_ENABLE_WX_UI_DEFAULT ON)
+else()
+  set(LOGSLAYER_ENABLE_WX_UI_DEFAULT OFF)
+endif()
+option(LOGSLAYER_ENABLE_WX_UI "Build the WxWidgets GUI tier"
+       ${LOGSLAYER_ENABLE_WX_UI_DEFAULT})
+
+if(LOGSLAYER_ENABLE_WX_UI)
+  set(wxBUILD_SHARED
+      OFF
+      CACHE BOOL "Build wxWidgets statically in the superproject" FORCE)
+  set(wxBUILD_SAMPLES
+      OFF
+      CACHE STRING "Disable wxWidgets samples in the superproject" FORCE)
+  set(wxBUILD_TESTS
+      OFF
+      CACHE STRING "Disable wxWidgets tests in the superproject" FORCE)
+  set(wxBUILD_DEMOS
+      OFF
+      CACHE BOOL "Disable wxWidgets demos in the superproject" FORCE)
+  set(wxBUILD_BENCHMARKS
+      OFF
+      CACHE BOOL "Disable wxWidgets benchmarks in the superproject" FORCE)
+  set(wxBUILD_INSTALL
+      OFF
+      CACHE BOOL "Disable wxWidgets install rules in the superproject" FORCE)
+  set(wxUSE_WEBVIEW
+      OFF
+      CACHE BOOL "Disable wxWebView (avoids the WebView2 dependency)" FORCE)
+  add_subdirectory(libs/wxwidgets)
+endif()
 
 # LogSlayer is split into four projects so the core stays portable across UIs:
 #   core -> logslayer_core (no UI toolkit)   ui -> logslayer_ui (FTXUI)
 #   ui_wx -> logslayer_ui_wx (WxWidgets)     app -> LogSlayer
 add_subdirectory(code/LogSlayer/core)
 add_subdirectory(code/LogSlayer/ui)
-add_subdirectory(code/LogSlayer/ui_wx)
+if(LOGSLAYER_ENABLE_WX_UI)
+  add_subdirectory(code/LogSlayer/ui_wx)
+endif()
 add_subdirectory(code/LogSlayer/app)
 add_subdirectory(tests/unit_tests)

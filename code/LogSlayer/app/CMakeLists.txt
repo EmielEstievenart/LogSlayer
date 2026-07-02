@@ -6,9 +6,19 @@
 # lives in logslayer_core (logic) and logslayer_ui / logslayer_ui_wx
 # (presentation).
 
-add_executable(LogSlayer main.cpp run_tui.cpp run_gui.cpp log4cplus.ini)
+set(LOGSLAYER_APP_SOURCES main.cpp run_tui.cpp)
+if(LOGSLAYER_ENABLE_WX_UI)
+  list(APPEND LOGSLAYER_APP_SOURCES run_gui.cpp)
+else()
+  list(APPEND LOGSLAYER_APP_SOURCES run_gui_stub.cpp)
+endif()
 
-target_link_libraries(LogSlayer PRIVATE logslayer_ui logslayer_ui_wx)
+add_executable(LogSlayer ${LOGSLAYER_APP_SOURCES} log4cplus.ini)
+
+target_link_libraries(LogSlayer PRIVATE logslayer_ui)
+if(LOGSLAYER_ENABLE_WX_UI)
+  target_link_libraries(LogSlayer PRIVATE logslayer_ui_wx)
+endif()
 
 add_custom_command(
   TARGET LogSlayer

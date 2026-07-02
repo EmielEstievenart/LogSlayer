@@ -1,6 +1,7 @@
 #include "run_tui.hpp"
 
 #include <atomic>
+#include <exception>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -190,7 +191,23 @@ int run_tui(const Config& config, SettingsStore& settings_store, bool settings_l
     register_log_view2_commands(command_manager, {processed_sources, log_view_bridge, tracked_sources, notifier, &model_mutex, &background_tasks, settings_store.file_path()}, view->find_manager());
 
     //This blocks until app is ready for shutdown.
-    screen.Loop(toast_host);
+    // Exception boundary: without it an escaping exception would destroy the
+    // joinable watcher thread and terminate the process before any shutdown.
+    int exit_code = 0;
+    try
+    {
+        screen.Loop(toast_host);
+    }
+    catch (const std::exception& ex)
+    {
+        SLAYERLOG_LOG_ERROR("Unhandled exception escaped the TUI event loop: " << ex.what());
+        exit_code = 1;
+    }
+    catch (...)
+    {
+        SLAYERLOG_LOG_ERROR("Unhandled non-std exception escaped the TUI event loop");
+        exit_code = 1;
+    }
 
     SLAYERLOG_LOG_INFO("Screen loop exited");
     keep_running = false;
@@ -198,7 +215,7 @@ int run_tui(const Config& config, SettingsStore& settings_store, bool settings_l
 
     SLAYERLOG_LOG_INFO("Slayerlog shutdown complete");
 
-    return 0;
+    return exit_code;
 }
 
 } // namespace slayerlog
