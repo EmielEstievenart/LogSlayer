@@ -23,7 +23,11 @@ public:
     void set_timestamp_format(std::string format) override;
     std::optional<std::string> set_timestamp_offset(LogTimestampOffset offset) override;
     void clear_timestamp_offset() override;
-    void finish_open_notification(std::string title, std::string message, NotificationLevel level, float progress);
+
+    /// Turns the open-progress notification into its final state (success or
+    /// error). The opener calls this once adopt/reload is done; the progress
+    /// notification stays sticky until then, so this always lands.
+    void finish_open_notification(std::string title, std::string message, NotificationLevel level);
 
 private:
     struct ChildState
@@ -38,8 +42,9 @@ private:
     std::unordered_map<std::string, ChildState> _children;
     std::vector<std::string> _active_file_order;
     std::unordered_set<std::string> _active_file_paths;
-    Notifier _notifier;
-    NotificationHandle _sort_progress_notification;
+
+    /// One notification for the whole first-poll open sequence: scanning the
+    /// folder, then per-file open progress, finalized by finish_open_notification.
     NotificationHandle _open_progress_notification;
     bool _report_open_progress = true;
 };

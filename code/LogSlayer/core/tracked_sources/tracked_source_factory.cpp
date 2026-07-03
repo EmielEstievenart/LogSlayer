@@ -52,7 +52,9 @@ std::unique_ptr<TrackedSourceBase> create_tracked_source(LogSource source, std::
         return std::make_unique<TrackedSourceFolder>(std::move(source), std::move(source_label), std::move(timestamp_formats), std::move(notifier));
     }
 
-    return std::make_unique<TrackedSourceFile>(std::move(source), std::move(source_label), std::move(timestamp_formats), std::move(notifier));
+    // Single-file sources report no open progress of their own; the open-file
+    // command wraps the whole open in its own progress notification.
+    return std::make_unique<TrackedSourceFile>(std::move(source), std::move(source_label), std::move(timestamp_formats));
 }
 
 std::string pick_unique_mnemonic(const LogSource& source, const std::unordered_set<std::string>& mnemonics_in_use)

@@ -67,7 +67,7 @@ void AlignTimeController::begin(std::size_t aligning_source_index)
     auto session = std::make_unique<AlignTimeSession>(_processed_sources, aligning_source_index);
     if (!session->ready())
     {
-        (void)_notifier.show({"Align time", session->status_text(), NotificationLevel::Warning});
+        _notifier.warning("Align time", session->status_text());
         return;
     }
 
@@ -329,19 +329,19 @@ void AlignTimeController::commit()
 
     if (error.has_value())
     {
-        (void)_notifier.show({"Align time", *error, NotificationLevel::Error});
+        _notifier.error("Align time", *error);
         _log_view.rebuild_view(_processed_sources);
         return;
     }
 
     _log_view.reload(_tracked_sources, _processed_sources);
-    (void)_notifier.show({"Align time", "Aligned " + source_label + " by " + format_log_timestamp_offset(offset), NotificationLevel::Success});
+    _notifier.success("Align time", "Aligned " + source_label + " by " + format_log_timestamp_offset(offset));
 }
 
 void AlignTimeController::cancel()
 {
     deactivate();
-    (void)_notifier.show({"Align time", "Alignment cancelled", NotificationLevel::Info});
+    _notifier.info("Align time", "Alignment cancelled");
 }
 
 void AlignTimeController::deactivate()

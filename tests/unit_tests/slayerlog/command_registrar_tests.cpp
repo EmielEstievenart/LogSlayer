@@ -25,6 +25,8 @@
 #include "tracked_sources/all_tracked_sources.hpp"
 #include "tracked_sources/tracked_source_factory.hpp"
 
+#include "recording_notification_sink.hpp"
+
 namespace slayerlog
 {
 
@@ -63,29 +65,6 @@ public:
     bool go_to_line(const AllProcessedSources&, int) override { return false; }
     int first_visible_line() const override { return 0; }
     int viewport_line_count() const override { return 0; }
-};
-
-class RecordingNotificationSink : public NotificationSink
-{
-public:
-    NotificationId show(Notification notification) override
-    {
-        notifications.push_back(std::move(notification));
-        return next_id++;
-    }
-
-    void update(NotificationId id, Notification notification) override
-    {
-        updated_ids.push_back(id);
-        notifications.push_back(std::move(notification));
-    }
-
-    void dismiss(NotificationId id) override { dismissed_ids.push_back(id); }
-
-    NotificationId next_id = 1;
-    std::vector<Notification> notifications;
-    std::vector<NotificationId> updated_ids;
-    std::vector<NotificationId> dismissed_ids;
 };
 
 std::string render_all_visible_lines(const AllProcessedSources& processed_sources)

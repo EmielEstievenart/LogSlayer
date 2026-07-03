@@ -1,10 +1,10 @@
 #include "implementations/open_folder_command.hpp"
 
-#include <chrono>
 #include <cctype>
 #include <exception>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -34,30 +34,68 @@ std::string trim_text(std::string_view text)
     return std::string(text.substr(start, end - start));
 }
 
-void show_source_already_open_notification(const Notifier& notifier, const LogSource& source)
-{
-    Notification notification;
-    notification.title   = source.kind == LogSourceKind::LocalFolder ? "Folder already open" : "File already open";
-    notification.message = source_basename(source);
-    notification.level   = NotificationLevel::Warning;
-    (void)notifier.show(std::move(notification));
-}
-
-void finish_folder_open_notification(TrackedSourceBase* source_state, const Notifier& notifier, const std::string& title, const std::string& message, NotificationLevel level, float progress)
+/// Finalizes the folder's own open-progress notification when there is one;
+/// falls back to a standalone notification when the source never got that far
+/// (or is not a folder).
+void finish_folder_open_notification(TrackedSourceBase* source_state, const Notifier& notifier, const std::string& title, const std::string& message, NotificationLevel level)
 {
     if (auto* folder_source = dynamic_cast<TrackedSourceFolder*>(source_state))
     {
-        folder_source->finish_open_notification(title, message, level, progress);
+        folder_source->finish_open_notification(title, message, level);
         return;
     }
 
-    Notification notification;
-    notification.title    = title;
-    notification.message  = message;
-    notification.level    = level;
-    notification.progress = progress;
-    notification.timeout  = std::chrono::seconds(level == NotificationLevel::Error ? 10 : 6);
-    (void)notifier.show(std::move(notification));
+    if (level == NotificationLevel::Error)
+    {
+        notifier.error(title, message);
+        return;
+    }
+
+    notifier.success(title, message);
+}
+
+/// Creates, polls, adopts and reports one folder source. Creation and the first
+/// poll (which read every file) run without the model mutex so the UI stays
+/// live; adoption, the view reload and the final notification run under it when
+/// one is provided. Returns std::nullopt on success, the error message on
+/// failure (after notifying either way).
+std::optional<std::string> open_folder_and_report(const CommandContext& context, const LogSource& source, const std::string& display_path, std::shared_ptr<const TimestampFormatCatalog> timestamp_format_catalog)
+{
+    std::unique_ptr<TrackedSourceBase> source_state;
+    try
+    {
+        source_state = create_tracked_source(source, display_path, std::move(timestamp_format_catalog), context.notifier);
+        source_state->poll();
+        TrackedSourceBase* opened_source = source_state.get();
+
+        std::unique_lock<std::mutex> lock;
+        if (context.model_mutex != nullptr)
+        {
+            lock = std::unique_lock<std::mutex>(*context.model_mutex);
+        }
+
+        const auto error = adopt_opened_source(context.tracked_sources, std::move(source_state));
+        if (error.has_value())
+        {
+            SLAYERLOG_LOG_ERROR("open-folder failed folder=" << display_path << " error=" << *error);
+            finish_folder_open_notification(nullptr, context.notifier, "Folder open failed", *error, NotificationLevel::Error);
+            return error;
+        }
+
+        context.log_view.reload(context.tracked_sources, context.processed_sources);
+
+        // Still under the model mutex: adoption moved ownership of opened_source
+        // into the model, so it is only guaranteed alive while nothing can close
+        // it — do not touch it after unlocking.
+        finish_folder_open_notification(opened_source, context.notifier, "Folder opened", display_path, NotificationLevel::Success);
+        return std::nullopt;
+    }
+    catch (const std::exception& ex)
+    {
+        SLAYERLOG_LOG_ERROR("open-folder failed folder=" << display_path << " error=" << ex.what());
+        finish_folder_open_notification(source_state.get(), context.notifier, "Folder open failed", ex.what(), NotificationLevel::Error);
+        return std::string(ex.what());
+    }
 }
 }
 
@@ -98,52 +136,24 @@ CommandResult OpenFolderCommand::execute(std::string_view arguments)
     {
         const std::string error = "Source already open: " + display_path;
         SLAYERLOG_LOG_ERROR("open-folder failed folder=" << display_path << " error=" << error);
-        show_source_already_open_notification(_context.notifier, source);
+        _context.notifier.warning("Folder already open", source_basename(source));
         return {false, error};
     }
 
+    auto timestamp_format_catalog = _context.tracked_sources.timestamp_format_catalog();
     if (_context.model_mutex == nullptr || _context.background_tasks == nullptr)
     {
-        const auto error = open_source(_context.tracked_sources, source, _context.notifier);
+        const auto error = open_folder_and_report(_context, source, display_path, std::move(timestamp_format_catalog));
         if (error.has_value())
         {
-            SLAYERLOG_LOG_ERROR("open-folder failed folder=" << source_display_path(source) << " error=" << *error);
             return {false, *error};
         }
 
-        _context.log_view.reload(_context.tracked_sources, _context.processed_sources);
-        return {true, "Opened folder: " + source_display_path(source)};
+        return {true, "Opened folder: " + display_path};
     }
 
-    auto timestamp_format_catalog = _context.tracked_sources.timestamp_format_catalog();
-    _context.background_tasks->emplace_back(
-        [source = std::move(source), display_path, timestamp_format_catalog = std::move(timestamp_format_catalog), context = _context]
-        {
-            std::unique_ptr<TrackedSourceBase> source_state;
-            try
-            {
-                source_state = create_tracked_source(source, display_path, timestamp_format_catalog, context.notifier);
-                source_state->poll();
-                TrackedSourceBase* opened_source = source_state.get();
-                {
-                    std::lock_guard lock(*context.model_mutex);
-                    const auto error = adopt_opened_source(context.tracked_sources, std::move(source_state));
-                    if (error.has_value())
-                    {
-                        SLAYERLOG_LOG_ERROR("open-folder failed folder=" << display_path << " error=" << *error);
-                        finish_folder_open_notification(nullptr, context.notifier, "Folder open failed", *error, NotificationLevel::Error, 1.0F);
-                        return;
-                    }
-                    context.log_view.reload(context.tracked_sources, context.processed_sources);
-                }
-                finish_folder_open_notification(opened_source, context.notifier, "Folder opened", display_path, NotificationLevel::Success, 1.0F);
-            }
-            catch (const std::exception& ex)
-            {
-                SLAYERLOG_LOG_ERROR("open-folder failed folder=" << display_path << " error=" << ex.what());
-                finish_folder_open_notification(source_state.get(), context.notifier, "Folder open failed", ex.what(), NotificationLevel::Error, 1.0F);
-            }
-        });
+    _context.background_tasks->emplace_back([source = std::move(source), display_path, timestamp_format_catalog = std::move(timestamp_format_catalog), context = _context]
+                                            { open_folder_and_report(context, source, display_path, std::move(timestamp_format_catalog)); });
 
     return {true, "Opening folder in background: " + display_path};
 }

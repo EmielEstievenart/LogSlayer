@@ -64,49 +64,50 @@ std::vector<std::filesystem::path> enumerate_regular_files(const std::string& fo
     return files;
 }
 
-Notification folder_sort_progress_notification(std::size_t sorted_file_count, std::size_t total_file_count)
-{
-    Notification notification;
-    notification.title    = "Sorting folder files";
-    notification.message  = std::to_string(sorted_file_count) + " / " + std::to_string(total_file_count) + " files sorted";
-    notification.level    = NotificationLevel::Info;
-    notification.progress = total_file_count == 0 ? 1.0F : static_cast<float>(sorted_file_count) / static_cast<float>(total_file_count);
-    notification.timeout  = std::chrono::milliseconds(0);
-    return notification;
-}
-
 void sort_files(std::vector<std::filesystem::path>& files)
 {
     std::sort(files.begin(), files.end(), [](const std::filesystem::path& lhs, const std::filesystem::path& rhs) { return lhs.lexically_normal().generic_string() < rhs.lexically_normal().generic_string(); });
 }
 
+Notification folder_open_progress_notification(std::string message, float progress)
+{
+    Notification notification = make_progress_notification("Opening folder", std::move(message), progress);
+
+    // Reaching 100% opened is not the end of the open operation: the opener still
+    // adopts the source and reloads the view (which can take a while) before it
+    // calls finish_open_notification. Keep the notification sticky until then.
+    notification.dismiss_when_done = false;
+    return notification;
+}
+
 Notification folder_open_progress_notification(std::size_t opened_file_count, std::size_t total_file_count)
 {
-    Notification notification;
-    notification.title    = "Opening folder";
-    notification.message  = std::to_string(opened_file_count) + " / " + std::to_string(total_file_count) + " files opened";
-    notification.level    = NotificationLevel::Info;
-    notification.progress = total_file_count == 0 ? 1.0F : static_cast<float>(opened_file_count) / static_cast<float>(total_file_count);
-    notification.timeout  = std::chrono::milliseconds(0);
-    return notification;
+    const float progress = total_file_count == 0 ? 1.0F : static_cast<float>(opened_file_count) / static_cast<float>(total_file_count);
+    return folder_open_progress_notification(std::to_string(opened_file_count) + " / " + std::to_string(total_file_count) + " files opened", progress);
 }
 
 } // namespace
 
 TrackedSourceFolder::TrackedSourceFolder(LogSource source, std::string source_label, std::shared_ptr<const TimestampFormatCatalog> timestamp_formats, Notifier notifier)
-    : TrackedSourceBase(std::move(source), std::move(source_label), std::move(timestamp_formats)), _notifier(notifier), _sort_progress_notification(notifier), _open_progress_notification(std::move(notifier))
+    : TrackedSourceBase(std::move(source), std::move(source_label), std::move(timestamp_formats)), _open_progress_notification(std::move(notifier))
 {
 }
 
 bool TrackedSourceFolder::poll()
 {
+    if (_report_open_progress)
+    {
+        // Covers enumerating and sorting the folder plus creating the per-file children.
+        _open_progress_notification.show_or_update(folder_open_progress_notification("Scanning folder", 0.0F));
+    }
+
     refresh_active_children();
 
     const std::size_t total_file_count = _active_file_order.size();
     std::size_t opened_file_count      = 0;
     if (_report_open_progress)
     {
-        (void)_open_progress_notification.show_or_update(folder_open_progress_notification(opened_file_count, total_file_count));
+        _open_progress_notification.show_or_update(folder_open_progress_notification(opened_file_count, total_file_count));
     }
 
     std::vector<LogBatchSourceRange> source_ranges;
@@ -120,13 +121,13 @@ bool TrackedSourceFolder::poll()
             continue;
         }
 
-        auto& child = child_it->second;
-        TrackedSourceFile& child_source     = *child.tracked_source;
+        auto& child                             = child_it->second;
+        TrackedSourceFile& child_source         = *child.tracked_source;
         const std::size_t first_new_entry_index = child_source.entries().size();
         const bool has_new_entries              = child_source.poll();
         if (_report_open_progress)
         {
-            (void)_open_progress_notification.show_or_update(folder_open_progress_notification(++opened_file_count, total_file_count));
+            _open_progress_notification.show_or_update(folder_open_progress_notification(++opened_file_count, total_file_count));
         }
 
         if (!has_new_entries)
@@ -160,15 +161,18 @@ bool TrackedSourceFolder::poll()
     return true;
 }
 
-void TrackedSourceFolder::finish_open_notification(std::string title, std::string message, NotificationLevel level, float progress)
+void TrackedSourceFolder::finish_open_notification(std::string title, std::string message, NotificationLevel level)
 {
     Notification notification;
-    notification.title    = std::move(title);
-    notification.message  = std::move(message);
-    notification.level    = level;
-    notification.progress = progress;
-    notification.timeout  = std::chrono::seconds(level == NotificationLevel::Error ? 10 : 6);
-    (void)_open_progress_notification.show_or_update(std::move(notification));
+    notification.title   = std::move(title);
+    notification.message = std::move(message);
+    notification.level   = level;
+    if (level == NotificationLevel::Error)
+    {
+        notification.timeout = error_notification_timeout;
+    }
+
+    _open_progress_notification.show_or_update(std::move(notification));
 }
 
 void TrackedSourceFolder::set_timestamp_format(std::string format)
@@ -266,17 +270,7 @@ void TrackedSourceFolder::refresh_active_children()
     _active_file_paths.clear();
 
     auto files = enumerate_regular_files(source().local_folder_path);
-    if (_report_open_progress)
-    {
-        (void)_sort_progress_notification.show_or_update(folder_sort_progress_notification(0, files.size()));
-    }
-
     sort_files(files);
-
-    if (_report_open_progress)
-    {
-        (void)_sort_progress_notification.show_or_update(folder_sort_progress_notification(files.size(), files.size()));
-    }
 
     for (const auto& file_path : files)
     {
@@ -290,7 +284,7 @@ void TrackedSourceFolder::refresh_active_children()
         }
 
         ChildState child;
-        child.tracked_source = std::make_unique<TrackedSourceFile>(parse_log_source(file_path.string()), file_path.filename().string(), timestamp_formats(), _notifier);
+        child.tracked_source = std::make_unique<TrackedSourceFile>(parse_log_source(file_path.string()), file_path.filename().string(), timestamp_formats());
         if (timestamp_offset().has_value())
         {
             (void)child.tracked_source->set_timestamp_offset(*timestamp_offset());

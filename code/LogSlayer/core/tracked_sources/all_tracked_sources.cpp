@@ -1,7 +1,6 @@
 #include "all_tracked_sources.hpp"
 
 #include <cstddef>
-#include <chrono>
 #include <exception>
 #include <memory>
 #include <algorithm>
@@ -75,13 +74,7 @@ int rebuild_progress_percent(std::size_t completed_step_count, std::size_t total
 
 Notification rebuild_progress_notification(int percent, std::string message)
 {
-    Notification notification;
-    notification.title    = "Rebuilding log lines";
-    notification.message  = std::move(message);
-    notification.level    = NotificationLevel::Info;
-    notification.progress = static_cast<float>(percent) / 100.0F;
-    notification.timeout  = std::chrono::milliseconds(0);
-    return notification;
+    return make_progress_notification("Rebuilding log lines", std::move(message), static_cast<float>(percent) / 100.0F);
 }
 
 } // namespace
@@ -463,10 +456,14 @@ void AllTrackedSources::rebuild_all_lines()
     _all_lines.clear();
     _widest_line_width = 0;
 
+    // Callers hold the model mutex, and the terminal UI cannot paint while it is
+    // held (the log view renders from the model under the same mutex), so only
+    // the final state of this notification is visible there. The intermediate
+    // updates are still reported for UIs that can paint concurrently.
     const std::size_t total_step_count = _sources.size() + 1;
     NotificationHandle progress_notification(_notifier);
     int last_reported_percent = 0;
-    (void)progress_notification.show_or_update(rebuild_progress_notification(last_reported_percent, "0% rebuilt"));
+    progress_notification.show_or_update(rebuild_progress_notification(last_reported_percent, "0% rebuilt"));
 
     std::vector<LogBatchSourceRange> source_ranges;
     source_ranges.reserve(_sources.size());
@@ -478,7 +475,7 @@ void AllTrackedSources::rebuild_all_lines()
         if (percent != last_reported_percent)
         {
             last_reported_percent = percent;
-            (void)progress_notification.show_or_update(rebuild_progress_notification(percent, std::to_string(percent) + "% rebuilt"));
+            progress_notification.show_or_update(rebuild_progress_notification(percent, std::to_string(percent) + "% rebuilt"));
         }
     }
 
@@ -486,7 +483,7 @@ void AllTrackedSources::rebuild_all_lines()
     merge_log_batch(source_ranges, merged_lines);
     append_merged_lines(merged_lines);
 
-    (void)progress_notification.show_or_update(rebuild_progress_notification(100, "100% rebuilt (" + std::to_string(merged_lines.size()) + " log lines)"));
+    progress_notification.show_or_update(rebuild_progress_notification(100, "100% rebuilt (" + std::to_string(merged_lines.size()) + " log lines)"));
 }
 
 void AllTrackedSources::update_widest_line_width(const std::shared_ptr<LogEntry>& line)

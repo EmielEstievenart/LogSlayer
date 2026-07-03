@@ -24,8 +24,7 @@ bool has_zstd_extension(const std::filesystem::path& path)
 
 } // namespace
 
-TrackedSourceFile::TrackedSourceFile(LogSource source, std::string source_label, std::shared_ptr<const TimestampFormatCatalog> timestamp_formats, Notifier)
-    : TrackedSourceBase(std::move(source), std::move(source_label), std::move(timestamp_formats))
+TrackedSourceFile::TrackedSourceFile(LogSource source, std::string source_label, std::shared_ptr<const TimestampFormatCatalog> timestamp_formats) : TrackedSourceBase(std::move(source), std::move(source_label), std::move(timestamp_formats))
 {
     const LogSource& file_source = this->source();
     if (file_source.kind == LogSourceKind::LocalFile && has_zstd_extension(file_source.local_path))

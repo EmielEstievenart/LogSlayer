@@ -71,7 +71,7 @@ The core is a polling pipeline from raw log sources to rendered terminal text, w
 
 **Timestamps** (`timestamp/`) — `TimestampFormatCatalog` holds the list of recognized formats (seeded from settings or `default_timestamp_formats()`); `SourceTimestampParser` parses per source; per-source offsets enable cross-source time alignment. The dual-pane alignment workflow's state machine lives in the core `AlignTimeSession`; the ui `AlignTimeController` (`ui/LogView/align_time_controller`) wraps it with the two FTXUI panes + event takeover, and `align_time_view_command` (ui) starts it via `LogViewService::begin_time_alignment`.
 
-**Notifications** (`notifications/`) — `Notifier`/notification sink abstraction; the FTXUI implementation (`ftxui_toast_notification_sink`) renders toasts via ftxui_components' `ToastHostComponent`.
+**Notifications** (`notifications/`) — `Notifier`/notification sink abstraction; the FTXUI implementation (`ftxui_toast_notification_sink`) renders toasts via ftxui_components' `ToastHostComponent`. The sink contract lives in `notification.hpp`: sinks must be thread-safe, treat `timeout <= 0` as sticky, and must not extend UI lifetime (the FTXUI sink holds the toast host weakly so `Notifier` copies in model objects cannot keep the UI tree alive). Auto-dismiss of completed progress notifications is core-side policy applied by `Notifier`, not sink behavior; use `Notifier::info/success/warning/error` for one-shot toasts, `NotificationHandle` + `make_progress_notification` for long-running operations.
 
 `debug_log` (log4cplus, configured by `log4cplus.ini` copied next to the executable post-build) is a developer diagnostic log written to a temp path — separate from the logs the app *views*. Use the `SLAYERLOG_LOG_*` macros.
 

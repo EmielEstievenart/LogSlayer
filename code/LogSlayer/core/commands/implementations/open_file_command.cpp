@@ -35,43 +35,11 @@ std::string trim_text(std::string_view text)
     return std::string(text.substr(start, end - start));
 }
 
-void show_file_opened_notification(const Notifier& notifier, const LogSource& source)
+Notification file_view_progress_notification(std::string message, NotificationLevel level, float progress)
 {
-    Notification notification;
-    notification.title   = "File opened";
-    notification.message = source_display_path(source);
-    notification.level   = NotificationLevel::Success;
-    (void)notifier.show(std::move(notification));
-}
-
-void show_file_open_failed_notification(const Notifier& notifier, const std::string& message)
-{
-    Notification notification;
-    notification.title   = "File open failed";
-    notification.message = message;
-    notification.level   = NotificationLevel::Error;
-    notification.timeout = std::chrono::seconds(10);
-    (void)notifier.show(std::move(notification));
-}
-
-Notification file_view_progress_notification(const std::string& message, NotificationLevel level, float progress)
-{
-    Notification notification;
-    notification.title    = "Building log view";
-    notification.message  = message;
-    notification.level    = level;
-    notification.progress = progress;
-    notification.timeout  = progress >= 1.0F ? std::chrono::seconds(2) : std::chrono::milliseconds(0);
+    Notification notification = make_progress_notification("Building log view", std::move(message), progress);
+    notification.level        = level;
     return notification;
-}
-
-void show_source_already_open_notification(const Notifier& notifier, const LogSource& source)
-{
-    Notification notification;
-    notification.title   = source.kind == LogSourceKind::LocalFolder ? "Folder already open" : "File already open";
-    notification.message = source_basename(source);
-    notification.level   = NotificationLevel::Warning;
-    (void)notifier.show(std::move(notification));
 }
 }
 
@@ -111,7 +79,7 @@ CommandResult OpenFileCommand::execute(std::string_view arguments)
     {
         const std::string error = "Source already open: " + source_display_path(source);
         SLAYERLOG_LOG_ERROR("open-file failed file=" << file_path << " error=" << error);
-        show_source_already_open_notification(_context.notifier, source);
+        _context.notifier.warning(source.kind == LogSourceKind::LocalFolder ? "Folder already open" : "File already open", source_basename(source));
         return {false, error};
     }
 
@@ -125,7 +93,7 @@ CommandResult OpenFileCommand::execute(std::string_view arguments)
         }
 
         _context.log_view.reload(_context.tracked_sources, _context.processed_sources);
-        show_file_opened_notification(_context.notifier, source);
+        _context.notifier.success("File opened", source_display_path(source));
         return {true, "Opened file: " + source_display_path(source)};
     }
 
@@ -141,29 +109,34 @@ CommandResult OpenFileCommand::execute(std::string_view arguments)
                 const std::size_t entry_count = source_state->entries().size();
 
                 NotificationHandle view_progress(context.notifier);
-                (void)view_progress.show_or_update(file_view_progress_notification("Preparing " + std::to_string(entry_count) + " log lines", NotificationLevel::Info, 0.0F));
+                view_progress.show_or_update(file_view_progress_notification("Preparing " + std::to_string(entry_count) + " log lines", NotificationLevel::Info, 0.0F));
+
+                // Give the UI thread one frame to paint the notification: once the
+                // model mutex is taken below, the terminal UI cannot render at all
+                // (the log view pulls from the model under the same mutex), so any
+                // updates posted while it is held only show up after the unlock.
                 std::this_thread::sleep_for(std::chrono::milliseconds(16));
                 {
                     std::lock_guard lock(*context.model_mutex);
-                    (void)view_progress.show_or_update(file_view_progress_notification("Adding source to model", NotificationLevel::Info, 0.25F));
+                    view_progress.show_or_update(file_view_progress_notification("Adding source to model", NotificationLevel::Info, 0.25F));
                     const auto error = adopt_opened_source(context.tracked_sources, std::move(source_state));
                     if (error.has_value())
                     {
                         SLAYERLOG_LOG_ERROR("open-file failed file=" << display_path << " error=" << *error);
-                        (void)view_progress.show_or_update(file_view_progress_notification(*error, NotificationLevel::Error, 1.0F));
-                        show_file_open_failed_notification(context.notifier, *error);
+                        view_progress.show_or_update(file_view_progress_notification(*error, NotificationLevel::Error, 1.0F));
+                        context.notifier.error("File open failed", *error);
                         return;
                     }
-                    (void)view_progress.show_or_update(file_view_progress_notification("Rendering " + std::to_string(entry_count) + " log lines", NotificationLevel::Info, 0.75F));
+                    view_progress.show_or_update(file_view_progress_notification("Rendering " + std::to_string(entry_count) + " log lines", NotificationLevel::Info, 0.75F));
                     context.log_view.reload(context.tracked_sources, context.processed_sources);
                 }
-                (void)view_progress.show_or_update(file_view_progress_notification("Ready " + std::to_string(entry_count) + " log lines", NotificationLevel::Success, 1.0F));
-                show_file_opened_notification(context.notifier, source);
+                view_progress.show_or_update(file_view_progress_notification("Ready " + std::to_string(entry_count) + " log lines", NotificationLevel::Success, 1.0F));
+                context.notifier.success("File opened", source_display_path(source));
             }
             catch (const std::exception& ex)
             {
                 SLAYERLOG_LOG_ERROR("open-file failed file=" << display_path << " error=" << ex.what());
-                show_file_open_failed_notification(context.notifier, ex.what());
+                context.notifier.error("File open failed", ex.what());
             }
         });
 

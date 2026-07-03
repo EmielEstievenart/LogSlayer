@@ -16,6 +16,8 @@
 #include "tracked_source_file.hpp"
 #include "tracked_source_folder.hpp"
 
+#include "recording_notification_sink.hpp"
+
 namespace slayerlog
 {
 
@@ -104,29 +106,6 @@ public:
 
 private:
     std::filesystem::path _path;
-};
-
-class RecordingNotificationSink : public NotificationSink
-{
-public:
-    NotificationId show(Notification notification) override
-    {
-        notifications.push_back(std::move(notification));
-        return next_id++;
-    }
-
-    void update(NotificationId id, Notification notification) override
-    {
-        updated_ids.push_back(id);
-        notifications.push_back(std::move(notification));
-    }
-
-    void dismiss(NotificationId id) override { dismissed_ids.push_back(id); }
-
-    NotificationId next_id = 1;
-    std::vector<Notification> notifications;
-    std::vector<NotificationId> updated_ids;
-    std::vector<NotificationId> dismissed_ids;
 };
 
 std::vector<std::string> delta_texts(const TrackedSourceBase& tracked_source, std::size_t first_new_entry_index)
@@ -330,24 +309,37 @@ TEST(TrackedSourceTest, FolderPollReportsOpenProgressThroughNotifier)
 
     expect_poll_lines(tracked_source, {"first", "second"});
 
-    ASSERT_EQ(sink->notifications.size(), 5U);
-    EXPECT_EQ(sink->notifications[0].title, "Sorting folder files");
-    EXPECT_EQ(sink->notifications[0].message, "0 / 2 files sorted");
+    // One notification for the whole open sequence: scanning, then per-file progress.
+    ASSERT_EQ(sink->notifications.size(), 4U);
+    EXPECT_EQ(sink->notifications[0].title, "Opening folder");
+    EXPECT_EQ(sink->notifications[0].message, "Scanning folder");
     EXPECT_EQ(sink->notifications[0].level, NotificationLevel::Info);
     ASSERT_TRUE(sink->notifications[0].progress.has_value());
     EXPECT_FLOAT_EQ(*sink->notifications[0].progress, 0.0F);
-    EXPECT_EQ(sink->notifications[1].message, "2 / 2 files sorted");
-    ASSERT_TRUE(sink->notifications[1].progress.has_value());
-    EXPECT_FLOAT_EQ(*sink->notifications[1].progress, 1.0F);
-    EXPECT_EQ(sink->notifications[2].title, "Opening folder");
-    EXPECT_EQ(sink->notifications[2].message, "0 / 2 files opened");
-    EXPECT_EQ(sink->notifications[3].message, "1 / 2 files opened");
-    EXPECT_EQ(sink->notifications[4].message, "2 / 2 files opened");
+    EXPECT_EQ(sink->notifications[1].title, "Opening folder");
+    EXPECT_EQ(sink->notifications[1].message, "0 / 2 files opened");
+    EXPECT_EQ(sink->notifications[2].message, "1 / 2 files opened");
     ASSERT_TRUE(sink->notifications[2].progress.has_value());
-    EXPECT_FLOAT_EQ(*sink->notifications[2].progress, 0.0F);
-    ASSERT_TRUE(sink->notifications[4].progress.has_value());
-    EXPECT_FLOAT_EQ(*sink->notifications[4].progress, 1.0F);
-    EXPECT_EQ(sink->updated_ids, std::vector<NotificationId>({1, 2, 2}));
+    EXPECT_FLOAT_EQ(*sink->notifications[2].progress, 0.5F);
+    EXPECT_EQ(sink->notifications[3].message, "2 / 2 files opened");
+    ASSERT_TRUE(sink->notifications[3].progress.has_value());
+    EXPECT_FLOAT_EQ(*sink->notifications[3].progress, 1.0F);
+    EXPECT_EQ(sink->updated_ids, std::vector<NotificationId>({1, 1, 1}));
+
+    // Reaching 100% is not the end of the open operation (adopt/reload still
+    // follow), so the progress notification must stay sticky and updatable
+    // until finish_open_notification replaces it.
+    EXPECT_FALSE(sink->notifications[3].dismiss_when_done);
+    EXPECT_LE(sink->notifications[3].timeout.count(), 0);
+
+    tracked_source.finish_open_notification("Folder opened", "archive", NotificationLevel::Success);
+
+    ASSERT_EQ(sink->notifications.size(), 5U);
+    EXPECT_EQ(sink->updated_ids, std::vector<NotificationId>({1, 1, 1, 1}));
+    EXPECT_EQ(sink->notifications[4].title, "Folder opened");
+    EXPECT_EQ(sink->notifications[4].level, NotificationLevel::Success);
+    EXPECT_FALSE(sink->notifications[4].progress.has_value());
+    EXPECT_GT(sink->notifications[4].timeout.count(), 0);
 }
 
 TEST(TrackedSourceTest, FolderPollDiscoversNewlyCreatedNormalFiles)

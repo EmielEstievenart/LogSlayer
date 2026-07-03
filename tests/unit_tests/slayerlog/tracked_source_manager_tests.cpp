@@ -18,6 +18,8 @@
 #include "tracked_sources/tracked_source_factory.hpp"
 #include "log_source.hpp"
 
+#include "recording_notification_sink.hpp"
+
 namespace slayerlog
 {
 
@@ -94,29 +96,6 @@ public:
 
 private:
     std::filesystem::path _path;
-};
-
-class RecordingNotificationSink : public NotificationSink
-{
-public:
-    NotificationId show(Notification notification) override
-    {
-        notifications.push_back(std::move(notification));
-        return next_id++;
-    }
-
-    void update(NotificationId id, Notification notification) override
-    {
-        updated_ids.push_back(id);
-        notifications.push_back(std::move(notification));
-    }
-
-    void dismiss(NotificationId id) override { dismissed_ids.push_back(id); }
-
-    NotificationId next_id = 1;
-    std::vector<Notification> notifications;
-    std::vector<NotificationId> updated_ids;
-    std::vector<NotificationId> dismissed_ids;
 };
 
 std::vector<std::string> all_texts(const AllTrackedSources& tracked_sources)
