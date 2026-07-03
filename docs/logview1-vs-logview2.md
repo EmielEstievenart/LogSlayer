@@ -1,5 +1,12 @@
 # LogView1 vs LogView2 — feature comparison & path to parity
 
+> **MIGRATION COMPLETE (2026-07-03).** LogView1 was deleted: `ui/LogView/`, the legacy
+> `register_commands` registrar, core `FindState`/`find_command`, and the old
+> `TimeAlignmentModel`/`time_alignment_controller`/`align_time_command` alignment flow are
+> gone, and the `log_view1`/`log_view2` command directory split is flattened into
+> `commands/implementations/`. LogView2 is the sole view. This document is kept as the
+> historical record of the migration.
+>
 > Status snapshot as of the `core/ui/app` tier split (commit `46aa797`).
 > Goal: delete **LogView1** and bring **LogView2** to feature parity as the single log view.
 
@@ -158,6 +165,6 @@ Deleting LV1 *before* LV2 reaches parity leaves the app feature-regressed in bet
 4. **Add chrome** (status bars, header, PAUSED badge, empty-state) and the small key/quit/`--help` items.
 5. **Port the interactive pickers** (close-source, delete-filters, adjust/clear offset, set format) + reload path.
 6. **Port time alignment** (the XL item).
-7. **Delete LogView1** (`ui/LogView/`, `LogViewComponent`/`LogController`/`LogViewBridge`, core `FindState` if dropped, the `time_alignment_controller`/LV1 plumbing) and flatten the `log_view1`/`log_view2` command directory split.
+7. ✅ **Delete LogView1** (`ui/LogView/`, `LogViewComponent`/`LogController`/`LogViewBridge`, core `FindState` if dropped, the `time_alignment_controller`/LV1 plumbing) and flatten the `log_view1`/`log_view2` command directory split.
 
 (If you'd rather delete LV1 first and rebuild — accepting a temporary regression — steps 2–6 still apply, just with LV1 gone from `main.cpp` from the start.)

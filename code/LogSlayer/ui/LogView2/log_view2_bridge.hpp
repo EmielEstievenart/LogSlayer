@@ -15,11 +15,10 @@ class AllProcessedSources;
 class AllTrackedSources;
 class AlignTimeController;
 
-/// Terminal-UI implementation of LogViewService backed by LogView2. Mirrors
-/// LogViewBridge (which drives the legacy LogController), but targets the thin
-/// pull-based LogView2: a refresh is just a redraw request because the view
-/// renders straight from the processed sources, navigation drives the text view
-/// controller, and find delegates to the view's LogView2FindManager.
+/// Terminal-UI implementation of LogViewService backed by LogView2, which is
+/// thin and pull-based: a refresh is just a redraw request because the view
+/// renders straight from the processed sources, and navigation drives the text
+/// view controller.
 class LogView2Bridge final : public LogViewService
 {
 public:
@@ -33,11 +32,6 @@ public:
     bool go_to_line(const AllProcessedSources& processed_sources, int line_number) override;
     int first_visible_line() const override;
     int viewport_line_count() const override;
-    bool set_find_query(AllProcessedSources& processed_sources, std::string query) override;
-    int total_find_match_count() const override;
-    int visible_find_match_count(const AllProcessedSources& processed_sources) const override;
-    const std::string& find_query() const override;
-    void start_time_alignment(TimeAlignmentApplyCallback apply) override;
     void begin_time_alignment(std::size_t aligning_source_index) override;
 
 private:

@@ -18,7 +18,8 @@
 #include "command_registrar.hpp"
 #include "command_manager.hpp"
 #include "command_support.hpp"
-#include "implementations/log_view1/copy_settings_path_command.hpp"
+#include "implementations/copy_settings_path_command.hpp"
+#include "log_view2_find_manager.hpp"
 #include "log_view_service.hpp"
 #include "tracked_sources/all_processed_sources.hpp"
 #include "tracked_sources/all_tracked_sources.hpp"
@@ -62,14 +63,6 @@ public:
     bool go_to_line(const AllProcessedSources&, int) override { return false; }
     int first_visible_line() const override { return 0; }
     int viewport_line_count() const override { return 0; }
-    bool set_find_query(AllProcessedSources&, std::string) override { return false; }
-    int total_find_match_count() const override { return 0; }
-    int visible_find_match_count(const AllProcessedSources&) const override { return 0; }
-    const std::string& find_query() const override { return _empty_query; }
-    void start_time_alignment(TimeAlignmentApplyCallback) override { }
-
-private:
-    std::string _empty_query;
 };
 
 class RecordingNotificationSink : public NotificationSink
@@ -135,7 +128,8 @@ TEST(CommandRegistrarTest, ExportVisibleTextWritesAllVisibleRenderedLines)
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
     StubLogViewService log_view;
     AllTrackedSources tracked_sources;
-    register_commands(command_manager, {processed_sources, log_view, tracked_sources});
+    LogView2FindManager find_manager(nullptr);
+    register_log_view2_commands(command_manager, {processed_sources, log_view, tracked_sources}, find_manager);
 
     const auto export_path = make_temp_export_path();
     const auto result      = command_manager.execute("export-visible-text " + export_path.string());
@@ -196,7 +190,8 @@ TEST(CommandRegistrarTest, ShowAndHideOriginalTimeCommandsToggleRenderedMessage)
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
     StubLogViewService log_view;
     AllTrackedSources tracked_sources;
-    register_commands(command_manager, {processed_sources, log_view, tracked_sources});
+    LogView2FindManager find_manager(nullptr);
+    register_log_view2_commands(command_manager, {processed_sources, log_view, tracked_sources}, find_manager);
 
     EXPECT_EQ(processed_sources.rendered_line(0), "1 {2026-04-01 10:00:00} INFO  hello");
 
@@ -227,7 +222,8 @@ TEST(CommandRegistrarTest, ShowAndHideIdenticalLinesCommandsToggleCollapsing)
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
     StubLogViewService log_view;
     AllTrackedSources tracked_sources;
-    register_commands(command_manager, {processed_sources, log_view, tracked_sources});
+    LogView2FindManager find_manager(nullptr);
+    register_log_view2_commands(command_manager, {processed_sources, log_view, tracked_sources}, find_manager);
 
     ASSERT_EQ(processed_sources.line_count(), 2);
     EXPECT_EQ(processed_sources.rendered_line(1), "  hiding 1 identical messages above");
@@ -267,7 +263,8 @@ TEST(CommandRegistrarTest, OpenFileCommandShowsToastWhenSourceAlreadyOpen)
     AllTrackedSources tracked_sources;
     ASSERT_FALSE(open_source(tracked_sources, parse_log_source(log_path.string())).has_value());
     auto sink = std::make_shared<RecordingNotificationSink>();
-    register_commands(command_manager, {processed_sources, log_view, tracked_sources, Notifier(sink)});
+    LogView2FindManager find_manager(nullptr);
+    register_log_view2_commands(command_manager, {processed_sources, log_view, tracked_sources, Notifier(sink)}, find_manager);
 
     const auto result = command_manager.execute("open-file " + log_path.string());
 
@@ -299,7 +296,8 @@ TEST(CommandRegistrarTest, OpenFileCommandOpensFileInBackgroundWhenTaskRunnerExi
     std::mutex model_mutex;
     std::vector<std::thread> background_tasks;
     auto sink = std::make_shared<RecordingNotificationSink>();
-    register_commands(command_manager, {processed_sources, log_view, tracked_sources, Notifier(sink), &model_mutex, &background_tasks});
+    LogView2FindManager find_manager(nullptr);
+    register_log_view2_commands(command_manager, {processed_sources, log_view, tracked_sources, Notifier(sink), &model_mutex, &background_tasks}, find_manager);
 
     const auto result = command_manager.execute("open-file " + log_path.string());
 
@@ -352,7 +350,8 @@ TEST(CommandRegistrarTest, OpenFolderCommandPreflightsAlreadyOpenSourceBeforeSta
     std::mutex model_mutex;
     std::vector<std::thread> background_tasks;
     auto sink = std::make_shared<RecordingNotificationSink>();
-    register_commands(command_manager, {processed_sources, log_view, tracked_sources, Notifier(sink), &model_mutex, &background_tasks});
+    LogView2FindManager find_manager(nullptr);
+    register_log_view2_commands(command_manager, {processed_sources, log_view, tracked_sources, Notifier(sink), &model_mutex, &background_tasks}, find_manager);
 
     const auto result = command_manager.execute("open-folder " + folder_path.string());
 
@@ -385,7 +384,8 @@ TEST(CommandRegistrarTest, DeleteFiltersCommandOpensPickerAndRemovesSelectedFilt
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
     StubLogViewService log_view;
     AllTrackedSources tracked_sources;
-    register_commands(command_manager, {processed_sources, log_view, tracked_sources});
+    LogView2FindManager find_manager(nullptr);
+    register_log_view2_commands(command_manager, {processed_sources, log_view, tracked_sources}, find_manager);
 
     const auto result = command_manager.execute("delete-filters");
 
@@ -416,7 +416,8 @@ TEST(CommandRegistrarTest, DeleteFiltersCommandFailsWhenNoFiltersExist)
     CommandPaletteController command_palette_controller(command_palette_model, command_manager);
     StubLogViewService log_view;
     AllTrackedSources tracked_sources;
-    register_commands(command_manager, {processed_sources, log_view, tracked_sources});
+    LogView2FindManager find_manager(nullptr);
+    register_log_view2_commands(command_manager, {processed_sources, log_view, tracked_sources}, find_manager);
 
     const auto result = command_manager.execute("delete-filters");
 
@@ -440,7 +441,8 @@ TEST(CommandRegistrarTest, SetTimeFormatCommandOpensSourceAndFormatPickers)
     StubLogViewService log_view;
     AllTrackedSources tracked_sources;
     ASSERT_FALSE(open_source(tracked_sources, parse_log_source(log_path.string())).has_value());
-    register_commands(command_manager, {processed_sources, log_view, tracked_sources});
+    LogView2FindManager find_manager(nullptr);
+    register_log_view2_commands(command_manager, {processed_sources, log_view, tracked_sources}, find_manager);
 
     const auto result = command_manager.execute("set-time-format");
 
@@ -474,7 +476,8 @@ TEST(CommandRegistrarTest, AdjustTimeOffsetCommandAccumulatesOffsets)
     StubLogViewService log_view;
     AllTrackedSources tracked_sources;
     ASSERT_FALSE(open_source(tracked_sources, parse_log_source(log_path.string())).has_value());
-    register_commands(command_manager, {processed_sources, log_view, tracked_sources});
+    LogView2FindManager find_manager(nullptr);
+    register_log_view2_commands(command_manager, {processed_sources, log_view, tracked_sources}, find_manager);
 
     const auto apply_offset = [&](const std::string& offset_text)
     {
@@ -512,8 +515,6 @@ TEST(CommandRegistrarTest, AdjustTimeOffsetCommandAccumulatesOffsets)
     remove_temp_export_file(log_path);
 }
 
-// NOTE: the align-time in-view selection test was removed with LogView1. Time
-// alignment is not yet ported to LogView2; re-add a test once it is. See
-// docs/logview1-vs-logview2.md.
+// NOTE: LogView2's dual-pane time alignment is covered by align_time_session_tests.
 
 } // namespace slayerlog

@@ -3,34 +3,32 @@
 #include <memory>
 
 #include "command_manager.hpp"
-#include "implementations/log_view1/align_time_command.hpp"
-#include "implementations/log_view1/clear_column_filters_command.hpp"
-#include "implementations/log_view1/clear_filters_command.hpp"
-#include "implementations/log_view1/clear_time_offset_command.hpp"
-#include "implementations/log_view1/close_open_file_command.hpp"
-#include "implementations/log_view1/copy_settings_path_command.hpp"
-#include "implementations/log_view1/delete_filters_command.hpp"
-#include "implementations/log_view1/export_visible_text_command.hpp"
-#include "implementations/log_view1/filter_in_command.hpp"
-#include "implementations/log_view1/filter_out_command.hpp"
-#include "implementations/log_view1/find_command.hpp"
-#include "implementations/log_view1/go_to_line_command.hpp"
-#include "implementations/log_view1/hide_before_line_command.hpp"
-#include "implementations/log_view1/hide_columns_command.hpp"
-#include "implementations/log_view1/hide_identical_lines_command.hpp"
-#include "implementations/log_view1/hide_original_time_command.hpp"
-#include "implementations/log_view1/hide_shown_lines_command.hpp"
-#include "implementations/log_view1/open_file_command.hpp"
-#include "implementations/log_view1/open_folder_command.hpp"
-#include "implementations/log_view1/reset_column_filter_command.hpp"
-#include "implementations/log_view1/reset_filters_command.hpp"
-#include "implementations/log_view1/adjust_time_offset_command.hpp"
-#include "implementations/log_view1/set_time_format_command.hpp"
-#include "implementations/log_view1/show_identical_lines_command.hpp"
-#include "implementations/log_view1/show_original_time_command.hpp"
-#include "implementations/log_view2/align_time_view_command.hpp"
-#include "implementations/log_view2/log_view2_find_command.hpp"
-#include "implementations/log_view2/open_command.hpp"
+#include "implementations/adjust_time_offset_command.hpp"
+#include "implementations/align_time_view_command.hpp"
+#include "implementations/clear_column_filters_command.hpp"
+#include "implementations/clear_filters_command.hpp"
+#include "implementations/clear_time_offset_command.hpp"
+#include "implementations/close_open_file_command.hpp"
+#include "implementations/copy_settings_path_command.hpp"
+#include "implementations/delete_filters_command.hpp"
+#include "implementations/export_visible_text_command.hpp"
+#include "implementations/filter_in_command.hpp"
+#include "implementations/filter_out_command.hpp"
+#include "implementations/go_to_line_command.hpp"
+#include "implementations/hide_before_line_command.hpp"
+#include "implementations/hide_columns_command.hpp"
+#include "implementations/hide_identical_lines_command.hpp"
+#include "implementations/hide_original_time_command.hpp"
+#include "implementations/hide_shown_lines_command.hpp"
+#include "implementations/log_view2_find_command.hpp"
+#include "implementations/open_command.hpp"
+#include "implementations/open_file_command.hpp"
+#include "implementations/open_folder_command.hpp"
+#include "implementations/reset_column_filter_command.hpp"
+#include "implementations/reset_filters_command.hpp"
+#include "implementations/set_time_format_command.hpp"
+#include "implementations/show_identical_lines_command.hpp"
+#include "implementations/show_original_time_command.hpp"
 
 namespace slayerlog
 {
@@ -73,13 +71,6 @@ void register_shared_view_commands(CommandManager& command_manager, const Comman
 }
 
 } // namespace
-
-void register_commands(CommandManager& command_manager, CommandContext context)
-{
-    register_shared_view_commands(command_manager, context);
-    command_manager.register_command(std::make_unique<AlignTimeCommand>(context));
-    command_manager.register_command(std::make_unique<FindCommand>(context));
-}
 
 void register_log_view2_commands(CommandManager& command_manager, CommandContext context, LogView2FindManager& find_manager)
 {

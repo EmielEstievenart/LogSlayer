@@ -1,9 +1,6 @@
 #pragma once
 
 #include <cstddef>
-#include <string>
-
-#include "time_alignment_apply.hpp"
 
 namespace slayerlog
 {
@@ -14,8 +11,8 @@ class AllTrackedSources;
 /// Core, UI-agnostic facade over the log view that commands drive. Every method
 /// has a framework-free signature (primitives, core model types), so the command
 /// actions that depend on it stay in the core library. The terminal UI provides
-/// a concrete implementation (LogViewBridge over LogController + screen); a future
-/// Qt/other UI supplies its own implementation without touching the commands.
+/// a concrete implementation (LogView2Bridge over LogView2Component + screen); a
+/// future Qt/other UI supplies its own implementation without touching the commands.
 class LogViewService
 {
 public:
@@ -40,18 +37,7 @@ public:
     virtual int first_visible_line() const  = 0;
     virtual int viewport_line_count() const = 0;
 
-    // --- Find ---
-
-    virtual bool set_find_query(AllProcessedSources& processed_sources, std::string query)   = 0;
-    virtual int total_find_match_count() const                                               = 0;
-    virtual int visible_find_match_count(const AllProcessedSources& processed_sources) const = 0;
-    virtual const std::string& find_query() const                                            = 0;
-
     // --- Time alignment ---
-
-    /// Begin the interactive two-step time-alignment selection, invoking the
-    /// (UI-agnostic) callback once a source and destination entry are chosen.
-    virtual void start_time_alignment(TimeAlignmentApplyCallback apply) = 0;
 
     /// Begin the dual-pane "align time" mode for the source at @p aligning_source_index.
     /// The view shows the other sources beside that source's lines and lets the user

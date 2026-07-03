@@ -1,14 +1,11 @@
 #include "log_view2_bridge.hpp"
 
-#include <utility>
-
 #include <ftxui/component/event.hpp>
 
 #include "LogView2/align_time_controller.hpp"
 #include "command_support.hpp"
 #include "debug_log.hpp"
 #include "log_view2_component.hpp"
-#include "log_view2_find_manager.hpp"
 #include "tracked_sources/all_processed_sources.hpp"
 
 namespace slayerlog
@@ -56,36 +53,6 @@ int LogView2Bridge::first_visible_line() const
 int LogView2Bridge::viewport_line_count() const
 {
     return _view.text_view_controller().viewport_line_count();
-}
-
-bool LogView2Bridge::set_find_query(AllProcessedSources& /*processed_sources*/, std::string query)
-{
-    const bool focused = _view.find_manager().set_query(std::move(query));
-    _screen.PostEvent(ftxui::Event::Custom);
-    return focused;
-}
-
-int LogView2Bridge::total_find_match_count() const
-{
-    return static_cast<int>(_view.find_manager().match_count());
-}
-
-int LogView2Bridge::visible_find_match_count(const AllProcessedSources& /*processed_sources*/) const
-{
-    // LogView2 owns the only processed-sources model, so every match is visible.
-    return static_cast<int>(_view.find_manager().match_count());
-}
-
-const std::string& LogView2Bridge::find_query() const
-{
-    return _view.find_manager().query();
-}
-
-void LogView2Bridge::start_time_alignment(TimeAlignmentApplyCallback /*apply*/)
-{
-    // The legacy two-step (select source/destination) flow is not used by LogView2,
-    // which has its own dual-pane alignment mode reached via begin_time_alignment().
-    SLAYERLOG_LOG_WARNING("start_time_alignment is not implemented for LogView2; use begin_time_alignment");
 }
 
 void LogView2Bridge::begin_time_alignment(std::size_t aligning_source_index)
