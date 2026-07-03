@@ -1,38 +1,38 @@
-#include "log_view2_bridge.hpp"
+#include "log_view_bridge.hpp"
 
 #include <ftxui/component/event.hpp>
 
-#include "LogView2/align_time_controller.hpp"
+#include "LogView/align_time_controller.hpp"
 #include "command_support.hpp"
 #include "debug_log.hpp"
-#include "log_view2_component.hpp"
+#include "log_view_component.hpp"
 #include "tracked_sources/all_processed_sources.hpp"
 
 namespace slayerlog
 {
 
-LogView2Bridge::LogView2Bridge(LogView2Component& view, std::string& header_text, ftxui::ScreenInteractive& screen) : _view(view), _header_text(header_text), _screen(screen)
+LogViewBridge::LogViewBridge(LogViewComponent& view, std::string& header_text, ftxui::ScreenInteractive& screen) : _view(view), _header_text(header_text), _screen(screen)
 {
 }
 
-void LogView2Bridge::set_align_controller(AlignTimeController* align_controller)
+void LogViewBridge::set_align_controller(AlignTimeController* align_controller)
 {
     _align_controller = align_controller;
 }
 
-void LogView2Bridge::rebuild_view(const AllProcessedSources& /*processed_sources*/)
+void LogViewBridge::rebuild_view(const AllProcessedSources& /*processed_sources*/)
 {
-    // LogView2 renders straight from the processed sources every frame, so a
+    // LogView renders straight from the processed sources every frame, so a
     // refresh is just a redraw request.
     _screen.PostEvent(ftxui::Event::Custom);
 }
 
-void LogView2Bridge::reload(const AllTrackedSources& tracked_sources, AllProcessedSources& processed_sources)
+void LogViewBridge::reload(const AllTrackedSources& tracked_sources, AllProcessedSources& processed_sources)
 {
     reload_processed_sources(tracked_sources, _header_text, processed_sources, _screen);
 }
 
-bool LogView2Bridge::go_to_line(const AllProcessedSources& processed_sources, int line_number)
+bool LogViewBridge::go_to_line(const AllProcessedSources& processed_sources, int line_number)
 {
     const auto visible_line = processed_sources.visible_line_index_for_line_number(line_number);
     if (!visible_line.has_value())
@@ -45,17 +45,17 @@ bool LogView2Bridge::go_to_line(const AllProcessedSources& processed_sources, in
     return true;
 }
 
-int LogView2Bridge::first_visible_line() const
+int LogViewBridge::first_visible_line() const
 {
     return _view.text_view_controller().first_visible_line();
 }
 
-int LogView2Bridge::viewport_line_count() const
+int LogViewBridge::viewport_line_count() const
 {
     return _view.text_view_controller().viewport_line_count();
 }
 
-void LogView2Bridge::begin_time_alignment(std::size_t aligning_source_index)
+void LogViewBridge::begin_time_alignment(std::size_t aligning_source_index)
 {
     if (_align_controller == nullptr)
     {

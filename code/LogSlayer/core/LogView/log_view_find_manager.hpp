@@ -7,17 +7,17 @@
 #include <vector>
 
 #include "log_types.hpp"
-#include "log_view2_data.hpp"
+#include "log_view_data.hpp"
 #include "search_pattern.hpp"
 
 namespace slayerlog
 {
 
-// Incremental text search over the lines exposed by a LogView2Data.
+// Incremental text search over the lines exposed by a LogViewData.
 // Holds the compiled query, the set of matching line indices, and the active
 // match. Subscribes to the data's update callback so matches stay in sync as
 // new lines stream in.
-class LogView2FindManager
+class LogViewFindManager
 {
 public:
     /**
@@ -28,15 +28,15 @@ public:
      * @param data Data source to search; may be null, in which case the manager
      *             is inert.
      */
-    explicit LogView2FindManager(std::shared_ptr<LogView2Data> data);
+    explicit LogViewFindManager(std::shared_ptr<LogViewData> data);
 
     /**
      * @brief Unsubscribe from the data source's update callback.
      */
-    ~LogView2FindManager();
+    ~LogViewFindManager();
 
-    LogView2FindManager(const LogView2FindManager&)            = delete;
-    LogView2FindManager& operator=(const LogView2FindManager&) = delete;
+    LogViewFindManager(const LogViewFindManager&)            = delete;
+    LogViewFindManager& operator=(const LogViewFindManager&) = delete;
 
     /**
      * @brief Set the search query and recompute matches.
@@ -127,8 +127,8 @@ private:
     [[nodiscard]] bool row_matches_query(std::size_t line_index) const;
     bool focus_match_at(std::size_t match_position);
 
-    std::shared_ptr<LogView2Data> _data;
-    LogView2Data::CallbackId _update_callback_id = 0;
+    std::shared_ptr<LogViewData> _data;
+    LogViewData::CallbackId _update_callback_id = 0;
     std::string _query;
     std::optional<SearchPattern> _pattern;
     std::vector<std::size_t> _matching_lines;

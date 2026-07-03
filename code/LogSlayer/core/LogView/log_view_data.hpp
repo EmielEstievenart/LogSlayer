@@ -14,7 +14,7 @@ namespace slayerlog
 
 class AllProcessedSources;
 
-class LogView2Data
+class LogViewData
 {
 public:
     using UpdateCallback = std::function<void(VisibleLineIndex)>;
@@ -29,7 +29,7 @@ public:
         std::unique_lock<std::mutex> _lock;
     };
 
-    virtual ~LogView2Data() = default;
+    virtual ~LogViewData() = default;
 
     [[nodiscard]] virtual Lock lock() const                              = 0;
     [[nodiscard]] virtual std::size_t size() const                       = 0;
@@ -48,10 +48,10 @@ public:
     [[nodiscard]] virtual bool updates_paused() const { return false; }
 };
 
-class AllProcessedSourcesLogView2Data : public LogView2Data
+class AllProcessedSourcesLogViewData : public LogViewData
 {
 public:
-    AllProcessedSourcesLogView2Data(const AllProcessedSources& processed_sources, std::mutex& mutex);
+    AllProcessedSourcesLogViewData(const AllProcessedSources& processed_sources, std::mutex& mutex);
 
     [[nodiscard]] Lock lock() const override;
     [[nodiscard]] std::size_t size() const override;

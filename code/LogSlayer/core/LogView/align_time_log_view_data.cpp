@@ -1,4 +1,4 @@
-#include "LogView2/align_time_log_view2_data.hpp"
+#include "LogView/align_time_log_view_data.hpp"
 
 #include <algorithm>
 #include <utility>
@@ -8,26 +8,26 @@
 namespace slayerlog
 {
 
-AlignTimeLogView2Data::AlignTimeLogView2Data(const AlignTimeSession& session, std::mutex& mutex, Side side) : _session(session), _mutex(mutex), _side(side)
+AlignTimeLogViewData::AlignTimeLogViewData(const AlignTimeSession& session, std::mutex& mutex, Side side) : _session(session), _mutex(mutex), _side(side)
 {
 }
 
-LogView2Data::Lock AlignTimeLogView2Data::lock() const
+LogViewData::Lock AlignTimeLogViewData::lock() const
 {
     return Lock(_mutex);
 }
 
-std::size_t AlignTimeLogView2Data::size() const
+std::size_t AlignTimeLogViewData::size() const
 {
     return _session.row_count();
 }
 
-int AlignTimeLogView2Data::widest_line_width() const
+int AlignTimeLogViewData::widest_line_width() const
 {
     return _session.widest_row_width();
 }
 
-std::string AlignTimeLogView2Data::to_string(std::size_t index) const
+std::string AlignTimeLogViewData::to_string(std::size_t index) const
 {
     if (index >= _session.row_count())
     {
@@ -38,14 +38,14 @@ std::string AlignTimeLogView2Data::to_string(std::size_t index) const
     return owns_row ? _session.render_row(index) : std::string {};
 }
 
-LogView2Data::CallbackId AlignTimeLogView2Data::add_update_callback(UpdateCallback callback)
+LogViewData::CallbackId AlignTimeLogViewData::add_update_callback(UpdateCallback callback)
 {
     const CallbackId id = _next_callback_id++;
     _callbacks.emplace_back(id, std::move(callback));
     return id;
 }
 
-void AlignTimeLogView2Data::remove_update_callback(CallbackId callback_id)
+void AlignTimeLogViewData::remove_update_callback(CallbackId callback_id)
 {
     _callbacks.erase(std::remove_if(_callbacks.begin(), _callbacks.end(), [callback_id](const auto& registration) { return registration.first == callback_id; }), _callbacks.end());
 }

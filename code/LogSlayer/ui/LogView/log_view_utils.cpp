@@ -1,4 +1,4 @@
-#include "log_view2_utils.hpp"
+#include "log_view_utils.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -23,7 +23,7 @@ std::string trim_text(std::string_view text)
     return std::string(text.substr(start, end - start));
 }
 
-std::string selected_find_text(const LogView2Selection& selection, const LogView2Data& data)
+std::string selected_find_text(const LogViewSelection& selection, const LogViewData& data)
 {
     std::string trimmed = trim_text(selection.text(data));
     if (trimmed.find_first_of("\r\n") != std::string::npos)

@@ -1,4 +1,4 @@
-#include "log_view2_component.hpp"
+#include "log_view_component.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -11,7 +11,7 @@
 
 #include "clipboard.hpp"
 #include "log_types.hpp"
-#include "log_view2_utils.hpp"
+#include "log_view_utils.hpp"
 #include "view_theme.hpp"
 
 namespace slayerlog
@@ -128,7 +128,7 @@ ftxui::Element build_key_hints()
 
 } // namespace
 
-LogView2Component::LogView2Component(std::string title, std::shared_ptr<LogView2Data> data, CommandPaletteController& command_palette_controller, std::function<void()> on_exit)
+LogViewComponent::LogViewComponent(std::string title, std::shared_ptr<LogViewData> data, CommandPaletteController& command_palette_controller, std::function<void()> on_exit)
     : _title(std::move(title)), _data(std::move(data)), _find_manager(_data), _command_palette_controller(command_palette_controller), _on_exit(std::move(on_exit))
 {
     TextViewComponentOption option;
@@ -165,17 +165,17 @@ LogView2Component::LogView2Component(std::string title, std::shared_ptr<LogView2
     _text_view = std::make_shared<TextViewComponent>(std::move(option));
 }
 
-LogView2FindManager& LogView2Component::find_manager()
+LogViewFindManager& LogViewComponent::find_manager()
 {
     return _find_manager;
 }
 
-TextViewController& LogView2Component::text_view_controller()
+TextViewController& LogViewComponent::text_view_controller()
 {
     return _text_view->controller();
 }
 
-ftxui::Element LogView2Component::OnRender()
+ftxui::Element LogViewComponent::OnRender()
 {
     StatusSnapshot status;
     if (_data != nullptr)
@@ -205,8 +205,8 @@ ftxui::Element LogView2Component::OnRender()
     const bool focused  = Focused();
     ftxui::Element body = _text_view->Render() | ftxui::flex;
 
-    ftxui::Element title_text = focused ? (ftxui::text(_title) | ftxui::bold | ftxui::color(theme::active_view_fg)) : ftxui::text(_title);
-    ftxui::Element title      = status.paused ? ftxui::hbox({std::move(title_text), ftxui::text(" "), theme::badge("PAUSED", theme::paused_fg)}) : std::move(title_text);
+    ftxui::Element title_text      = focused ? (ftxui::text(_title) | ftxui::bold | ftxui::color(theme::active_view_fg)) : ftxui::text(_title);
+    ftxui::Element title           = status.paused ? ftxui::hbox({std::move(title_text), ftxui::text(" "), theme::badge("PAUSED", theme::paused_fg)}) : std::move(title_text);
     const ftxui::BorderStyle frame = focused ? ftxui::DOUBLE : ftxui::LIGHT;
 
     ftxui::Element content = ftxui::vbox({
@@ -226,7 +226,7 @@ ftxui::Element LogView2Component::OnRender()
     return std::move(panel) | ftxui::flex | ftxui::reflect(_box);
 }
 
-bool LogView2Component::OnEvent(ftxui::Event event)
+bool LogViewComponent::OnEvent(ftxui::Event event)
 {
     if (event.is_mouse())
     {
@@ -370,12 +370,12 @@ bool LogView2Component::OnEvent(ftxui::Event event)
     return true;
 }
 
-bool LogView2Component::Focusable() const
+bool LogViewComponent::Focusable() const
 {
     return true;
 }
 
-bool LogView2Component::handle_mouse(const ftxui::Mouse& mouse)
+bool LogViewComponent::handle_mouse(const ftxui::Mouse& mouse)
 {
     // Mouse events reach every sibling: claim only the ones inside our panel and
     // take focus on a click, letting clicks elsewhere fall through to the left view.
@@ -415,7 +415,7 @@ bool LogView2Component::handle_mouse(const ftxui::Mouse& mouse)
     return true;
 }
 
-bool LogView2Component::handle_left_button(const ftxui::Mouse& mouse)
+bool LogViewComponent::handle_left_button(const ftxui::Mouse& mouse)
 {
     if (_data == nullptr)
     {
@@ -451,7 +451,7 @@ bool LogView2Component::handle_left_button(const ftxui::Mouse& mouse)
     return true;
 }
 
-void LogView2Component::copy_selection()
+void LogViewComponent::copy_selection()
 {
     if (_data == nullptr)
     {

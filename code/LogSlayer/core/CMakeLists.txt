@@ -23,7 +23,7 @@ target_include_directories(
          ${CMAKE_CURRENT_SOURCE_DIR}/tracked_sources
          ${CMAKE_CURRENT_SOURCE_DIR}/timestamp
          ${CMAKE_CURRENT_SOURCE_DIR}/watchers
-         ${CMAKE_CURRENT_SOURCE_DIR}/LogView2
+         ${CMAKE_CURRENT_SOURCE_DIR}/LogView
          ${CMAKE_CURRENT_SOURCE_DIR}/notifications
          ${CMAKE_SOURCE_DIR}/libs/eestv)
 

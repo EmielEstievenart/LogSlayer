@@ -1,8 +1,8 @@
 # logslayer_ui: the FTXUI terminal UI for LogSlayer.
 #
-# The LogView2 rendering stack, command palette controller/view + widgets, the
+# The LogView rendering stack, command palette controller/view + widgets, the
 # interactive (picker) commands, the command registrar, the toast sink, the
-# colour theme, and the LogView2Bridge that implements the core LogViewService on
+# colour theme, and the LogViewBridge that implements the core LogViewService on
 # top of FTXUI. Depends on logslayer_core plus FTXUI; a different UI toolkit would
 # replace this whole target while reusing logslayer_core unchanged.
 
@@ -18,7 +18,7 @@ add_library(logslayer_ui STATIC ${LOGSLAYER_UI_SOURCES})
 target_include_directories(
   logslayer_ui
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-         ${CMAKE_CURRENT_SOURCE_DIR}/LogView2
+         ${CMAKE_CURRENT_SOURCE_DIR}/LogView
          ${CMAKE_CURRENT_SOURCE_DIR}/commands
          ${CMAKE_CURRENT_SOURCE_DIR}/commands/command_widgets
          ${CMAKE_CURRENT_SOURCE_DIR}/notifications)

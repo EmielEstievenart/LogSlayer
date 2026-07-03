@@ -8,7 +8,7 @@
 #include <stdexcept>
 #include <string_view>
 
-#include "LogView2/log_view2_data.hpp"
+#include "LogView/log_view_data.hpp"
 #include "tracked_sources/all_processed_sources.hpp"
 #include "tracked_sources/all_tracked_sources.hpp"
 #include "tracked_sources/tracked_source_factory.hpp"
@@ -25,7 +25,7 @@ public:
     ScopedLogFile()
     {
         const auto unique_suffix = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
-        _path                    = std::filesystem::temp_directory_path() / ("slayerlog_log_view2_data_" + unique_suffix + ".log");
+        _path                    = std::filesystem::temp_directory_path() / ("slayerlog_log_view_data_" + unique_suffix + ".log");
     }
 
     ~ScopedLogFile()
@@ -66,14 +66,14 @@ LogSource local_file_source(const std::filesystem::path& path)
 
 } // namespace
 
-TEST(LogView2DataTest, CallbackReceivesFirstChangedLineFromProcessedSources)
+TEST(LogViewDataTest, CallbackReceivesFirstChangedLineFromProcessedSources)
 {
     ScopedLogFile file;
     file.write("first\n");
     AllTrackedSources tracked_sources;
     AllProcessedSources processed_sources;
     std::mutex mutex;
-    AllProcessedSourcesLogView2Data data(processed_sources, mutex);
+    AllProcessedSourcesLogViewData data(processed_sources, mutex);
 
     std::optional<VisibleLineIndex> received_index;
     data.add_update_callback([&received_index](VisibleLineIndex first_changed_line) { received_index = first_changed_line; });
@@ -86,14 +86,14 @@ TEST(LogView2DataTest, CallbackReceivesFirstChangedLineFromProcessedSources)
     EXPECT_EQ(0, received_index->value);
 }
 
-TEST(LogView2DataTest, RemovedCallbackIsNotCalled)
+TEST(LogViewDataTest, RemovedCallbackIsNotCalled)
 {
     ScopedLogFile file;
     file.write("first\n");
     AllTrackedSources tracked_sources;
     AllProcessedSources processed_sources;
     std::mutex mutex;
-    AllProcessedSourcesLogView2Data data(processed_sources, mutex);
+    AllProcessedSourcesLogViewData data(processed_sources, mutex);
 
     int call_count         = 0;
     const auto callback_id = data.add_update_callback([&call_count](VisibleLineIndex) { ++call_count; });
@@ -106,7 +106,7 @@ TEST(LogView2DataTest, RemovedCallbackIsNotCalled)
     EXPECT_EQ(0, call_count);
 }
 
-TEST(LogView2DataTest, PollCallbackReceivesAppendStartIndex)
+TEST(LogViewDataTest, PollCallbackReceivesAppendStartIndex)
 {
     ScopedLogFile file;
     file.write("first\n");
@@ -116,7 +116,7 @@ TEST(LogView2DataTest, PollCallbackReceivesAppendStartIndex)
     processed_sources.rebuild_from_sources(tracked_sources);
 
     std::mutex mutex;
-    AllProcessedSourcesLogView2Data data(processed_sources, mutex);
+    AllProcessedSourcesLogViewData data(processed_sources, mutex);
 
     std::optional<VisibleLineIndex> received_index;
     data.add_update_callback([&received_index](VisibleLineIndex first_changed_line) { received_index = first_changed_line; });

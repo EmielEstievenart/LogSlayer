@@ -13,23 +13,23 @@
 #include <ftxui_components/text_view_controller.hpp>
 
 #include "command_palette_controller.hpp"
-#include "log_view2_data.hpp"
-#include "log_view2_find_manager.hpp"
-#include "log_view2_selection.hpp"
+#include "log_view_data.hpp"
+#include "log_view_find_manager.hpp"
+#include "log_view_selection.hpp"
 
 namespace slayerlog
 {
 
 // The primary log view as a native FTXUI component: a thin pull-based renderer
-// over a LogView2Data, with its own find manager, selection, and command palette.
-class LogView2Component : public ftxui::ComponentBase
+// over a LogViewData, with its own find manager, selection, and command palette.
+class LogViewComponent : public ftxui::ComponentBase
 {
 public:
-    LogView2Component(std::string title, std::shared_ptr<LogView2Data> data, CommandPaletteController& command_palette_controller, std::function<void()> on_exit = {});
+    LogViewComponent(std::string title, std::shared_ptr<LogViewData> data, CommandPaletteController& command_palette_controller, std::function<void()> on_exit = {});
 
     // The find manager owned by this view, exposed so the command palette can
     // drive the same search state the view renders.
-    [[nodiscard]] LogView2FindManager& find_manager();
+    [[nodiscard]] LogViewFindManager& find_manager();
 
     // The text view controller backing this view, exposed so a LogViewService
     // implementation can drive navigation (centring, viewport queries).
@@ -45,12 +45,12 @@ private:
     void copy_selection();
 
     std::string _title;
-    std::shared_ptr<LogView2Data> _data;
-    LogView2FindManager _find_manager;
+    std::shared_ptr<LogViewData> _data;
+    LogViewFindManager _find_manager;
     CommandPaletteController& _command_palette_controller;
     std::function<void()> _on_exit;
     std::shared_ptr<TextViewComponent> _text_view;
-    LogView2Selection _selection;
+    LogViewSelection _selection;
     ftxui::Box _box;
 };
 

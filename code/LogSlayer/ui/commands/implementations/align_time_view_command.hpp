@@ -11,7 +11,7 @@
 namespace slayerlog
 {
 
-/// Interactive command that opens the LogView2 dual-pane "align time" mode. It first
+/// Interactive command that opens the LogView dual-pane "align time" mode. It first
 /// shows a source picker; confirming a source hands off to LogViewService::begin_time_alignment,
 /// which drives the side-by-side panes and the nudge workflow. (Use adjust-time-offset /
 /// clear-time-offset for manual offset entry and resetting.)

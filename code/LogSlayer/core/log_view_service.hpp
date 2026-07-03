@@ -11,7 +11,7 @@ class AllTrackedSources;
 /// Core, UI-agnostic facade over the log view that commands drive. Every method
 /// has a framework-free signature (primitives, core model types), so the command
 /// actions that depend on it stay in the core library. The terminal UI provides
-/// a concrete implementation (LogView2Bridge over LogView2Component + screen); a
+/// a concrete implementation (LogViewBridge over LogViewComponent + screen); a
 /// future Qt/other UI supplies its own implementation without touching the commands.
 class LogViewService
 {

@@ -8,7 +8,7 @@
 #include <ftxui/component/screen_interactive.hpp>
 #include <ftxui/dom/elements.hpp>
 
-#include "LogView2/align_time_log_view2_data.hpp"
+#include "LogView/align_time_log_view_data.hpp"
 #include "notifications/notification.hpp"
 
 class TextViewComponent;
@@ -20,14 +20,14 @@ class AlignTimeSession;
 class AllProcessedSources;
 class AllTrackedSources;
 class LogViewService;
-class LogView2Data;
+class LogViewData;
 
 /// Terminal-UI controller for the dual-pane "align time" mode. It owns the transient
 /// AlignTimeSession plus the two text-view panes (left = other sources, right = the
 /// aligning source) and the small nudge panel, intercepts all keyboard input while
 /// active, keeps both panes scrolled in lock-step on the active line, and commits the
 /// previewed offset to the tracked sources (or discards it on cancel). The whole mode
-/// lives on top of the normal LogView2 without disturbing the shared processed model
+/// lives on top of the normal LogView without disturbing the shared processed model
 /// until the user commits.
 class AlignTimeController
 {
@@ -56,7 +56,7 @@ public:
     [[nodiscard]] ftxui::Element render(int screen_height);
 
 private:
-    std::shared_ptr<TextViewComponent> make_pane(std::shared_ptr<LogView2Data> data);
+    std::shared_ptr<TextViewComponent> make_pane(std::shared_ptr<LogViewData> data);
     ftxui::Element render_nudge_panel() const;
     void commit();
     void cancel();
@@ -70,8 +70,8 @@ private:
     Notifier _notifier;
 
     std::unique_ptr<AlignTimeSession> _session;
-    std::shared_ptr<AlignTimeLogView2Data> _left_data;
-    std::shared_ptr<AlignTimeLogView2Data> _right_data;
+    std::shared_ptr<AlignTimeLogViewData> _left_data;
+    std::shared_ptr<AlignTimeLogViewData> _right_data;
     std::shared_ptr<TextViewComponent> _left_pane;
     std::shared_ptr<TextViewComponent> _right_pane;
 };

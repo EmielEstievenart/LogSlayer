@@ -30,9 +30,9 @@
 #include "tracked_sources/all_tracked_sources.hpp"
 #include "tracked_sources/tracked_source_factory.hpp"
 #include "timestamp/timestamp_format_catalog.hpp"
-#include "LogView2/align_time_controller.hpp"
-#include "log_view2_bridge.hpp"
-#include "log_view2_component.hpp"
+#include "LogView/align_time_controller.hpp"
+#include "log_view_bridge.hpp"
+#include "log_view_component.hpp"
 #include "notifications/ftxui_toast_notification_sink.hpp"
 #include "tracked_sources/all_processed_sources.hpp"
 #include "settings_store.hpp"
@@ -149,14 +149,14 @@ void initialize_command_palette_controller(std::optional<slayerlog::CommandPalet
 }
 
 bool handle_help_request(const slayerlog::Config& config, slayerlog::CommandManager& command_manager, slayerlog::AllProcessedSources& processed_sources, slayerlog::LogViewService& log_view, slayerlog::AllTrackedSources& tracked_sources,
-                         slayerlog::LogView2FindManager& find_manager, const slayerlog::SettingsStore& settings_store)
+                         slayerlog::LogViewFindManager& find_manager, const slayerlog::SettingsStore& settings_store)
 {
     if (!config.show_help)
     {
         return false;
     }
 
-    slayerlog::register_log_view2_commands(command_manager, {processed_sources, log_view, tracked_sources, {}, nullptr, nullptr, settings_store.file_path()}, find_manager);
+    slayerlog::register_log_view_commands(command_manager, {processed_sources, log_view, tracked_sources, {}, nullptr, nullptr, settings_store.file_path()}, find_manager);
     std::cout << slayerlog::build_help_text(command_manager);
     return true;
 }
@@ -247,7 +247,7 @@ void append_sources_delta_to_processed_sources(const slayerlog::AllTrackedSource
         processed_sources.append_from_sources(tracked_sources, first_new_line_index);
     }
 
-    // LogView2 re-renders straight from the processed sources, so consume the
+    // LogView re-renders straight from the processed sources, so consume the
     // width-growth flag and request a redraw; there is no buffer to sync.
     (void)processed_sources.consume_column_width_growth();
     screen.PostEvent(ftxui::Event::Custom);
@@ -314,9 +314,9 @@ int main(int argc, char** argv)
     std::optional<slayerlog::CommandPaletteController> command_palette_controller;
     initialize_command_palette_controller(command_palette_controller, command_palette_model, command_manager, command_history);
 
-    auto view_data = std::make_shared<slayerlog::AllProcessedSourcesLogView2Data>(processed_sources, model_mutex);
-    auto view      = std::make_shared<slayerlog::LogView2Component>("LogSlayer", view_data, *command_palette_controller, [&screen] { screen.Exit(); });
-    slayerlog::LogView2Bridge log_view_bridge(*view, header_text, screen);
+    auto view_data = std::make_shared<slayerlog::AllProcessedSourcesLogViewData>(processed_sources, model_mutex);
+    auto view      = std::make_shared<slayerlog::LogViewComponent>("LogSlayer", view_data, *command_palette_controller, [&screen] { screen.Exit(); });
+    slayerlog::LogViewBridge log_view_bridge(*view, header_text, screen);
 
     slayerlog::AlignTimeController align_controller(tracked_sources, processed_sources, log_view_bridge, model_mutex, screen);
     log_view_bridge.set_align_controller(&align_controller);
@@ -341,7 +341,7 @@ int main(int argc, char** argv)
     tracked_sources.set_notifier(notifier);
     align_controller.set_notifier(notifier);
 
-    slayerlog::register_log_view2_commands(command_manager, {processed_sources, log_view_bridge, tracked_sources, notifier, &model_mutex, &background_tasks, settings_store.file_path()}, view->find_manager());
+    slayerlog::register_log_view_commands(command_manager, {processed_sources, log_view_bridge, tracked_sources, notifier, &model_mutex, &background_tasks, settings_store.file_path()}, view->find_manager());
 
     //This blocks until app is ready for shutdown.
     screen.Loop(toast_host);

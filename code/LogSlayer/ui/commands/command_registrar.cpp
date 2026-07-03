@@ -20,7 +20,7 @@
 #include "implementations/hide_identical_lines_command.hpp"
 #include "implementations/hide_original_time_command.hpp"
 #include "implementations/hide_shown_lines_command.hpp"
-#include "implementations/log_view2_find_command.hpp"
+#include "implementations/log_view_find_command.hpp"
 #include "implementations/open_command.hpp"
 #include "implementations/open_file_command.hpp"
 #include "implementations/open_folder_command.hpp"
@@ -72,12 +72,12 @@ void register_shared_view_commands(CommandManager& command_manager, const Comman
 
 } // namespace
 
-void register_log_view2_commands(CommandManager& command_manager, CommandContext context, LogView2FindManager& find_manager)
+void register_log_view_commands(CommandManager& command_manager, CommandContext context, LogViewFindManager& find_manager)
 {
     register_shared_view_commands(command_manager, context);
     command_manager.register_command(std::make_unique<OpenCommand>(context));
     command_manager.register_command(std::make_unique<AlignTimeViewCommand>(context));
-    command_manager.register_command(std::make_unique<LogView2FindCommand>(find_manager));
+    command_manager.register_command(std::make_unique<LogViewFindCommand>(find_manager));
 }
 
 } // namespace slayerlog

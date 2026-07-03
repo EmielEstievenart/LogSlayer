@@ -1,6 +1,6 @@
-#include "log_view2_selection.hpp"
+#include "log_view_selection.hpp"
 
-#include "log_view2_data.hpp"
+#include "log_view_data.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -20,14 +20,14 @@ bool is_before(const TextViewPosition& lhs, const TextViewPosition& rhs)
 
 } // namespace
 
-void LogView2Selection::begin(TextViewPosition position, const LogView2Data& data)
+void LogViewSelection::begin(TextViewPosition position, const LogViewData& data)
 {
     _anchor      = clamp(position, data);
     _focus       = _anchor;
     _in_progress = true;
 }
 
-void LogView2Selection::update(TextViewPosition position, const LogView2Data& data)
+void LogViewSelection::update(TextViewPosition position, const LogViewData& data)
 {
     if (!_in_progress || !_anchor.has_value())
     {
@@ -37,7 +37,7 @@ void LogView2Selection::update(TextViewPosition position, const LogView2Data& da
     _focus = clamp(position, data);
 }
 
-void LogView2Selection::end(std::optional<TextViewPosition> position, const LogView2Data& data)
+void LogViewSelection::end(std::optional<TextViewPosition> position, const LogViewData& data)
 {
     _in_progress = false;
     if (position.has_value() && _anchor.has_value())
@@ -46,19 +46,19 @@ void LogView2Selection::end(std::optional<TextViewPosition> position, const LogV
     }
 }
 
-void LogView2Selection::clear()
+void LogViewSelection::clear()
 {
     _anchor.reset();
     _focus.reset();
     _in_progress = false;
 }
 
-bool LogView2Selection::in_progress() const
+bool LogViewSelection::in_progress() const
 {
     return _in_progress;
 }
 
-std::string LogView2Selection::text(const LogView2Data& data) const
+std::string LogViewSelection::text(const LogViewData& data) const
 {
     const auto selection = bounds(data);
     if (!selection.has_value())
@@ -87,7 +87,7 @@ std::string LogView2Selection::text(const LogView2Data& data) const
     return output.str();
 }
 
-std::vector<TextViewRangeDecoration> LogView2Selection::decorations(const LogView2Data& data) const
+std::vector<TextViewRangeDecoration> LogViewSelection::decorations(const LogViewData& data) const
 {
     std::vector<TextViewRangeDecoration> decorations;
     const auto selection = bounds(data);
@@ -99,8 +99,8 @@ std::vector<TextViewRangeDecoration> LogView2Selection::decorations(const LogVie
     const auto [start, end] = *selection;
     for (int line_index = start.line_index; line_index <= end.line_index; ++line_index)
     {
-        const auto line         = data.to_string(static_cast<std::size_t>(line_index));
-        const int line_length   = static_cast<int>(line.size());
+        const auto line           = data.to_string(static_cast<std::size_t>(line_index));
+        const int line_length     = static_cast<int>(line.size());
         const int selection_start = (line_index == start.line_index) ? start.column : 0;
         const int selection_end   = (line_index == end.line_index) ? end.column : line_length;
         const int clamped_start   = std::clamp(selection_start, 0, line_length);
@@ -121,7 +121,7 @@ std::vector<TextViewRangeDecoration> LogView2Selection::decorations(const LogVie
     return decorations;
 }
 
-std::optional<std::pair<TextViewPosition, TextViewPosition>> LogView2Selection::bounds(const LogView2Data& data) const
+std::optional<std::pair<TextViewPosition, TextViewPosition>> LogViewSelection::bounds(const LogViewData& data) const
 {
     if (!_anchor.has_value() || !_focus.has_value() || data.size() == 0)
     {
@@ -138,7 +138,7 @@ std::optional<std::pair<TextViewPosition, TextViewPosition>> LogView2Selection::
     return std::pair(start, end);
 }
 
-TextViewPosition LogView2Selection::clamp(TextViewPosition position, const LogView2Data& data) const
+TextViewPosition LogViewSelection::clamp(TextViewPosition position, const LogViewData& data) const
 {
     const int line_count = static_cast<int>(data.size());
     if (line_count == 0)

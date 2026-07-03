@@ -7,8 +7,8 @@ namespace slayerlog
 {
 
 class CommandManager;
-class LogView2FindManager;
+class LogViewFindManager;
 
-void register_log_view2_commands(CommandManager& command_manager, CommandContext context, LogView2FindManager& find_manager);
+void register_log_view_commands(CommandManager& command_manager, CommandContext context, LogViewFindManager& find_manager);
 
 } // namespace slayerlog

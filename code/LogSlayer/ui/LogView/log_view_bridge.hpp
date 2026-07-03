@@ -10,19 +10,19 @@
 namespace slayerlog
 {
 
-class LogView2Component;
+class LogViewComponent;
 class AllProcessedSources;
 class AllTrackedSources;
 class AlignTimeController;
 
-/// Terminal-UI implementation of LogViewService backed by LogView2, which is
+/// Terminal-UI implementation of LogViewService backed by LogView, which is
 /// thin and pull-based: a refresh is just a redraw request because the view
 /// renders straight from the processed sources, and navigation drives the text
 /// view controller.
-class LogView2Bridge final : public LogViewService
+class LogViewBridge final : public LogViewService
 {
 public:
-    LogView2Bridge(LogView2Component& view, std::string& header_text, ftxui::ScreenInteractive& screen);
+    LogViewBridge(LogViewComponent& view, std::string& header_text, ftxui::ScreenInteractive& screen);
 
     /// Wire the dual-pane alignment controller that begin_time_alignment() drives.
     void set_align_controller(AlignTimeController* align_controller);
@@ -35,7 +35,7 @@ public:
     void begin_time_alignment(std::size_t aligning_source_index) override;
 
 private:
-    LogView2Component& _view;
+    LogViewComponent& _view;
     std::string& _header_text;
     ftxui::ScreenInteractive& _screen;
     AlignTimeController* _align_controller = nullptr;

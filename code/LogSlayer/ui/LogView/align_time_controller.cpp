@@ -1,4 +1,4 @@
-#include "LogView2/align_time_controller.hpp"
+#include "LogView/align_time_controller.hpp"
 
 #include <algorithm>
 #include <optional>
@@ -13,7 +13,7 @@
 #include <ftxui_components/text_view_controller.hpp>
 
 #include "align_time_session.hpp"
-#include "log_view2_utils.hpp"
+#include "log_view_utils.hpp"
 #include "log_view_service.hpp"
 #include "timestamp/log_timestamp.hpp"
 #include "tracked_sources/all_processed_sources.hpp"
@@ -72,8 +72,8 @@ void AlignTimeController::begin(std::size_t aligning_source_index)
     }
 
     _session    = std::move(session);
-    _left_data  = std::make_shared<AlignTimeLogView2Data>(*_session, _model_mutex, AlignTimeLogView2Data::Side::Left);
-    _right_data = std::make_shared<AlignTimeLogView2Data>(*_session, _model_mutex, AlignTimeLogView2Data::Side::Right);
+    _left_data  = std::make_shared<AlignTimeLogViewData>(*_session, _model_mutex, AlignTimeLogViewData::Side::Left);
+    _right_data = std::make_shared<AlignTimeLogViewData>(*_session, _model_mutex, AlignTimeLogViewData::Side::Right);
     _left_pane  = make_pane(_left_data);
     _right_pane = make_pane(_right_data);
     _screen.PostEvent(ftxui::Event::Custom);
@@ -225,7 +225,7 @@ ftxui::Element AlignTimeController::render(int screen_height)
     return ftxui::vbox({std::move(panes), render_nudge_panel()});
 }
 
-std::shared_ptr<TextViewComponent> AlignTimeController::make_pane(std::shared_ptr<LogView2Data> data)
+std::shared_ptr<TextViewComponent> AlignTimeController::make_pane(std::shared_ptr<LogViewData> data)
 {
     AlignTimeController* self = this;
     TextViewComponentOption option;

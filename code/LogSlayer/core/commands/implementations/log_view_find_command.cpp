@@ -1,29 +1,29 @@
-#include "implementations/log_view2_find_command.hpp"
+#include "implementations/log_view_find_command.hpp"
 
 #include <stdexcept>
 #include <string>
 
-#include "log_view2_find_manager.hpp"
+#include "log_view_find_manager.hpp"
 #include "search_pattern.hpp"
 
 namespace slayerlog
 {
 
-LogView2FindCommand::LogView2FindCommand(LogView2FindManager& find_manager) : _find_manager(find_manager)
+LogViewFindCommand::LogViewFindCommand(LogViewFindManager& find_manager) : _find_manager(find_manager)
 {
 }
 
-const CommandDescriptor& LogView2FindCommand::descriptor() const
+const CommandDescriptor& LogViewFindCommand::descriptor() const
 {
     static const CommandDescriptor descriptor {"find",
                                                "Find lines matching text or regex",
                                                "find <text|re:regex>",
-                                               {"Highlights matching LogView2 lines and focuses the first match when possible.", "Use plain text for substring matching or prefix with re: for a regular expression.",
+                                               {"Highlights matching LogView lines and focuses the first match when possible.", "Use plain text for substring matching or prefix with re: for a regular expression.",
                                                 "After find is active, use Right/Left to move between matches and Esc to clear it.", "Example: find timeout", "Example: find re:request_id=[0-9]+"}};
     return descriptor;
 }
 
-CommandResult LogView2FindCommand::execute(std::string_view arguments)
+CommandResult LogViewFindCommand::execute(std::string_view arguments)
 {
     const std::string query = trim_search_text(arguments);
     if (query.empty())

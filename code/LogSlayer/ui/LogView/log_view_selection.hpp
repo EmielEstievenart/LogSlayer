@@ -10,12 +10,12 @@
 namespace slayerlog
 {
 
-class LogView2Data;
+class LogViewData;
 
-// Mouse-driven text selection over the lines exposed by a LogView2Data.
+// Mouse-driven text selection over the lines exposed by a LogViewData.
 // Positions are model-space (line index + column). Every query that reads the
 // underlying content expects the caller to already hold the data lock.
-class LogView2Selection
+class LogViewSelection
 {
 public:
     /**
@@ -26,7 +26,7 @@ public:
      * @param position Model-space anchor position; clamped to the content bounds.
      * @param data Locked content the position is clamped against.
      */
-    void begin(TextViewPosition position, const LogView2Data& data);
+    void begin(TextViewPosition position, const LogViewData& data);
 
     /**
      * @brief Move the focus end of an in-progress selection.
@@ -36,7 +36,7 @@ public:
      * @param position Model-space focus position; clamped to the content bounds.
      * @param data Locked content the position is clamped against.
      */
-    void update(TextViewPosition position, const LogView2Data& data);
+    void update(TextViewPosition position, const LogViewData& data);
 
     /**
      * @brief Finish the in-progress selection.
@@ -47,7 +47,7 @@ public:
      * @param position Optional final focus position; clamped when present.
      * @param data Locked content the position is clamped against.
      */
-    void end(std::optional<TextViewPosition> position, const LogView2Data& data);
+    void end(std::optional<TextViewPosition> position, const LogViewData& data);
 
     /**
      * @brief Discard the current selection, leaving nothing selected.
@@ -69,7 +69,7 @@ public:
      * @param data Locked content the selection refers to.
      * @return The selected text, or an empty string when nothing is selected.
      */
-    [[nodiscard]] std::string text(const LogView2Data& data) const;
+    [[nodiscard]] std::string text(const LogViewData& data) const;
 
     /**
      * @brief Build the highlight decorations covering the selection.
@@ -80,11 +80,11 @@ public:
      * @param data Locked content the selection refers to.
      * @return One decoration per selected line, or empty when nothing is selected.
      */
-    [[nodiscard]] std::vector<TextViewRangeDecoration> decorations(const LogView2Data& data) const;
+    [[nodiscard]] std::vector<TextViewRangeDecoration> decorations(const LogViewData& data) const;
 
 private:
-    [[nodiscard]] std::optional<std::pair<TextViewPosition, TextViewPosition>> bounds(const LogView2Data& data) const;
-    [[nodiscard]] TextViewPosition clamp(TextViewPosition position, const LogView2Data& data) const;
+    [[nodiscard]] std::optional<std::pair<TextViewPosition, TextViewPosition>> bounds(const LogViewData& data) const;
+    [[nodiscard]] TextViewPosition clamp(TextViewPosition position, const LogViewData& data) const;
 
     bool _in_progress = false;
     std::optional<TextViewPosition> _anchor;
