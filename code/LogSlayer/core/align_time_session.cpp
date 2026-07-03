@@ -198,6 +198,16 @@ LogTimestampOffset AlignTimeSession::preview_offset() const
     return _preview_offset;
 }
 
+LogTimestampOffset AlignTimeSession::current_step() const
+{
+    return kNudgeSteps[_step_index].offset;
+}
+
+std::string_view AlignTimeSession::current_step_label() const
+{
+    return kNudgeSteps[_step_index].label;
+}
+
 bool AlignTimeSession::can_commit() const
 {
     return _ready && _phase == Phase::Nudge && _right_selection != nullptr;
@@ -345,8 +355,9 @@ void AlignTimeSession::nudge(int steps)
         return;
     }
 
-    const int count              = std::abs(steps);
-    const LogTimestampOffset one = steps > 0 ? kNudgeStep : LogTimestampOffset {-kNudgeStep.seconds, -kNudgeStep.nanosecond};
+    const LogTimestampOffset step = kNudgeSteps[_step_index].offset;
+    const int count               = std::abs(steps);
+    const LogTimestampOffset one  = steps > 0 ? step : LogTimestampOffset {-step.seconds, -step.nanosecond};
     for (int applied = 0; applied < count; ++applied)
     {
         const auto combined = add_offsets(_preview_offset, one);
@@ -360,6 +371,18 @@ void AlignTimeSession::nudge(int steps)
 
     apply_preview_offset_to_aligning();
     rebuild_merge();
+}
+
+void AlignTimeSession::change_step(int direction)
+{
+    if (_phase != Phase::Nudge || direction == 0)
+    {
+        return;
+    }
+
+    const int max_index = static_cast<int>(kNudgeSteps.size()) - 1;
+    const int next      = std::clamp(static_cast<int>(_step_index) + (direction > 0 ? 1 : -1), 0, max_index);
+    _step_index         = static_cast<std::size_t>(next);
 }
 
 bool AlignTimeSession::step_back()

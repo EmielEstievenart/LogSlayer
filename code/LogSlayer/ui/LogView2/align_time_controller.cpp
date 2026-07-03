@@ -118,6 +118,26 @@ bool AlignTimeController::handle_event(const ftxui::Event& event)
         _screen.PostEvent(ftxui::Event::Custom);
         return true;
     }
+    if (event == ftxui::Event::ArrowLeft)
+    {
+        // While nudging, Left/Right change the granularity instead of moving a cursor:
+        // Left = coarser (toward 100 ms), Right = finer (toward 1 us).
+        if (nudging)
+        {
+            _session->change_step(1);
+            _screen.PostEvent(ftxui::Event::Custom);
+        }
+        return true;
+    }
+    if (event == ftxui::Event::ArrowRight)
+    {
+        if (nudging)
+        {
+            _session->change_step(-1);
+            _screen.PostEvent(ftxui::Event::Custom);
+        }
+        return true;
+    }
     if (event == ftxui::Event::PageUp)
     {
         if (!nudging)
@@ -271,14 +291,23 @@ ftxui::Element AlignTimeController::render_nudge_panel() const
         key_line = hints({theme::key_hint("Up/Down", "move"), theme::key_hint("Space", "mark ref"), theme::key_hint("Enter", "nudge"), theme::key_hint("Backspace", "back"), theme::key_hint("Esc", "cancel")});
         break;
     case AlignTimeSession::Phase::Nudge:
-        key_line = hints({theme::key_hint("Up", "earlier"), theme::key_hint("Down", "later"), theme::key_hint("Enter", "apply"), theme::key_hint("Backspace", "back"), theme::key_hint("Esc", "cancel")});
+        key_line =
+            hints({theme::key_hint("Up", "earlier"), theme::key_hint("Down", "later"), theme::key_hint("Left/Right", "step"), theme::key_hint("Enter", "apply"), theme::key_hint("Backspace", "back"), theme::key_hint("Esc", "cancel")});
         break;
     }
 
-    ftxui::Element offset_line = ftxui::hbox({
+    std::vector<ftxui::Element> offset_row {
         theme::badge("OFFSET ", theme::label_align_fg),
         ftxui::text(format_log_timestamp_offset(_session->preview_offset())),
-    });
+    };
+    if (phase == AlignTimeSession::Phase::Nudge)
+    {
+        // The step only matters (and only changes) while nudging, so surface it there.
+        offset_row.push_back(ftxui::text("    "));
+        offset_row.push_back(theme::badge("STEP ", theme::label_align_fg));
+        offset_row.push_back(ftxui::text(std::string(_session->current_step_label())));
+    }
+    ftxui::Element offset_line = ftxui::hbox(std::move(offset_row));
 
     return ftxui::window(ftxui::text("Align time"), ftxui::vbox({std::move(status_line), std::move(offset_line), ftxui::separator(), std::move(key_line)})) | ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, 6);
 }

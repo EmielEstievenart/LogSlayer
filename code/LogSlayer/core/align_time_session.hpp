@@ -1,9 +1,11 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "tracked_sources/log_entry_presentation.hpp"
@@ -32,8 +34,29 @@ class AllProcessedSources;
 class AlignTimeSession
 {
 public:
-    /// One arrow-key nudge shifts the preview offset by this much (100 ms). Positive = later.
-    static constexpr LogTimestampOffset kNudgeStep {0, 100'000'000};
+    /// One rung of the nudge-granularity ladder: the offset a single arrow-key nudge
+    /// applies, plus a compact label for the panel ("1 ms", "100 \xc2\xb5s", ...).
+    struct NudgeStep
+    {
+        LogTimestampOffset offset;
+        std::string_view label;
+    };
+
+    /// Logarithmic ladder of nudge granularities, finest -> coarsest, each a decade apart.
+    /// Left/Right during the Nudge phase step along it; Up/Down nudge by the current rung.
+    /// (The micro sign is spelled with an explicit UTF-8 byte escape so the source stays
+    /// correct regardless of the compiler's source/execution charset.)
+    static constexpr std::array<NudgeStep, 6> kNudgeSteps {{
+        {{0, 1'000}, "1 \xc2\xb5s"},
+        {{0, 10'000}, "10 \xc2\xb5s"},
+        {{0, 100'000}, "100 \xc2\xb5s"},
+        {{0, 1'000'000}, "1 ms"},
+        {{0, 10'000'000}, "10 ms"},
+        {{0, 100'000'000}, "100 ms"},
+    }};
+
+    /// Default granularity: 1 ms (index into kNudgeSteps).
+    static constexpr std::size_t kDefaultStepIndex = 3;
 
     enum class Phase
     {
@@ -71,6 +94,9 @@ public:
     [[nodiscard]] std::optional<int> right_selected_row() const;
     [[nodiscard]] std::vector<int> left_selected_rows() const;
     [[nodiscard]] LogTimestampOffset preview_offset() const;
+    /// The offset a single nudge currently applies, and its compact label for the panel.
+    [[nodiscard]] LogTimestampOffset current_step() const;
+    [[nodiscard]] std::string_view current_step_label() const;
     [[nodiscard]] bool can_commit() const;
 
     // --- Interaction (driven by the controller) ---
@@ -82,8 +108,11 @@ public:
     /// SelectLeft; SelectLeft (with >=1 reference) applies the coarse offset and advances
     /// to Nudge. Returns true when the phase advanced.
     bool advance();
-    /// In Nudge, shift the preview offset by @p steps of kNudgeStep (positive = later).
+    /// In Nudge, shift the preview offset by @p steps of the current granularity (positive = later).
     void nudge(int steps);
+    /// In Nudge, move one rung along the granularity ladder: @p direction > 0 makes the
+    /// step coarser (up to 100 ms), < 0 makes it finer (down to 1 \xc2\xb5s). Clamped at both ends.
+    void change_step(int direction);
     /// Step back one phase (Nudge -> SelectLeft -> SelectRight). Returns false at SelectRight.
     bool step_back();
 
@@ -122,6 +151,7 @@ private:
     std::optional<LogTimestamp> _right_base;
     std::vector<std::shared_ptr<LogEntry>> _left_selections;
     LogTimestampOffset _preview_offset {0, 0};
+    std::size_t _step_index = kDefaultStepIndex;
 };
 
 } // namespace slayerlog

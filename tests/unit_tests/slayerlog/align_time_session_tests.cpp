@@ -178,18 +178,60 @@ TEST(AlignTimeSessionTest, NudgeShiftsPreviewByFixedStepAndMovesTheLine)
     ASSERT_TRUE(session.right_selected_row().has_value());
     EXPECT_EQ(2, *session.right_selected_row());
 
-    // One step later (+100 ms).
+    // Default granularity is 1 ms: one step later (+1 ms).
+    session.nudge(1);
+    EXPECT_EQ(3610, session.preview_offset().seconds);
+    EXPECT_EQ(1'000'000, session.preview_offset().nanosecond);
+
+    // Back to exactly 3610s, then one step earlier: b0 -> 10:00:09.999, now before a10.
+    session.nudge(-1);
+    session.nudge(-1);
+    EXPECT_EQ(3609, session.preview_offset().seconds);
+    EXPECT_EQ(999'000'000, session.preview_offset().nanosecond);
+    ASSERT_TRUE(session.right_selected_row().has_value());
+    EXPECT_EQ(1, *session.right_selected_row()); // the moving line followed its entry up
+}
+
+TEST(AlignTimeSessionTest, ChangeStepAdjustsNudgeGranularityAndClamps)
+{
+    AllProcessedSources processed_sources;
+    populate_two_source_model(processed_sources);
+    AlignTimeSession session(processed_sources, 1);
+
+    EXPECT_TRUE(session.advance()); // right = b0
+    session.move_cursor(1);         // reference = a10
+    session.toggle_left_selection();
+    EXPECT_TRUE(session.advance()); // -> Nudge, preview = 3610s
+
+    // Default rung is 1 ms.
+    EXPECT_EQ(1'000'000, session.current_step().nanosecond);
+    EXPECT_EQ("1 ms", session.current_step_label());
+
+    // Coarser by two decades -> 100 ms; one nudge shifts by that.
+    session.change_step(1);
+    session.change_step(1);
+    EXPECT_EQ("100 ms", session.current_step_label());
     session.nudge(1);
     EXPECT_EQ(3610, session.preview_offset().seconds);
     EXPECT_EQ(100'000'000, session.preview_offset().nanosecond);
 
-    // Back to exactly 3610s, then one step earlier: b0 -> 10:00:09.9, now before a10.
+    // Coarser clamps at 100 ms (never overflows past the last rung).
+    session.change_step(1);
+    session.change_step(1);
+    EXPECT_EQ("100 ms", session.current_step_label());
+
+    // Finer all the way clamps at 1 us.
+    for (int i = 0; i < 10; ++i)
+    {
+        session.change_step(-1);
+    }
+    EXPECT_EQ(1'000, session.current_step().nanosecond);
+    EXPECT_EQ("1 \xc2\xb5s", session.current_step_label());
+
+    // A single 1 us nudge earlier off the current 3610.1s preview.
     session.nudge(-1);
-    session.nudge(-1);
-    EXPECT_EQ(3609, session.preview_offset().seconds);
-    EXPECT_EQ(900'000'000, session.preview_offset().nanosecond);
-    ASSERT_TRUE(session.right_selected_row().has_value());
-    EXPECT_EQ(1, *session.right_selected_row()); // the moving line followed its entry up
+    EXPECT_EQ(3610, session.preview_offset().seconds);
+    EXPECT_EQ(99'999'000, session.preview_offset().nanosecond);
 }
 
 TEST(AlignTimeSessionTest, StepBackFromNudgeResetsPreviewAndPhase)
