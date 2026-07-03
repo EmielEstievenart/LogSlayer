@@ -19,7 +19,11 @@ public:
     void dismiss(NotificationId id) override;
 
 private:
-    std::shared_ptr<ToastHostComponent> _toast_host;
+    // Weak on purpose: Notifier copies end up in long-lived model objects (tracked
+    // sources, commands), and a strong reference here would let them keep the whole
+    // FTXUI component tree alive past the model it renders. Notifications after the
+    // toast host is gone become no-ops instead.
+    std::weak_ptr<ToastHostComponent> _toast_host;
 };
 
 } // namespace slayerlog

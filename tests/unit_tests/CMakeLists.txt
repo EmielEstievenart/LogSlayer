@@ -17,6 +17,7 @@ add_executable(
   slayerlog/align_time_session_tests.cpp
   slayerlog/log_model_tests.cpp
   slayerlog/log_view_data_tests.cpp
+  slayerlog/shutdown_teardown_tests.cpp
   slayerlog/toast_component_tests.cpp
   slayerlog/settings_ini_tests.cpp
   slayerlog/settings_store_tests.cpp)

@@ -46,32 +46,35 @@ FtxuiToastNotificationSink::FtxuiToastNotificationSink(std::shared_ptr<ToastHost
 
 NotificationId FtxuiToastNotificationSink::show(Notification notification)
 {
-    if (_toast_host == nullptr)
+    const auto toast_host = _toast_host.lock();
+    if (toast_host == nullptr)
     {
         return 0;
     }
 
-    return _toast_host->show(to_toast_option(std::move(notification)));
+    return toast_host->show(to_toast_option(std::move(notification)));
 }
 
 void FtxuiToastNotificationSink::update(NotificationId id, Notification notification)
 {
-    if (_toast_host == nullptr || id == 0)
+    const auto toast_host = _toast_host.lock();
+    if (toast_host == nullptr || id == 0)
     {
         return;
     }
 
-    _toast_host->update(id, to_toast_option(std::move(notification)));
+    toast_host->update(id, to_toast_option(std::move(notification)));
 }
 
 void FtxuiToastNotificationSink::dismiss(NotificationId id)
 {
-    if (_toast_host == nullptr || id == 0)
+    const auto toast_host = _toast_host.lock();
+    if (toast_host == nullptr || id == 0)
     {
         return;
     }
 
-    _toast_host->dismiss(id);
+    toast_host->dismiss(id);
 }
 
 } // namespace slayerlog
