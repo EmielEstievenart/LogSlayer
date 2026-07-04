@@ -71,6 +71,9 @@ std::vector<std::string> load_timestamp_formats(slayerlog::SettingsStore& settin
         return timestamp_formats;
     }
 
+    // ensure_default_values merges the shipped defaults with the user's list, so new
+    // defaults propagate on upgrade and user-added formats are preserved. The flip side
+    // is deliberate: a default the user deleted from the file reappears.
     if (!settings_store.ensure_default_values(timestamp_formats_section, timestamp_format_key, timestamp_formats, settings_error_message))
     {
         SLAYERLOG_LOG_WARNING("Failed to seed timestamp formats in settings file " << settings_store.file_path() << ": " << settings_error_message);
@@ -78,6 +81,27 @@ std::vector<std::string> load_timestamp_formats(slayerlog::SettingsStore& settin
     }
 
     return settings_store.ini().values(timestamp_formats_section, timestamp_format_key);
+}
+
+void notify_rejected_timestamp_formats(const slayerlog::TimestampFormatCatalog& timestamp_catalog, slayerlog::Notifier& notifier)
+{
+    const auto& rejected = timestamp_catalog.rejected_formats();
+    if (rejected.empty())
+    {
+        return;
+    }
+
+    std::string message;
+    for (const auto& rejected_format : rejected)
+    {
+        if (!message.empty())
+        {
+            message += ", ";
+        }
+        message += "\"" + rejected_format.format + "\"";
+    }
+
+    notifier.warning("Ignored " + std::to_string(rejected.size()) + " invalid timestamp format(s)", message + " — see debug log for details");
 }
 
 std::shared_ptr<const slayerlog::TimestampFormatCatalog> configure_timestamp_formats(const std::vector<std::string>& timestamp_formats)
@@ -340,6 +364,7 @@ int main(int argc, char** argv)
     slayerlog::Notifier notifier(std::make_shared<slayerlog::FtxuiToastNotificationSink>(toast_host));
     tracked_sources.set_notifier(notifier);
     align_controller.set_notifier(notifier);
+    notify_rejected_timestamp_formats(*timestamp_catalog, notifier);
 
     slayerlog::register_log_view_commands(command_manager, {processed_sources, log_view_bridge, tracked_sources, notifier, &model_mutex, &background_tasks, settings_store.file_path()}, view->find_manager());
 

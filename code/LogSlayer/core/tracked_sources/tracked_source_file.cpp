@@ -38,22 +38,15 @@ TrackedSourceFile::TrackedSourceFile(LogSource source, std::string source_label,
 
 void TrackedSourceFile::try_initialize_timestamp_parser(const std::vector<std::string>& lines)
 {
-    if (_timestamp_parser_initialized)
+    if (_timestamp_parser.initialized())
     {
         return;
     }
 
-    for (const auto& line : lines)
+    const auto catalog = timestamp_formats();
+    if (catalog != nullptr)
     {
-        LogEntry probe(line);
-        const auto catalog = timestamp_formats();
-        if (catalog == nullptr || !_timestamp_parser.init(probe, *catalog))
-        {
-            continue;
-        }
-
-        _timestamp_parser_initialized = true;
-        return;
+        _timestamp_parser.init(lines, *catalog);
     }
 }
 
@@ -90,10 +83,10 @@ bool TrackedSourceFile::poll()
     return true;
 }
 
-void TrackedSourceFile::set_timestamp_format(std::string format)
+void TrackedSourceFile::set_timestamp_catalog(std::shared_ptr<const TimestampFormatCatalog> timestamp_formats)
 {
-    set_timestamp_formats(std::make_shared<const TimestampFormatCatalog>(std::vector<std::string> {std::move(format)}));
-    reparse_entries(_timestamp_parser, _timestamp_parser_initialized);
+    set_timestamp_formats(std::move(timestamp_formats));
+    reparse_entries(_timestamp_parser);
 }
 
 } // namespace slayerlog

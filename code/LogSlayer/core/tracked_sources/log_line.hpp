@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "timestamp/log_timestamp.hpp"
@@ -17,7 +18,6 @@ struct LogEntryMetadata
 {
     std::optional<LogTimestamp> timestamp;
     std::optional<LogTimestamp> offset_timestamp;
-    std::string extracted_time_text;
     std::optional<std::size_t> extracted_time_start;
     std::optional<std::size_t> extracted_time_end;
     std::uint64_t sequence_number = 0;
@@ -27,7 +27,7 @@ struct LogEntryMetadata
 
     LogEntryMetadata() = default;
 
-    LogEntryMetadata(std::optional<LogTimestamp> timestamp, std::string extracted_time_text = {}) : timestamp(std::move(timestamp)), extracted_time_text(std::move(extracted_time_text)) { }
+    explicit LogEntryMetadata(std::optional<LogTimestamp> timestamp) : timestamp(std::move(timestamp)) { }
 };
 
 inline std::optional<LogTimestamp> effective_timestamp(const LogEntryMetadata& metadata)
@@ -42,19 +42,35 @@ struct LogEntry
 
     LogEntry() = default;
 
-    LogEntry(std::string text, std::optional<LogTimestamp> timestamp = std::nullopt, std::string extracted_time_text = {}) : text(std::move(text)), metadata(std::move(timestamp), std::move(extracted_time_text)) { }
+    LogEntry(std::string text, std::optional<LogTimestamp> timestamp = std::nullopt) : text(std::move(text)), metadata(std::move(timestamp)) { }
 
-    LogEntry(std::string source_label, std::string text, std::optional<LogTimestamp> timestamp = std::nullopt, std::string extracted_time_text = {}) : LogEntry(std::move(text), std::move(timestamp), std::move(extracted_time_text))
-    {
-        metadata.source_label = std::move(source_label);
-    }
+    LogEntry(std::string source_label, std::string text, std::optional<LogTimestamp> timestamp = std::nullopt) : LogEntry(std::move(text), std::move(timestamp)) { metadata.source_label = std::move(source_label); }
 
-    LogEntry(std::size_t source_index, std::string source_label, std::string text, std::optional<LogTimestamp> timestamp = std::nullopt, std::uint64_t sequence_number = 0, std::string extracted_time_text = {})
-        : LogEntry(std::move(source_label), std::move(text), std::move(timestamp), std::move(extracted_time_text))
+    LogEntry(std::size_t source_index, std::string source_label, std::string text, std::optional<LogTimestamp> timestamp = std::nullopt, std::uint64_t sequence_number = 0)
+        : LogEntry(std::move(source_label), std::move(text), std::move(timestamp))
     {
         metadata.source_index    = source_index;
         metadata.sequence_number = sequence_number;
     }
 };
+
+/// The slice of the entry text the timestamp was parsed from; empty when no timestamp was
+/// extracted. A view into entry.text — do not keep it beyond the entry's lifetime.
+inline std::string_view extracted_time_view(const LogEntry& entry)
+{
+    if (!entry.metadata.extracted_time_start.has_value() || !entry.metadata.extracted_time_end.has_value())
+    {
+        return {};
+    }
+
+    const std::size_t start = *entry.metadata.extracted_time_start;
+    const std::size_t end   = *entry.metadata.extracted_time_end;
+    if (start >= end || end > entry.text.size())
+    {
+        return {};
+    }
+
+    return std::string_view(entry.text).substr(start, end - start);
+}
 
 } // namespace slayerlog

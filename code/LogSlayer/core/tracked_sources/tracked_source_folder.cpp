@@ -175,20 +175,17 @@ void TrackedSourceFolder::finish_open_notification(std::string title, std::strin
     _open_progress_notification.show_or_update(std::move(notification));
 }
 
-void TrackedSourceFolder::set_timestamp_format(std::string format)
+void TrackedSourceFolder::set_timestamp_catalog(std::shared_ptr<const TimestampFormatCatalog> timestamp_formats)
 {
-    auto formats = std::make_shared<const TimestampFormatCatalog>(std::vector<std::string> {std::move(format)});
-    set_timestamp_formats(formats);
+    set_timestamp_formats(timestamp_formats);
 
+    // The children reparse with their own stored offsets, so only the shared catalog
+    // needs to be handed down; each child compiles nothing (the catalog is prebuilt).
     for (auto& child : _children)
     {
         if (child.second.tracked_source != nullptr)
         {
-            child.second.tracked_source->set_timestamp_format(formats->formats().front());
-            if (timestamp_offset().has_value())
-            {
-                (void)child.second.tracked_source->set_timestamp_offset(*timestamp_offset());
-            }
+            child.second.tracked_source->set_timestamp_catalog(timestamp_formats);
         }
     }
 
@@ -197,12 +194,6 @@ void TrackedSourceFolder::set_timestamp_format(std::string format)
 
 std::optional<std::string> TrackedSourceFolder::set_timestamp_offset(LogTimestampOffset offset)
 {
-    const auto base_error = TrackedSourceBase::set_timestamp_offset(offset);
-    if (base_error.has_value())
-    {
-        return base_error;
-    }
-
     for (auto& child : _children)
     {
         if (child.second.tracked_source == nullptr)
@@ -217,13 +208,15 @@ std::optional<std::string> TrackedSourceFolder::set_timestamp_offset(LogTimestam
         }
     }
 
+    // The folder's merged entries are clones rebuilt from the children below, so the
+    // offset only needs to be recorded here, not applied entry by entry first.
+    store_timestamp_offset(offset);
     rebuild_entries_from_children();
     return std::nullopt;
 }
 
 void TrackedSourceFolder::clear_timestamp_offset()
 {
-    TrackedSourceBase::clear_timestamp_offset();
     for (auto& child : _children)
     {
         if (child.second.tracked_source != nullptr)
@@ -232,6 +225,7 @@ void TrackedSourceFolder::clear_timestamp_offset()
         }
     }
 
+    store_timestamp_offset(std::nullopt);
     rebuild_entries_from_children();
 }
 

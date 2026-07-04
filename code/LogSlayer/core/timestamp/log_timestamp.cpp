@@ -19,12 +19,6 @@ constexpr std::int64_t seconds_per_day        = 86400;
 constexpr std::int64_t days_to_unix_epoch     = 719468;
 constexpr std::int64_t nanoseconds_per_second = 1000000000;
 
-struct OffsetParserEntry
-{
-    eestv::compiledDataAndTimeParser parser;
-    unsigned fraction_digits = 0;
-};
-
 std::string_view trim_view(std::string_view text)
 {
     std::size_t start = 0;
@@ -42,10 +36,15 @@ std::string_view trim_view(std::string_view text)
     return text.substr(start, end - start);
 }
 
-bool apply_parser(const eestv::compiledDataAndTimeParser& parser, std::string input, eestv::DateAndTime& output)
+bool apply_parser(const eestv::CompiledDateAndTimeParser& parser, std::string_view input, eestv::DateAndTime& output)
 {
+    if (parser.steps.empty())
+    {
+        return false;
+    }
+
     int index = 0;
-    for (const auto& step : parser.dateParser)
+    for (const auto& step : parser.steps)
     {
         int index_jump = 0;
         if (!step(input, index, index_jump, output))
@@ -59,25 +58,20 @@ bool apply_parser(const eestv::compiledDataAndTimeParser& parser, std::string in
     return index == static_cast<int>(input.size());
 }
 
-std::vector<OffsetParserEntry> build_offset_parsers()
+std::vector<eestv::CompiledDateAndTimeParser> build_offset_parsers()
 {
-    eestv::TimestampParser parser;
-    std::vector<OffsetParserEntry> parsers;
-    parsers.push_back({parser.CompileFormat("YY hh:mm:ss"), 0});
-
-    std::string fraction_format = "YY hh:mm:ss.";
-    for (unsigned digits = 1; digits <= 9; ++digits)
-    {
-        fraction_format.push_back('f');
-        parsers.push_back({parser.CompileFormat(fraction_format), digits});
-    }
-
-    return parsers;
+    // Offsets are entered as "DD hh:mm:ss[.fraction]". The format language has no
+    // day-count token, so 'YY' stands in for the two-digit day count (00-99):
+    // parse_log_timestamp_offset converts the resulting year (2000 + days) back to days.
+    return {
+        eestv::TimestampParser::CompileFormat("YY hh:mm:ss"),
+        eestv::TimestampParser::CompileFormat("YY hh:mm:ss.f*"),
+    };
 }
 
-const std::vector<OffsetParserEntry>& offset_parsers()
+const std::vector<eestv::CompiledDateAndTimeParser>& offset_parsers()
 {
-    static const std::vector<OffsetParserEntry> parsers = build_offset_parsers();
+    static const std::vector<eestv::CompiledDateAndTimeParser> parsers = build_offset_parsers();
     return parsers;
 }
 
@@ -302,11 +296,10 @@ std::optional<LogTimestampOffset> parse_log_timestamp_offset(std::string_view te
         return std::nullopt;
     }
 
-    const std::string input(text);
-    for (const auto& entry : offset_parsers())
+    for (const auto& parser : offset_parsers())
     {
         eestv::DateAndTime parsed;
-        if (!apply_parser(entry.parser, input, parsed))
+        if (!apply_parser(parser, text, parsed))
         {
             continue;
         }

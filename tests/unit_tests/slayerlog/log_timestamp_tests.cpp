@@ -2,6 +2,7 @@
 
 #include <limits>
 
+#include "eestv/timestamp/timestamp_parser.hpp"
 #include "timestamp/source_timestamp_parser.hpp"
 
 namespace slayerlog
@@ -44,18 +45,20 @@ std::optional<LogTimestamp> parse_timestamp(const std::string& line)
     return parsed->timestamp;
 }
 
-std::optional<eestv::DateAndTime> parse_with_format(const std::string& format, const std::string& input)
+std::optional<eestv::DateAndTime> parse_with_format(const std::string& format, std::string_view input)
 {
-    eestv::TimestampParser timestamp_parser;
-    const auto parser = timestamp_parser.CompileFormat(format);
+    const auto parser = eestv::TimestampParser::CompileFormat(format);
+    if (!parser.valid())
+    {
+        return std::nullopt;
+    }
 
-    std::string to_parse = input;
     eestv::DateAndTime output;
     int index = 0;
-    for (const auto& step : parser.dateParser)
+    for (const auto& step : parser.steps)
     {
         int index_jump = 0;
-        if (!step(to_parse, index, index_jump, output))
+        if (!step(input, index, index_jump, output))
         {
             return std::nullopt;
         }
@@ -63,7 +66,7 @@ std::optional<eestv::DateAndTime> parse_with_format(const std::string& format, c
         index += index_jump;
     }
 
-    if (index != static_cast<int>(to_parse.size()))
+    if (index != static_cast<int>(input.size()))
     {
         return std::nullopt;
     }
@@ -108,7 +111,7 @@ TEST(LogTimestampTest, InitChoosesLongestMatchingTimestampFormat)
 
     ASSERT_TRUE(line.metadata.timestamp.has_value());
     EXPECT_EQ(line.metadata.timestamp->nanosecond, 123456000U);
-    EXPECT_EQ(line.metadata.extracted_time_text, "2026-04-01T12:34:56.123456");
+    EXPECT_EQ(extracted_time_view(line), "2026-04-01T12:34:56.123456");
     ASSERT_TRUE(line.metadata.extracted_time_end.has_value());
     EXPECT_EQ(*line.metadata.extracted_time_end, 26U);
 }
@@ -160,11 +163,143 @@ TEST(LogTimestampTest, ParsesColonSeparatedTimezoneOffset)
     EXPECT_LT(*earlier, *later);
 }
 
+TEST(LogTimestampTest, ParsesFractionWithColonOffset)
+{
+    const auto with_offset = parse_timestamp("2026-07-03T12:34:56.789+02:00 event");
+    const auto utc         = parse_timestamp("2026-07-03T10:34:56.789Z event");
+
+    ASSERT_TRUE(with_offset.has_value());
+    ASSERT_TRUE(utc.has_value());
+    EXPECT_EQ(*with_offset, *utc);
+    EXPECT_EQ(with_offset->nanosecond, 789000000U);
+}
+
+TEST(LogTimestampTest, ParsesFractionWithCompactOffset)
+{
+    const auto with_offset = parse_timestamp("2026-07-03T12:34:56.789+0200 event");
+    const auto utc         = parse_timestamp("2026-07-03T10:34:56.789Z event");
+
+    ASSERT_TRUE(with_offset.has_value());
+    ASSERT_TRUE(utc.has_value());
+    EXPECT_EQ(*with_offset, *utc);
+}
+
+TEST(LogTimestampTest, ExtractedTextIncludesTrailingZuluDesignator)
+{
+    const auto details = parse_timestamp_details("2026-07-03T12:34:56.789Z event");
+
+    ASSERT_TRUE(details.has_value());
+    ASSERT_TRUE(details->extracted_time_start.has_value());
+    ASSERT_TRUE(details->extracted_time_end.has_value());
+    EXPECT_EQ(*details->extracted_time_start, 0U);
+    EXPECT_EQ(*details->extracted_time_end, 24U);
+}
+
+TEST(LogTimestampTest, ParsesNineFractionDigits)
+{
+    const auto parsed = parse_timestamp("2026-07-03T12:34:56.123456789Z event");
+
+    ASSERT_TRUE(parsed.has_value());
+    EXPECT_EQ(parsed->nanosecond, 123456789U);
+}
+
+TEST(LogTimestampTest, ParsesLowercaseZuluDesignator)
+{
+    const auto lowercase = parse_timestamp("2026-07-03T12:34:56z event");
+    const auto uppercase = parse_timestamp("2026-07-03T12:34:56Z event");
+
+    ASSERT_TRUE(lowercase.has_value());
+    ASSERT_TRUE(uppercase.has_value());
+    EXPECT_EQ(*lowercase, *uppercase);
+}
+
+TEST(LogTimestampTest, ParsesSyslogDayPadding)
+{
+    const auto space_padded = parse_timestamp("Jul  3 12:00:00 host daemon: up");
+    const auto zero_padded  = parse_timestamp("Jul 03 12:00:00 host daemon: up");
+    const auto bare         = parse_timestamp("Jul 3 12:00:00 host daemon: up");
+    const auto two_digit    = parse_timestamp("Jul 13 12:00:00 host daemon: up");
+
+    ASSERT_TRUE(space_padded.has_value());
+    ASSERT_TRUE(zero_padded.has_value());
+    ASSERT_TRUE(bare.has_value());
+    ASSERT_TRUE(two_digit.has_value());
+    EXPECT_EQ(*space_padded, *zero_padded);
+    EXPECT_EQ(*space_padded, *bare);
+    EXPECT_EQ(to_utc_civil_time(*space_padded).day, 3U);
+    EXPECT_EQ(to_utc_civil_time(*two_digit).day, 13U);
+}
+
+TEST(LogTimestampTest, ParsesYearlessLeapDay)
+{
+    const auto parsed = parse_timestamp("Feb 29 12:00:00 host daemon: tick");
+
+    ASSERT_TRUE(parsed.has_value());
+    const auto civil = to_utc_civil_time(*parsed);
+    EXPECT_EQ(civil.month, 2U);
+    EXPECT_EQ(civil.day, 29U);
+}
+
 TEST(LogTimestampTest, RejectsUnsupportedStrings)
 {
     EXPECT_FALSE(parse_timestamp("INFO no timestamp here").has_value());
     EXPECT_FALSE(parse_timestamp("12:34:56 time only").has_value());
     EXPECT_FALSE(parse_timestamp("[2026-04-01T12:34:56 missing bracket").has_value());
+}
+
+TEST(LogTimestampTest, CompileFormatReportsInvalidFormats)
+{
+    EXPECT_FALSE(eestv::TimestampParser::CompileFormat("").valid());
+    EXPECT_FALSE(eestv::TimestampParser::CompileFormat("YYY-MM-DD hh:mm:ss").valid());
+    EXPECT_FALSE(eestv::TimestampParser::CompileFormat("YYYY-M-DD hh:mm:ss").valid());
+    EXPECT_FALSE(eestv::TimestampParser::CompileFormat("hh:mm:ss.ffffffffff").valid());
+    EXPECT_FALSE(eestv::TimestampParser::CompileFormat("").error.empty());
+
+    EXPECT_TRUE(eestv::TimestampParser::CompileFormat("YYYY-MM-DD hh:mm:ss").valid());
+    EXPECT_TRUE(eestv::TimestampParser::CompileFormat("MMM D* hh:mm:ss.f*ZZZ").valid());
+}
+
+TEST(LogTimestampTest, CatalogRejectsInvalidFormatsAndKeepsValidOnes)
+{
+    const TimestampFormatCatalog catalog(std::vector<std::string> {"YYY oops", "YYYY-MM-DD hh:mm:ss"});
+
+    ASSERT_EQ(catalog.formats().size(), 1U);
+    EXPECT_EQ(catalog.formats().front(), "YYYY-MM-DD hh:mm:ss");
+    ASSERT_EQ(catalog.rejected_formats().size(), 1U);
+    EXPECT_EQ(catalog.rejected_formats().front().format, "YYY oops");
+    EXPECT_FALSE(catalog.rejected_formats().front().error.empty());
+}
+
+TEST(LogTimestampTest, CatalogFallsBackToDefaultsWhenAllFormatsAreInvalid)
+{
+    const TimestampFormatCatalog catalog(std::vector<std::string> {"YYY oops"});
+
+    EXPECT_EQ(catalog.formats(), default_timestamp_formats());
+    ASSERT_EQ(catalog.rejected_formats().size(), 1U);
+}
+
+TEST(LogTimestampTest, InitVotesAcrossLinesSoBannersCannotPoisonDetection)
+{
+    const auto catalog = default_timestamp_format_catalog();
+    ASSERT_NE(catalog, nullptr);
+
+    const std::vector<std::string> lines {
+        "Log started 2026-07-03 10:00:00 by tooling",
+        "2026-07-03 10:00:01 INFO alpha",
+        "2026-07-03 10:00:02 INFO beta",
+        "2026-07-03 10:00:03 INFO gamma",
+    };
+
+    SourceTimestampParser parser;
+    ASSERT_TRUE(parser.init(lines, *catalog));
+
+    LogEntry real_line("2026-07-03 10:00:04 INFO delta");
+    ASSERT_TRUE(parser.parse(real_line));
+    ASSERT_TRUE(real_line.metadata.extracted_time_start.has_value());
+    EXPECT_EQ(*real_line.metadata.extracted_time_start, 0U);
+
+    LogEntry banner_line("Log started 2026-07-03 11:00:00 by tooling");
+    EXPECT_FALSE(parser.parse(banner_line));
 }
 
 TEST(LogTimestampTest, DetectsTimestampAfterPrefixAndKeepsCompiledParser)
@@ -181,8 +316,8 @@ TEST(LogTimestampTest, DetectsTimestampAfterPrefixAndKeepsCompiledParser)
     ASSERT_TRUE(initialized);
     ASSERT_TRUE(first_parsed);
     ASSERT_TRUE(second_parsed);
-    EXPECT_EQ(first_line.metadata.extracted_time_text, "2026-04-01 12:34:56");
-    EXPECT_EQ(second_line.metadata.extracted_time_text, "2026-04-01 12:35:56");
+    EXPECT_EQ(extracted_time_view(first_line), "2026-04-01 12:34:56");
+    EXPECT_EQ(extracted_time_view(second_line), "2026-04-01 12:35:56");
     ASSERT_TRUE(first_line.metadata.timestamp.has_value());
     ASSERT_TRUE(second_line.metadata.timestamp.has_value());
     EXPECT_EQ(format_log_timestamp_utc(*first_line.metadata.timestamp), "2026-04-01 12:34:56");
@@ -205,7 +340,7 @@ TEST(LogTimestampTest, InitDoesNotPopulateMetadata)
 
     ASSERT_TRUE(parser.init(line, *formats));
     EXPECT_FALSE(line.metadata.timestamp.has_value());
-    EXPECT_TRUE(line.metadata.extracted_time_text.empty());
+    EXPECT_TRUE(extracted_time_view(line).empty());
     EXPECT_FALSE(line.metadata.extracted_time_start.has_value());
     EXPECT_FALSE(line.metadata.extracted_time_end.has_value());
 }

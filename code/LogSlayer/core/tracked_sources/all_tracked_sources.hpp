@@ -9,7 +9,7 @@
 #include "log_batch.hpp"
 #include "log_source.hpp"
 #include "notifications/notification.hpp"
-#include "timestamp/source_timestamp_parser.hpp"
+#include "timestamp/timestamp_format_catalog.hpp"
 #include "log_types.hpp"
 
 namespace slayerlog
@@ -93,6 +93,12 @@ public:
      * @p format must be non-empty.
      */
     std::optional<std::string> set_source_timestamp_format(std::size_t source_index, const std::string& format);
+
+    /**
+     * Restores automatic timestamp format detection (the full application catalog)
+     * for one source and rebuilds the merged view.
+     */
+    std::optional<std::string> reset_source_timestamp_format(std::size_t source_index);
 
     /** Applies a timestamp offset to one source and rebuilds the merged view. */
     std::optional<std::string> set_source_timestamp_offset(std::size_t source_index, LogTimestampOffset offset);

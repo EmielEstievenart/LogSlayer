@@ -1,5 +1,9 @@
 #include "timestamp/source_timestamp_parser.hpp"
 
+#include <algorithm>
+
+#include "eestv/timestamp/timestamp_parser.hpp"
+
 namespace slayerlog
 {
 
@@ -9,120 +13,218 @@ namespace
 using eestv::DateAndTime;
 using eestv::TimestampParser;
 
-struct TimestampParserCandidate
+// Probing is bounded so that pathological input stays cheap: only the first few token
+// positions of a line are considered, and detection stops once a handful of lines have
+// produced a match.
+constexpr int max_probe_start_indices   = 8;
+constexpr std::size_t max_quorum_probes = 8;
+
+struct ParsedMatch
 {
-    const eestv::compiledDataAndTimeParser* parser = nullptr;
-    std::size_t start_slot                       = 0;
-    std::size_t match_length                     = 0;
+    LogTimestamp timestamp;
+    int end_index = 0;
 };
 
-bool apply_parser(const eestv::compiledDataAndTimeParser& parser, const std::string& input, int start_index, DateAndTime& output, int& end_index)
+std::optional<ParsedMatch> run_parser(const eestv::CompiledDateAndTimeParser& parser, std::string_view line, int start_index)
 {
-    std::string to_parse = input;
-    int index            = start_index;
+    if (parser.steps.empty())
+    {
+        return std::nullopt;
+    }
 
-    for (const auto& step : parser.dateParser)
+    DateAndTime parsed;
+    int index = start_index;
+    for (const auto& step : parser.steps)
     {
         int index_jump = 0;
-        if (!step(to_parse, index, index_jump, output))
+        if (!step(line, index, index_jump, parsed))
         {
-            return false;
+            return std::nullopt;
         }
 
         index += index_jump;
     }
 
-    end_index = index;
-    return true;
-}
-
-bool try_parse_with_format(const eestv::compiledDataAndTimeParser& parser, const std::string& line, int start_index, LogEntryMetadata& metadata)
-{
-    DateAndTime parsed;
-    int end_index = 0;
-    if (!apply_parser(parser, line, start_index, parsed, end_index))
-    {
-        return false;
-    }
-
     const auto timestamp = make_log_timestamp_utc(parsed.year, parsed.month, parsed.day, parsed.hour, parsed.minute, parsed.second, parsed.nanosecond, parsed.utc_offset_minutes);
     if (!timestamp.has_value())
     {
-        return false;
+        return std::nullopt;
     }
 
-    metadata.timestamp = *timestamp;
-    metadata.extracted_time_text = line.substr(static_cast<std::size_t>(start_index), static_cast<std::size_t>(end_index - start_index));
-    metadata.extracted_time_start = static_cast<std::size_t>(start_index);
-    metadata.extracted_time_end   = static_cast<std::size_t>(end_index);
-    return true;
+    return ParsedMatch {*timestamp, index};
 }
 
-const eestv::compiledDataAndTimeParser& compiled_parser_from_entry(const TimestampFormatCatalog::Entry& entry)
+struct LineCandidate
 {
-    return *entry.compiled_parser;
+    std::size_t entry_index  = 0;
+    std::size_t slot         = 0;
+    std::size_t match_length = 0;
+};
+
+// The candidate for one line: the earliest token position with any match, and the
+// longest-matching format at that position.
+std::optional<LineCandidate> probe_line(std::string_view line, const TimestampFormatCatalog& catalog)
+{
+    const auto start_indices = TimestampParser::possible_parse_start_indices(line, max_probe_start_indices);
+    const auto& entries      = catalog.entries();
+
+    for (std::size_t slot = 0; slot < start_indices.size(); ++slot)
+    {
+        const int start_index = start_indices[slot];
+        std::optional<LineCandidate> best_match;
+        for (std::size_t entry_index = 0; entry_index < entries.size(); ++entry_index)
+        {
+            if (entries[entry_index].compiled_parser == nullptr)
+            {
+                continue;
+            }
+
+            const auto match = run_parser(*entries[entry_index].compiled_parser, line, start_index);
+            if (!match.has_value())
+            {
+                continue;
+            }
+
+            const std::size_t match_length = static_cast<std::size_t>(match->end_index - start_index);
+            if (!best_match.has_value() || match_length > best_match->match_length)
+            {
+                best_match = LineCandidate {entry_index, slot, match_length};
+            }
+        }
+
+        if (best_match.has_value())
+        {
+            return best_match;
+        }
+    }
+
+    return std::nullopt;
 }
 
 } // namespace
 
 bool SourceTimestampParser::init(const LogEntry& line, const TimestampFormatCatalog& catalog)
 {
-    if (_compiled_parser.has_value() && _detected_start_index_slot.has_value())
+    return init_from_lines([&line](std::size_t) -> std::string_view { return line.text; }, 1, catalog);
+}
+
+bool SourceTimestampParser::init(const std::vector<std::string>& lines, const TimestampFormatCatalog& catalog)
+{
+    return init_from_lines([&lines](std::size_t line_index) -> std::string_view { return lines[line_index]; }, lines.size(), catalog);
+}
+
+bool SourceTimestampParser::init(const std::vector<std::shared_ptr<LogEntry>>& entries, const TimestampFormatCatalog& catalog)
+{
+    return init_from_lines(
+        [&entries](std::size_t entry_index) -> std::string_view
+        {
+            const auto& entry = entries[entry_index];
+            return entry != nullptr ? std::string_view(entry->text) : std::string_view();
+        },
+        entries.size(), catalog);
+}
+
+bool SourceTimestampParser::initialized() const
+{
+    return _compiled_parser != nullptr && _detected_start_index_slot.has_value();
+}
+
+bool SourceTimestampParser::init_from_lines(const std::function<std::string_view(std::size_t)>& line_at, std::size_t line_count, const TimestampFormatCatalog& catalog)
+{
+    if (initialized())
     {
         return true;
     }
 
-    const auto start_indices = TimestampParser::possible_parse_start_indices(line.text);
-    if (start_indices.empty())
+    struct CandidateVotes
+    {
+        LineCandidate candidate;
+        std::size_t votes = 0;
+    };
+
+    std::vector<CandidateVotes> tallies;
+    std::size_t probed_matches = 0;
+
+    for (std::size_t line_index = 0; line_index < line_count && probed_matches < max_quorum_probes; ++line_index)
+    {
+        const auto candidate = probe_line(line_at(line_index), catalog);
+        if (!candidate.has_value())
+        {
+            continue;
+        }
+
+        ++probed_matches;
+        const auto tally = std::find_if(tallies.begin(), tallies.end(), [&candidate](const CandidateVotes& votes) { return votes.candidate.entry_index == candidate->entry_index && votes.candidate.slot == candidate->slot; });
+        if (tally == tallies.end())
+        {
+            tallies.push_back(CandidateVotes {*candidate, 1});
+        }
+        else
+        {
+            ++tally->votes;
+            tally->candidate.match_length = std::max(tally->candidate.match_length, candidate->match_length);
+        }
+    }
+
+    if (tallies.empty())
     {
         return false;
     }
 
-    for (std::size_t start_slot = 0; start_slot < start_indices.size(); ++start_slot)
+    const auto is_better = [](const CandidateVotes& lhs, const CandidateVotes& rhs)
     {
-        const int start_index = start_indices[start_slot];
-        std::optional<TimestampParserCandidate> best_match;
-        for (const auto& entry : catalog.entries())
+        if (lhs.votes != rhs.votes)
         {
-            const auto& parser = compiled_parser_from_entry(entry);
-            LogEntryMetadata parsed_metadata;
-            if (!try_parse_with_format(parser, line.text, start_index, parsed_metadata))
-            {
-                continue;
-            }
-
-            const std::size_t match_length = parsed_metadata.extracted_time_text.size();
-            if (!best_match.has_value() || match_length > best_match->match_length)
-            {
-                best_match = TimestampParserCandidate {&parser, start_slot, match_length};
-            }
+            return lhs.votes > rhs.votes;
         }
-
-        if (best_match.has_value())
+        if (lhs.candidate.slot != rhs.candidate.slot)
         {
-            _compiled_parser           = *best_match->parser;
-            _detected_start_index_slot = best_match->start_slot;
-            return true;
+            return lhs.candidate.slot < rhs.candidate.slot;
+        }
+        if (lhs.candidate.match_length != rhs.candidate.match_length)
+        {
+            return lhs.candidate.match_length > rhs.candidate.match_length;
+        }
+        return lhs.candidate.entry_index < rhs.candidate.entry_index;
+    };
+
+    const CandidateVotes* winner = &tallies.front();
+    for (const auto& tally : tallies)
+    {
+        if (is_better(tally, *winner))
+        {
+            winner = &tally;
         }
     }
 
-    return false;
+    _compiled_parser           = catalog.entries()[winner->candidate.entry_index].compiled_parser;
+    _detected_start_index_slot = winner->candidate.slot;
+    return true;
 }
 
-bool SourceTimestampParser::parse(LogEntry& line)
+bool SourceTimestampParser::parse(LogEntry& line) const
 {
-    if (!_compiled_parser.has_value() || !_detected_start_index_slot.has_value())
+    if (!initialized())
     {
         return false;
     }
 
-    const auto start_indices = TimestampParser::possible_parse_start_indices(line.text, static_cast<int>(*_detected_start_index_slot) + 1);
-    if (start_indices.empty() || *_detected_start_index_slot >= start_indices.size())
+    const int start_index = TimestampParser::nth_parse_start_index(line.text, static_cast<int>(*_detected_start_index_slot));
+    if (start_index < 0)
     {
         return false;
     }
 
-    return try_parse_with_format(*_compiled_parser, line.text, start_indices[*_detected_start_index_slot], line.metadata);
+    const auto match = run_parser(*_compiled_parser, line.text, start_index);
+    if (!match.has_value())
+    {
+        return false;
+    }
+
+    line.metadata.timestamp            = match->timestamp;
+    line.metadata.extracted_time_start = static_cast<std::size_t>(start_index);
+    line.metadata.extracted_time_end   = static_cast<std::size_t>(match->end_index);
+    return true;
 }
 
 } // namespace slayerlog

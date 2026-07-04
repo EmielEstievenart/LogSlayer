@@ -20,7 +20,7 @@ public:
     TrackedSourceFolder(LogSource source, std::string source_label, std::shared_ptr<const TimestampFormatCatalog> timestamp_formats = default_timestamp_format_catalog(), Notifier notifier = {});
 
     bool poll() override;
-    void set_timestamp_format(std::string format) override;
+    void set_timestamp_catalog(std::shared_ptr<const TimestampFormatCatalog> timestamp_formats) override;
     std::optional<std::string> set_timestamp_offset(LogTimestampOffset offset) override;
     void clear_timestamp_offset() override;
 

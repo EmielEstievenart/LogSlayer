@@ -151,7 +151,7 @@ TEST(TrackedSourceTest, StoresParsedEntriesAndSequenceNumbers)
 
     EXPECT_EQ(entries[0]->text, "2026-04-01T10:00:00 first");
     EXPECT_TRUE(entries[0]->metadata.timestamp.has_value());
-    EXPECT_EQ(entries[0]->metadata.extracted_time_text, "2026-04-01T10:00:00");
+    EXPECT_EQ(extracted_time_view(*entries[0]), "2026-04-01T10:00:00");
     EXPECT_EQ(format_log_timestamp_utc(*entries[0]->metadata.timestamp), "2026-04-01 10:00:00");
     ASSERT_TRUE(entries[0]->metadata.extracted_time_start.has_value());
     ASSERT_TRUE(entries[0]->metadata.extracted_time_end.has_value());
@@ -161,7 +161,7 @@ TEST(TrackedSourceTest, StoresParsedEntriesAndSequenceNumbers)
 
     EXPECT_EQ(entries[1]->text, "plain second");
     EXPECT_FALSE(entries[1]->metadata.timestamp.has_value());
-    EXPECT_TRUE(entries[1]->metadata.extracted_time_text.empty());
+    EXPECT_TRUE(extracted_time_view(*entries[1]).empty());
     EXPECT_FALSE(entries[1]->metadata.extracted_time_start.has_value());
     EXPECT_FALSE(entries[1]->metadata.extracted_time_end.has_value());
     EXPECT_EQ(entries[1]->metadata.sequence_number, 1U);
@@ -194,7 +194,7 @@ TEST(TrackedSourceTest, SetTimestampFormatReparsesExistingFileEntries)
     tracked_source.set_timestamp_format("YYYY/MM/DD hh:mm:ss");
 
     EXPECT_TRUE(tracked_source.entries()[0]->metadata.timestamp.has_value());
-    EXPECT_EQ(tracked_source.entries()[0]->metadata.extracted_time_text, "2026/04/01 10:00:00");
+    EXPECT_EQ(extracted_time_view(*tracked_source.entries()[0]), "2026/04/01 10:00:00");
     EXPECT_EQ(format_log_timestamp_utc(*tracked_source.entries()[0]->metadata.timestamp), "2026-04-01 10:00:00");
     EXPECT_FALSE(tracked_source.entries()[1]->metadata.timestamp.has_value());
     EXPECT_EQ(tracked_source.entries()[0]->metadata.sequence_number, 0U);
@@ -403,8 +403,8 @@ TEST(TrackedSourceTest, FolderPollMergesPlainAndZstdChildResultsByTimestamp)
 
     const auto& entries = tracked_source.entries();
     ASSERT_EQ(entries.size(), 2U);
-    EXPECT_EQ(entries[0]->metadata.extracted_time_text, "2026-04-01T10:01:00");
-    EXPECT_EQ(entries[1]->metadata.extracted_time_text, "2026-04-01T10:02:00");
+    EXPECT_EQ(extracted_time_view(*entries[0]), "2026-04-01T10:01:00");
+    EXPECT_EQ(extracted_time_view(*entries[1]), "2026-04-01T10:02:00");
     ASSERT_TRUE(entries[0]->metadata.extracted_time_start.has_value());
     ASSERT_TRUE(entries[0]->metadata.extracted_time_end.has_value());
     ASSERT_TRUE(entries[1]->metadata.extracted_time_start.has_value());

@@ -73,7 +73,7 @@ struct TestSource : TrackedSourceBase
 {
     explicit TestSource(std::string source_label) : TrackedSourceBase(LogSource {}, std::move(source_label)) { }
 
-    void set_timestamp_format(std::string) override { }
+    void set_timestamp_catalog(std::shared_ptr<const TimestampFormatCatalog>) override { }
     bool poll() override { return false; }
 };
 

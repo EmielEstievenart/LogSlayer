@@ -61,6 +61,11 @@ std::string TrackedSourceBase::mnemonic_prefix() const
     return _source_mnemonic + " ";
 }
 
+void TrackedSourceBase::set_timestamp_format(std::string format)
+{
+    set_timestamp_catalog(std::make_shared<const TimestampFormatCatalog>(std::vector<std::string> {std::move(format)}));
+}
+
 std::optional<std::string> TrackedSourceBase::set_timestamp_offset(LogTimestampOffset offset)
 {
     const auto previous_offset = _timestamp_offset;
@@ -119,33 +124,33 @@ void TrackedSourceBase::set_timestamp_formats(std::shared_ptr<const TimestampFor
     }
 }
 
-void TrackedSourceBase::reparse_entries(SourceTimestampParser& parser, bool& parser_initialized)
+void TrackedSourceBase::store_timestamp_offset(std::optional<LogTimestampOffset> offset)
 {
-    parser             = SourceTimestampParser();
-    parser_initialized = false;
+    _timestamp_offset = offset;
+}
 
-    const auto catalog = timestamp_formats();
+void TrackedSourceBase::reparse_entries(SourceTimestampParser& parser)
+{
+    parser = SourceTimestampParser();
+
     for (const auto& entry : _entries)
     {
         entry->metadata.timestamp.reset();
         entry->metadata.offset_timestamp.reset();
-        entry->metadata.extracted_time_text.clear();
         entry->metadata.extracted_time_start.reset();
         entry->metadata.extracted_time_end.reset();
+    }
 
-        if (catalog != nullptr)
-        {
-            if (!parser_initialized)
-            {
-                parser_initialized = parser.init(*entry, *catalog);
-            }
+    const auto catalog = timestamp_formats();
+    if (catalog == nullptr || !parser.init(_entries, *catalog))
+    {
+        return;
+    }
 
-            if (parser_initialized)
-            {
-                parser.parse(*entry);
-                (void)apply_timestamp_offset(*entry);
-            }
-        }
+    for (const auto& entry : _entries)
+    {
+        parser.parse(*entry);
+        (void)apply_timestamp_offset(*entry);
     }
 }
 

@@ -87,12 +87,21 @@ public:
     std::string mnemonic_prefix() const;
 
     /**
-     * @brief Sets the timestamp format used by this source.
+     * @brief Pins this source to a single timestamp format.
      *
-     * Implementations are expected to update their timestamp parser state and
-     * reparse existing entries where needed.
+     * The format is compiled once into a single-entry catalog and applied via
+     * set_timestamp_catalog.
      */
-    virtual void set_timestamp_format(std::string format) = 0;
+    void set_timestamp_format(std::string format);
+
+    /**
+     * @brief Replaces the timestamp format catalog and reparses all entries.
+     *
+     * Passing the application-wide catalog restores automatic format detection.
+     * Implementations are expected to reset their timestamp parser state, reparse
+     * existing entries, and propagate the catalog to any child sources.
+     */
+    virtual void set_timestamp_catalog(std::shared_ptr<const TimestampFormatCatalog> timestamp_formats) = 0;
 
     /**
      * @brief Sets an offset to apply to parsed timestamps.
@@ -144,9 +153,19 @@ protected:
     void set_timestamp_formats(std::shared_ptr<const TimestampFormatCatalog> timestamp_formats);
 
     /**
-     * @brief Clears and reparses timestamp metadata for all entries.
+     * @brief Stores the timestamp offset without touching the entries.
+     *
+     * For sources whose entries are rebuilt from children (folders): the offset only
+     * needs to be recorded here, applying it to soon-to-be-replaced entries is wasted work.
      */
-    void reparse_entries(SourceTimestampParser& parser, bool& parser_initialized);
+    void store_timestamp_offset(std::optional<LogTimestampOffset> offset);
+
+    /**
+     * @brief Clears and reparses timestamp metadata for all entries.
+     *
+     * Resets @p parser and re-runs format detection over the existing entries.
+     */
+    void reparse_entries(SourceTimestampParser& parser);
 
     /**
      * @brief Applies the current timestamp offset to all existing entries.

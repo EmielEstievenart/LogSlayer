@@ -353,6 +353,18 @@ std::optional<std::string> AllTrackedSources::set_source_timestamp_format(std::s
     return std::nullopt;
 }
 
+std::optional<std::string> AllTrackedSources::reset_source_timestamp_format(std::size_t source_index)
+{
+    if (source_index >= _sources.size())
+    {
+        return "Invalid source selection";
+    }
+
+    _sources[source_index]->set_timestamp_catalog(_timestamp_formats);
+    rebuild_all_lines();
+    return std::nullopt;
+}
+
 std::optional<std::string> AllTrackedSources::set_source_timestamp_offset(std::size_t source_index, LogTimestampOffset offset)
 {
     if (source_index >= _sources.size())

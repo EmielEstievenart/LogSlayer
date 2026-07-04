@@ -35,6 +35,9 @@ ftxui::Element picker_help(std::string enter_label)
     auto sep = []() { return ftxui::text("  "); };
     return ftxui::hbox({theme::key_hint("Up/Down", "select"), sep(), theme::key_hint("Enter", enter_label), sep(), theme::key_hint("Esc", "cancel")});
 }
+
+// First entry of the format picker; restores detection across the whole catalog.
+constexpr const char* auto_detect_label = "Auto (detect from all formats)";
 }
 
 SetTimeFormatCommand::SetTimeFormatCommand(CommandContext context) : _context(context)
@@ -46,7 +49,8 @@ const CommandDescriptor& SetTimeFormatCommand::descriptor() const
     static const CommandDescriptor descriptor {"set-time-format",
                                                "Set timestamp parser for one source",
                                                "set-time-format",
-                                               {"Opens a source picker, then a timestamp format picker.", "Confirm each selection with Enter. All lines from that source are reparsed and all tracked lines are re-sorted."}};
+                                               {"Opens a source picker, then a timestamp format picker.", "Confirm each selection with Enter. All lines from that source are reparsed and all tracked lines are re-sorted.",
+                                                "Pick \"Auto\" to restore automatic detection across all configured formats."}};
     return descriptor;
 }
 
@@ -103,7 +107,11 @@ CommandEventResult SetTimeFormatCommand::handle_event(const ftxui::Event& event)
                 return {true, CommandResult {false, "Invalid source selection", false}};
             }
             _selected_source_index = *selected;
-            _format_picker.emplace(_formats);
+            std::vector<std::string> format_choices;
+            format_choices.reserve(_formats.size() + 1);
+            format_choices.push_back(auto_detect_label);
+            format_choices.insert(format_choices.end(), _formats.begin(), _formats.end());
+            _format_picker.emplace(std::move(format_choices));
             _state = State::FormatSelection;
             return {true, CommandResult {true, "Select timestamp format for " + _labels[*selected], false}};
         }
@@ -112,14 +120,16 @@ CommandEventResult SetTimeFormatCommand::handle_event(const ftxui::Event& event)
 
     if (event == ftxui::Event::Return)
     {
+        // Picker index 0 is the "Auto" entry; the configured formats follow, shifted by one.
         const auto selected_format = _format_picker->selected_index();
-        if (!_selected_source_index.has_value() || !selected_format.has_value() || *selected_format >= _formats.size())
+        if (!_selected_source_index.has_value() || !selected_format.has_value() || *selected_format >= _formats.size() + 1)
         {
             return {true, CommandResult {false, "Invalid timestamp format selection", false}};
         }
 
         const auto source_index = *_selected_source_index;
-        const auto error        = _context.tracked_sources.set_source_timestamp_format(source_index, _formats[*selected_format]);
+        const bool restore_auto = *selected_format == 0;
+        const auto error        = restore_auto ? _context.tracked_sources.reset_source_timestamp_format(source_index) : _context.tracked_sources.set_source_timestamp_format(source_index, _formats[*selected_format - 1]);
         if (error.has_value())
         {
             SLAYERLOG_LOG_ERROR("set-time-format failed source_index=" << source_index << " format_index=" << *selected_format << " error=" << *error);
@@ -128,7 +138,11 @@ CommandEventResult SetTimeFormatCommand::handle_event(const ftxui::Event& event)
 
         _context.log_view.reload(_context.tracked_sources, _context.processed_sources);
         _state = State::Inactive;
-        return {true, CommandResult {true, "Set timestamp format for " + _labels[source_index] + ": " + _formats[*selected_format]}};
+        if (restore_auto)
+        {
+            return {true, CommandResult {true, "Restored automatic timestamp detection for " + _labels[source_index]}};
+        }
+        return {true, CommandResult {true, "Set timestamp format for " + _labels[source_index] + ": " + _formats[*selected_format - 1]}};
     }
 
     return {_format_picker->handle_event(event), std::nullopt};
