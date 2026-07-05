@@ -82,9 +82,10 @@ public:
      * @brief Returns the prefix added to a source's entries when presented.
      *
      * Empty when the source has no visible mnemonic. Otherwise it is the mnemonic
-     * followed by a single space separator.
+     * followed by a single space separator. Cached so per-row rendering and
+     * filtering do not allocate.
      */
-    std::string mnemonic_prefix() const;
+    const std::string& mnemonic_prefix() const;
 
     /**
      * @brief Pins this source to a single timestamp format.
@@ -145,6 +146,14 @@ public:
      * @return `true` if the source changed; otherwise `false`.
      */
     virtual bool poll() = 0;
+
+    /**
+     * @brief Whether the source's transport left data behind on the last poll.
+     *
+     * Watchers bound the bytes they ingest per poll; while this returns `true` callers
+     * should poll again promptly instead of waiting a full poll interval.
+     */
+    virtual bool backlog_pending() const { return false; }
 
     /**
      * @brief Returns all entries currently tracked for this source.
@@ -216,9 +225,12 @@ protected:
     void replace_entries_with_merged_entries(const std::vector<LogBatchSourceRange>& source_ranges);
 
 private:
+    void update_mnemonic_prefix();
+
     LogSource _source;
     std::string _source_label;
     std::string _source_mnemonic;
+    std::string _mnemonic_prefix;
     bool _mnemonic_visible = false;
     std::vector<std::shared_ptr<LogEntry>> _entries;
     std::uint64_t _next_sequence_number = 0;

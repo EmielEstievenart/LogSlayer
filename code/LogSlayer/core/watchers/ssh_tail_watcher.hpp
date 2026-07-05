@@ -22,6 +22,7 @@ public:
 
 protected:
     bool poll_locked(std::vector<std::string>& lines) override;
+    bool backlog_pending_locked() const override;
 
 private:
     static std::vector<std::string> build_ssh_arguments(const LogSource& source, std::uintmax_t offset, std::string_view ready_marker, std::string_view reset_marker);
@@ -45,6 +46,7 @@ private:
     std::string _reset_marker;
     std::string _stdout_filter_buffer;
     bool _awaiting_ready_marker = false;
+    bool _backlog_pending       = false;
 };
 
 } // namespace slayerlog

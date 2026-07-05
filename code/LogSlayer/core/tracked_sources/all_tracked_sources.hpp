@@ -66,6 +66,13 @@ public:
      */
     std::optional<AllLineIndex> poll();
 
+    /**
+     * Whether any source's transport left data behind on the last poll (watchers bound
+     * the bytes ingested per poll). While true, callers should poll again promptly
+     * instead of sleeping the full poll interval.
+     */
+    bool any_source_backlog_pending() const;
+
     /** Merged, timestamp-ordered lines across all sources. */
     const IndexedVector<std::shared_ptr<LogEntry>, AllLineIndex>& all_lines() const;
     int line_count() const;

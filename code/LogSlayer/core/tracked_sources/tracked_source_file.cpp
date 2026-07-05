@@ -83,6 +83,11 @@ bool TrackedSourceFile::poll()
     return true;
 }
 
+bool TrackedSourceFile::backlog_pending() const
+{
+    return _watcher != nullptr && _watcher->backlog_pending();
+}
+
 void TrackedSourceFile::set_timestamp_catalog(std::shared_ptr<const TimestampFormatCatalog> timestamp_formats)
 {
     set_timestamp_formats(std::move(timestamp_formats));

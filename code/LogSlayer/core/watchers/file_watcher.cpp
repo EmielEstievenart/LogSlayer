@@ -1,6 +1,7 @@
 #include "debug_log.hpp"
 #include "file_watcher.hpp"
 
+#include <algorithm>
 #include <cctype>
 #include <filesystem>
 #include <fstream>
@@ -142,7 +143,7 @@ void FileWatcher::update_offset_tail_bytes(std::string_view chunk, FileWatcher::
     state.offset_tail_bytes.append(chunk.data(), chunk.size());
 }
 
-std::string FileWatcher::read_file_tail(const std::string& path, std::uintmax_t offset)
+std::string FileWatcher::read_file_tail(const std::string& path, std::uintmax_t offset, std::size_t max_bytes)
 {
     std::ifstream input(path, std::ios::binary);
     if (!input)
@@ -163,8 +164,9 @@ std::string FileWatcher::read_file_tail(const std::string& path, std::uintmax_t 
         return {};
     }
 
+    const auto read_size = std::min<std::uintmax_t>(file_size - offset, max_bytes);
     input.seekg(static_cast<std::streamoff>(offset), std::ios::beg);
-    std::string chunk(file_size - offset, '\0');
+    std::string chunk(static_cast<std::size_t>(read_size), '\0');
     input.read(chunk.data(), static_cast<std::streamsize>(chunk.size()));
     chunk.resize(static_cast<std::size_t>(input.gcount()));
     return chunk;
@@ -198,9 +200,14 @@ std::uintmax_t FileWatcher::get_file_size(const std::string& path)
     return std::filesystem::file_size(std::filesystem::path(path));
 }
 
-FileWatcher::FileWatcher(std::string file_path) : _file_path(std::move(file_path))
+FileWatcher::FileWatcher(std::string file_path, std::size_t max_read_bytes_per_poll) : _file_path(std::move(file_path)), _max_read_bytes_per_poll(std::max<std::size_t>(1, max_read_bytes_per_poll))
 {
-    SLAYERLOG_LOG_INFO("Created file watcher for file=" << _file_path);
+    SLAYERLOG_LOG_INFO("Created file watcher for file=" << _file_path << " max_read_bytes_per_poll=" << _max_read_bytes_per_poll);
+}
+
+bool FileWatcher::backlog_pending_locked() const
+{
+    return _backlog_pending;
 }
 
 bool FileWatcher::poll_locked(std::vector<std::string>& lines)
@@ -220,6 +227,8 @@ bool FileWatcher::poll_locked(std::vector<std::string>& lines)
 
 bool FileWatcher::collect_update_locked(std::vector<std::string>& lines)
 {
+    _backlog_pending = false;
+
     auto file_size = get_file_size(_file_path);
     SLAYERLOG_LOG_TRACE("collect_update_locked file=" << _file_path << " file_size=" << file_size << " offset=" << _state.offset << " pending_fragment_bytes=" << _state.pending_fragment.size()
                                                       << " awaiting_regrowth=" << _state.awaiting_regrowth_after_shrink << " shrink_candidate_size=" << _state.shrink_candidate_size);
@@ -274,9 +283,12 @@ bool FileWatcher::collect_update_locked(std::vector<std::string>& lines)
         return false;
     }
 
-    auto chunk = read_file_tail(_file_path, _state.offset);
+    // Reads are capped per poll so callers polling under a lock stay responsive; the
+    // offset advances by what was actually consumed and the rest is reported as backlog.
+    auto chunk = read_file_tail(_file_path, _state.offset, _max_read_bytes_per_poll);
     SLAYERLOG_LOG_TRACE("Read file tail file=" << _file_path << " previous_offset=" << _state.offset << " new_file_size=" << file_size << " chunk_bytes=" << chunk.size() << " chunk=" << quote_for_log(chunk));
-    _state.offset = file_size;
+    _state.offset += chunk.size();
+    _backlog_pending = _state.offset < file_size;
     update_offset_tail_bytes(chunk, _state);
     if (chunk.empty())
     {

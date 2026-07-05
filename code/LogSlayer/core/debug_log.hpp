@@ -190,6 +190,14 @@ inline const std::filesystem::path& log_file_path()
     return runtime_paths().log_file;
 }
 
+/// Cheap pre-check so callers can skip building the message entirely when the
+/// severity is filtered out (hot paths log whole chunks/lines at trace level).
+inline bool level_enabled(Severity severity)
+{
+    initialize();
+    return logger().isEnabledFor(to_log_level(severity));
+}
+
 inline void write(Severity severity, const char* file, int line, const char* function_name, const std::string& message)
 {
     initialize();
@@ -199,42 +207,25 @@ inline void write(Severity severity, const char* file, int line, const char* fun
 } // namespace debug_log
 } // namespace slayerlog
 
-#define SLAYERLOG_LOG_ERROR(message)                                                                                                          \
-    do                                                                                                                                        \
-    {                                                                                                                                         \
-        std::ostringstream slayerlog_debug_stream__;                                                                                          \
-        slayerlog_debug_stream__ << message;                                                                                                  \
-        ::slayerlog::debug_log::write(::slayerlog::debug_log::Severity::Error, __FILE__, __LINE__, __func__, slayerlog_debug_stream__.str()); \
+// The level check runs before the message expression so disabled levels never
+// pay for message construction (hot paths stream whole chunks into these).
+#define SLAYERLOG_LOG_WITH_SEVERITY(severity, message)                                                             \
+    do                                                                                                             \
+    {                                                                                                              \
+        if (::slayerlog::debug_log::level_enabled(severity))                                                       \
+        {                                                                                                          \
+            std::ostringstream slayerlog_debug_stream__;                                                           \
+            slayerlog_debug_stream__ << message;                                                                   \
+            ::slayerlog::debug_log::write(severity, __FILE__, __LINE__, __func__, slayerlog_debug_stream__.str()); \
+        }                                                                                                          \
     } while (0)
 
-#define SLAYERLOG_LOG_WARNING(message)                                                                                                          \
-    do                                                                                                                                          \
-    {                                                                                                                                           \
-        std::ostringstream slayerlog_debug_stream__;                                                                                            \
-        slayerlog_debug_stream__ << message;                                                                                                    \
-        ::slayerlog::debug_log::write(::slayerlog::debug_log::Severity::Warning, __FILE__, __LINE__, __func__, slayerlog_debug_stream__.str()); \
-    } while (0)
+#define SLAYERLOG_LOG_ERROR(message) SLAYERLOG_LOG_WITH_SEVERITY(::slayerlog::debug_log::Severity::Error, message)
 
-#define SLAYERLOG_LOG_INFO(message)                                                                                                          \
-    do                                                                                                                                       \
-    {                                                                                                                                        \
-        std::ostringstream slayerlog_debug_stream__;                                                                                         \
-        slayerlog_debug_stream__ << message;                                                                                                 \
-        ::slayerlog::debug_log::write(::slayerlog::debug_log::Severity::Info, __FILE__, __LINE__, __func__, slayerlog_debug_stream__.str()); \
-    } while (0)
+#define SLAYERLOG_LOG_WARNING(message) SLAYERLOG_LOG_WITH_SEVERITY(::slayerlog::debug_log::Severity::Warning, message)
 
-#define SLAYERLOG_LOG_DEBUG(message)                                                                                                          \
-    do                                                                                                                                        \
-    {                                                                                                                                         \
-        std::ostringstream slayerlog_debug_stream__;                                                                                          \
-        slayerlog_debug_stream__ << message;                                                                                                  \
-        ::slayerlog::debug_log::write(::slayerlog::debug_log::Severity::Debug, __FILE__, __LINE__, __func__, slayerlog_debug_stream__.str()); \
-    } while (0)
+#define SLAYERLOG_LOG_INFO(message) SLAYERLOG_LOG_WITH_SEVERITY(::slayerlog::debug_log::Severity::Info, message)
 
-#define SLAYERLOG_LOG_TRACE(message)                                                                                                          \
-    do                                                                                                                                        \
-    {                                                                                                                                         \
-        std::ostringstream slayerlog_debug_stream__;                                                                                          \
-        slayerlog_debug_stream__ << message;                                                                                                  \
-        ::slayerlog::debug_log::write(::slayerlog::debug_log::Severity::Trace, __FILE__, __LINE__, __func__, slayerlog_debug_stream__.str()); \
-    } while (0)
+#define SLAYERLOG_LOG_DEBUG(message) SLAYERLOG_LOG_WITH_SEVERITY(::slayerlog::debug_log::Severity::Debug, message)
+
+#define SLAYERLOG_LOG_TRACE(message) SLAYERLOG_LOG_WITH_SEVERITY(::slayerlog::debug_log::Severity::Trace, message)

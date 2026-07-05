@@ -1,32 +1,20 @@
 #include "zstd_file_watcher.hpp"
 
+#include <algorithm>
 #include <array>
 #include <fstream>
-#include <memory>
 #include <stdexcept>
-#include <string>
+#include <string_view>
 #include <utility>
-
-#include <zstd.h>
 
 #include "debug_log.hpp"
 
 namespace slayerlog
 {
 
-namespace
+ZstdFileWatcher::ZstdFileWatcher(std::string file_path, std::size_t max_output_bytes_per_poll) : _file_path(std::move(file_path)), _max_output_bytes_per_poll(std::max<std::size_t>(1, max_output_bytes_per_poll))
 {
-
-struct DStreamDeleter
-{
-    void operator()(ZSTD_DStream* stream) const { ZSTD_freeDStream(stream); }
-};
-
-} // namespace
-
-ZstdFileWatcher::ZstdFileWatcher(std::string file_path) : _file_path(std::move(file_path))
-{
-    SLAYERLOG_LOG_INFO("Created zstd file watcher for file=" << _file_path);
+    SLAYERLOG_LOG_INFO("Created zstd file watcher for file=" << _file_path << " max_output_bytes_per_poll=" << _max_output_bytes_per_poll);
 }
 
 bool ZstdFileWatcher::poll_locked(std::vector<std::string>& lines)
@@ -36,9 +24,57 @@ bool ZstdFileWatcher::poll_locked(std::vector<std::string>& lines)
         return false;
     }
 
-    lines     = split_lines(decompress_zstd_bytes(read_binary_file(_file_path), _file_path));
-    _consumed = true;
+    if (!_started)
+    {
+        initialize_stream();
+    }
+
+    std::array<char, 1 << 15> buffer {};
+    std::size_t produced_bytes = 0;
+
+    while (_compressed_read_pos < _compressed_bytes.size() && produced_bytes < _max_output_bytes_per_poll)
+    {
+        ZSTD_inBuffer input {_compressed_bytes.data(), _compressed_bytes.size(), _compressed_read_pos};
+        ZSTD_outBuffer output {buffer.data(), buffer.size(), 0};
+
+        const std::size_t result = ZSTD_decompressStream(_stream.get(), &output, &input);
+        if (ZSTD_isError(result) != 0)
+        {
+            throw std::runtime_error("Failed to decompress zstd file: " + _file_path);
+        }
+
+        _compressed_read_pos = input.pos;
+        _frame_complete      = result == 0;
+
+        if (output.pos > 0)
+        {
+            produced_bytes += output.pos;
+            _line_buffer.append(std::string_view(buffer.data(), output.pos), lines);
+        }
+
+        // A frame ended with input still left: the file holds multiple concatenated
+        // frames, so reset the stream for the next one.
+        if (result == 0 && _compressed_read_pos < _compressed_bytes.size())
+        {
+            const std::size_t init_result = ZSTD_initDStream(_stream.get());
+            if (ZSTD_isError(init_result) != 0)
+            {
+                throw std::runtime_error("Failed to continue zstd decompression for file: " + _file_path);
+            }
+        }
+    }
+
+    if (_compressed_read_pos >= _compressed_bytes.size())
+    {
+        finish_decompression();
+    }
+
     return !lines.empty();
+}
+
+bool ZstdFileWatcher::backlog_pending_locked() const
+{
+    return _started && !_consumed;
 }
 
 std::string ZstdFileWatcher::read_binary_file(const std::string& path)
@@ -52,76 +88,43 @@ std::string ZstdFileWatcher::read_binary_file(const std::string& path)
     return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
 }
 
-std::string ZstdFileWatcher::decompress_zstd_bytes(const std::string& compressed_bytes, const std::string& path)
+void ZstdFileWatcher::initialize_stream()
 {
-    std::unique_ptr<ZSTD_DStream, DStreamDeleter> stream(ZSTD_createDStream());
-    if (stream == nullptr)
+    _compressed_bytes = read_binary_file(_file_path);
+
+    _stream.reset(ZSTD_createDStream());
+    if (_stream == nullptr)
     {
-        throw std::runtime_error("Failed to create zstd stream for file: " + path);
+        throw std::runtime_error("Failed to create zstd stream for file: " + _file_path);
     }
 
-    std::size_t result = ZSTD_initDStream(stream.get());
+    const std::size_t result = ZSTD_initDStream(_stream.get());
     if (ZSTD_isError(result) != 0)
     {
-        throw std::runtime_error("Failed to initialize zstd stream for file: " + path);
+        throw std::runtime_error("Failed to initialize zstd stream for file: " + _file_path);
     }
 
-    ZSTD_inBuffer input {compressed_bytes.data(), compressed_bytes.size(), 0};
-    std::array<char, 1 << 15> buffer {};
-    std::string output;
-
-    while (input.pos < input.size)
-    {
-        ZSTD_outBuffer out {buffer.data(), buffer.size(), 0};
-        result = ZSTD_decompressStream(stream.get(), &out, &input);
-        if (ZSTD_isError(result) != 0)
-        {
-            throw std::runtime_error("Failed to decompress zstd file: " + path);
-        }
-
-        output.append(buffer.data(), out.pos);
-
-        if (result == 0 && input.pos < input.size)
-        {
-            result = ZSTD_initDStream(stream.get());
-            if (ZSTD_isError(result) != 0)
-            {
-                throw std::runtime_error("Failed to continue zstd decompression for file: " + path);
-            }
-        }
-    }
-
-    if (result != 0)
-    {
-        throw std::runtime_error("Incomplete zstd data in file: " + path);
-    }
-
-    return output;
+    _started = true;
 }
 
-std::vector<std::string> ZstdFileWatcher::split_lines(std::string text)
+void ZstdFileWatcher::finish_decompression()
 {
-    std::vector<std::string> lines;
-    std::size_t start = 0;
-    while (start < text.size())
+    // Matches the historical one-shot behavior: data that does not end on a frame
+    // boundary (including an empty file) is an error, and an unterminated final line
+    // is dropped rather than emitted.
+    const bool incomplete = !_frame_complete;
+
+    _consumed = true;
+    _stream.reset();
+    _compressed_bytes.clear();
+    _compressed_bytes.shrink_to_fit();
+    _compressed_read_pos = 0;
+    _line_buffer.discard_pending_fragment();
+
+    if (incomplete)
     {
-        const auto newline = text.find('\n', start);
-        if (newline == std::string::npos)
-        {
-            break;
-        }
-
-        std::string line = text.substr(start, newline - start);
-        if (!line.empty() && line.back() == '\r')
-        {
-            line.pop_back();
-        }
-
-        lines.push_back(std::move(line));
-        start = newline + 1;
+        throw std::runtime_error("Incomplete zstd data in file: " + _file_path);
     }
-
-    return lines;
 }
 
 } // namespace slayerlog

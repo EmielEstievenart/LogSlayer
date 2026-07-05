@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -28,6 +29,19 @@ std::vector<std::string> rendered_texts(const LogModel& model)
     }
 
     return lines;
+}
+
+/// Reference implementation for max_rendered_line_width(): render every visible row.
+/// The production code tracks the maximum incrementally; the two must always agree.
+int brute_force_max_rendered_width(const LogModel& model)
+{
+    int width = 0;
+    for (int index = 0; index < model.line_count(); ++index)
+    {
+        width = std::max(width, static_cast<int>(model.rendered_line(index).size()));
+    }
+
+    return width;
 }
 
 std::vector<LogEntry> numbered_lines(int count)
@@ -496,6 +510,120 @@ TEST(LogModelTest, FiltersSupportRegexWithRePrefix)
 
     EXPECT_EQ(rendered_texts(model), (std::vector<std::string> {
                                          "status=500 error",
+                                     }));
+}
+
+TEST(LogModelTest, MaxRenderedLineWidthMatchesRenderedRowsThroughModelChanges)
+{
+    LogModel model;
+    EXPECT_EQ(model.max_rendered_line_width(), 0);
+
+    model.append_lines({
+        LogEntry {"alpha.log", "short", test_timestamp()},
+        make_entry_with_extracted_time(0, "alpha.log", "INFO 2026-04-01 10:00:00 the widest message of them all", 5, 24),
+        LogEntry {"alpha.log", "mid sized text"},
+    });
+    EXPECT_EQ(model.max_rendered_line_width(), brute_force_max_rendered_width(model));
+
+    model.set_show_original_time(true);
+    EXPECT_EQ(model.max_rendered_line_width(), brute_force_max_rendered_width(model));
+
+    model.set_show_original_time(false);
+    EXPECT_EQ(model.max_rendered_line_width(), brute_force_max_rendered_width(model));
+
+    model.append_lines({
+        LogEntry {"alpha.log", "appended later and even wider than the earlier widest message"},
+    });
+    EXPECT_EQ(model.max_rendered_line_width(), brute_force_max_rendered_width(model));
+
+    model.add_include_filter("mid");
+    EXPECT_EQ(model.max_rendered_line_width(), brute_force_max_rendered_width(model));
+
+    model.reset_filters();
+    model.hide_before_line_number(2);
+    EXPECT_EQ(model.max_rendered_line_width(), brute_force_max_rendered_width(model));
+}
+
+TEST(LogModelTest, MaxRenderedLineWidthAppliesHiddenColumns)
+{
+    LogModel model;
+    model.append_lines({
+        LogEntry {"alpha.log", "abcdefghijklmnop"},
+        LogEntry {"alpha.log", "abc"},
+    });
+
+    model.hide_columns(4, 9);
+    EXPECT_EQ(model.max_rendered_line_width(), brute_force_max_rendered_width(model));
+
+    model.hide_columns(10, 200);
+    EXPECT_EQ(model.max_rendered_line_width(), brute_force_max_rendered_width(model));
+
+    model.reset_hidden_columns();
+    EXPECT_EQ(model.max_rendered_line_width(), brute_force_max_rendered_width(model));
+}
+
+TEST(LogModelTest, MaxRenderedLineWidthCoversHiddenIdenticalRunRows)
+{
+    LogModel model;
+
+    std::vector<LogEntry> lines;
+    lines.push_back({"alpha.log", "x"});
+    for (int index = 0; index < 12; ++index)
+    {
+        lines.push_back({"alpha.log", "dup"});
+    }
+
+    model.append_lines(lines);
+
+    // The "hiding N identical messages above" row is the widest row here.
+    EXPECT_EQ(model.max_rendered_line_width(), brute_force_max_rendered_width(model));
+}
+
+TEST(LogModelTest, AppendingContinuesHiddenIdenticalRunsLikeAFullRebuild)
+{
+    LogModel incremental;
+    incremental.append_lines({
+        LogEntry {"alpha.log", "start"},
+        LogEntry {"alpha.log", "same"},
+        LogEntry {"alpha.log", "same"},
+    });
+    incremental.append_lines({
+        LogEntry {"alpha.log", "same"},
+        LogEntry {"alpha.log", "same"},
+        LogEntry {"alpha.log", "other"},
+    });
+
+    LogModel one_shot;
+    one_shot.append_lines({
+        LogEntry {"alpha.log", "start"},
+        LogEntry {"alpha.log", "same"},
+        LogEntry {"alpha.log", "same"},
+        LogEntry {"alpha.log", "same"},
+        LogEntry {"alpha.log", "same"},
+        LogEntry {"alpha.log", "other"},
+    });
+
+    EXPECT_EQ(rendered_texts(incremental), rendered_texts(one_shot));
+    EXPECT_EQ(incremental.max_rendered_line_width(), one_shot.max_rendered_line_width());
+}
+
+TEST(LogModelTest, HideBeforeLineAppliesToLinesAppendedLater)
+{
+    LogModel model;
+    model.append_lines(numbered_lines(2));
+
+    model.hide_before_line_number(4);
+    EXPECT_EQ(model.line_count(), 0);
+
+    model.append_lines({
+        LogEntry {"alpha.log", "line 3"},
+        LogEntry {"alpha.log", "line 4"},
+        LogEntry {"alpha.log", "line 5"},
+    });
+
+    EXPECT_EQ(rendered_texts(model), (std::vector<std::string> {
+                                         "line 4",
+                                         "line 5",
                                      }));
 }
 

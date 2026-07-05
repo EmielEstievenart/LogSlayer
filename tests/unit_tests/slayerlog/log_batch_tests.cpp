@@ -109,7 +109,7 @@ TEST(LogBatchTest, EmitsUntimestampedLinesWhenTheyReachTheFront)
     EXPECT_EQ(merged[4].text, "2026-04-01T10:05:00 alpha later");
 }
 
-TEST(LogBatchTest, MergesPerSourceRangesAndOverwritesSourceMetadata)
+TEST(LogBatchTest, SharedRangeMergeStampsSourceIndexOntoSourceOwnedEntries)
 {
     const auto alpha_entries = make_shared_entries({
         "2026-04-01T10:01:00 alpha old",
@@ -117,14 +117,16 @@ TEST(LogBatchTest, MergesPerSourceRangesAndOverwritesSourceMetadata)
         "plain alpha follow-up",
         "2026-04-01T10:05:00 alpha fifth",
     });
-    const auto beta_entries = make_shared_entries({
+    const auto beta_entries  = make_shared_entries({
         "2026-04-01T10:04:00 beta fourth",
     });
 
-    const auto merged = merge_log_batch({
-        {&alpha_entries, 1, 3, "alpha.log"},
-        {&beta_entries, 0, 7, "beta.log"},
-    });
+    const auto merged = merge_log_batch(
+        {
+            {&alpha_entries, 1, 3},
+            {&beta_entries, 0, 7},
+        },
+        MergeEntryMode::Share);
 
     ASSERT_EQ(merged.size(), 4U);
     EXPECT_EQ(merged[0]->text, "2026-04-01T10:03:00 alpha third");
@@ -132,13 +134,35 @@ TEST(LogBatchTest, MergesPerSourceRangesAndOverwritesSourceMetadata)
     EXPECT_EQ(merged[2]->text, "2026-04-01T10:04:00 beta fourth");
     EXPECT_EQ(merged[3]->text, "2026-04-01T10:05:00 alpha fifth");
 
+    // Share mode reuses the source-owned entry objects instead of cloning them.
+    EXPECT_EQ(merged[0], alpha_entries[1]);
+    EXPECT_EQ(merged[1], alpha_entries[2]);
+    EXPECT_EQ(merged[2], beta_entries[0]);
+    EXPECT_EQ(merged[3], alpha_entries[3]);
+
     EXPECT_EQ(merged[0]->metadata.source_index, 3U);
     EXPECT_EQ(merged[1]->metadata.source_index, 3U);
     EXPECT_EQ(merged[2]->metadata.source_index, 7U);
     EXPECT_EQ(merged[3]->metadata.source_index, 3U);
+}
 
-    EXPECT_EQ(merged[0]->metadata.source_label, "alpha.log");
-    EXPECT_EQ(merged[2]->metadata.source_label, "beta.log");
+TEST(LogBatchTest, ClonedRangeMergeLeavesSourceOwnedEntriesUntouched)
+{
+    const auto alpha_entries = make_shared_entries({
+        "2026-04-01T10:03:00 alpha third",
+    });
+
+    const auto merged = merge_log_batch(
+        {
+            {&alpha_entries, 0, 3},
+        },
+        MergeEntryMode::Clone);
+
+    ASSERT_EQ(merged.size(), 1U);
+    EXPECT_NE(merged[0], alpha_entries[0]);
+    EXPECT_EQ(merged[0]->text, alpha_entries[0]->text);
+    EXPECT_EQ(merged[0]->metadata.source_index, 3U);
+    EXPECT_EQ(alpha_entries[0]->metadata.source_index, 0U);
 }
 
 } // namespace slayerlog

@@ -16,6 +16,10 @@ namespace
 constexpr auto reconnect_delay         = std::chrono::seconds(1);
 constexpr std::size_t read_buffer_size = 4096;
 
+// Bounds the bytes drained from the pipe per poll so callers polling under a lock stay
+// responsive; whatever the remote keeps sending waits in the OS pipe until the next poll.
+constexpr std::size_t max_drain_bytes_per_poll = 4 * 1024 * 1024;
+
 std::string build_disconnect_message(const LogSource& source)
 {
     return "[slayerlog] remote stream disconnected: " + source_display_path(source) + "; retrying";
@@ -50,8 +54,15 @@ SshTailWatcher::SshTailWatcher(LogSource source) : _source(std::move(source))
     }
 }
 
+bool SshTailWatcher::backlog_pending_locked() const
+{
+    return _backlog_pending;
+}
+
 bool SshTailWatcher::poll_locked(std::vector<std::string>& lines)
 {
+    _backlog_pending = false;
+
     const auto now = std::chrono::steady_clock::now();
     if (_pipe == nullptr && now < _next_retry_at)
     {
@@ -75,6 +86,7 @@ bool SshTailWatcher::poll_locked(std::vector<std::string>& lines)
     bool stderr_ended = false;
 
     std::string stderr_text;
+    std::size_t drained_stdout_bytes = 0;
 
     while (true)
     {
@@ -84,6 +96,7 @@ bool SshTailWatcher::poll_locked(std::vector<std::string>& lines)
         if (stdout_bytes > 0)
         {
             made_progress = true;
+            drained_stdout_bytes += stdout_bytes;
             consume_stdout(std::string_view(buffer.data(), stdout_bytes), lines);
         }
 
@@ -139,6 +152,14 @@ bool SshTailWatcher::poll_locked(std::vector<std::string>& lines)
 
         if (!made_progress)
         {
+            break;
+        }
+
+        if (drained_stdout_bytes >= max_drain_bytes_per_poll)
+        {
+            // The pipe may hold more; report it as backlog so the caller re-polls
+            // promptly instead of blocking here for the whole burst.
+            _backlog_pending = true;
             break;
         }
     }

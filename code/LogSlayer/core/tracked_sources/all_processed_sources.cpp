@@ -17,6 +17,10 @@ namespace slayerlog
 namespace
 {
 
+// Shared by rendering and width tracking so the two cannot drift apart.
+constexpr std::string_view hidden_run_prefix_text = "hiding ";
+constexpr std::string_view hidden_run_suffix_text = " identical messages above";
+
 int decimal_width(std::size_t value)
 {
     int width = 1;
@@ -128,6 +132,7 @@ void AllProcessedSources::reset()
     _hidden_columns.reset();
 
     reset_column_width_cache();
+    reset_visible_message_width_cache();
 
     _updates_paused       = false;
     _show_original_time   = false;
@@ -651,10 +656,26 @@ std::vector<std::string> AllProcessedSources::rendered_lines(int first_index, in
 
 int AllProcessedSources::max_rendered_line_width() const
 {
-    int width = 0;
-    for (int index = 0; index < static_cast<int>(_visible_rows.size()); ++index)
+    if (_visible_rows.empty())
     {
-        width = std::max(width, static_cast<int>(rendered_line(index).size()));
+        return 0;
+    }
+
+    int width = _line_number_column_width + 1;
+    if (_timestamp_column_width > 0)
+    {
+        width += _timestamp_column_width + 1;
+    }
+
+    width += _show_original_time ? _max_visible_message_width_with_original_time : _max_visible_message_width_without_original_time;
+
+    if (_hidden_columns.has_value())
+    {
+        // The number of erased characters is monotone non-decreasing in the line length,
+        // so applying the hidden range to the widest line yields the exact maximum.
+        const int clamped_start = std::clamp(_hidden_columns->start, 0, width);
+        const int clamped_end   = std::clamp(_hidden_columns->end, clamped_start, width);
+        width -= clamped_end - clamped_start;
     }
 
     return width;
@@ -678,7 +699,9 @@ std::string AllProcessedSources::render_hidden_identical_row(const HiddenIdentic
         rendered_text += ' ';
     }
 
-    rendered_text += "hiding " + std::to_string(hidden_identical_run.hidden_count) + " identical messages above";
+    rendered_text.append(hidden_run_prefix_text);
+    rendered_text += std::to_string(hidden_identical_run.hidden_count);
+    rendered_text.append(hidden_run_suffix_text);
     return apply_hidden_columns(std::move(rendered_text));
 }
 
@@ -757,66 +780,107 @@ void AllProcessedSources::flush_paused_updates()
 void AllProcessedSources::rebuild_visible_entries()
 {
     _visible_rows.clear();
-    _visible_rows.reserve(_all_entries.size());
+    reset_visible_message_width_cache();
 
-    std::size_t index = 0;
+    std::size_t start_index = 0;
     if (_hidden_before_line_number.has_value())
     {
-        index = static_cast<std::size_t>(std::max(0, *_hidden_before_line_number - 1));
+        start_index = static_cast<std::size_t>(std::max(0, *_hidden_before_line_number - 1));
     }
 
-    std::optional<std::string> previous_deduplication_text;
-
-    for (; index < _all_entries.size(); ++index)
-    {
-        const AllLineIndex entry_index {static_cast<int>(index)};
-        if (entry_matches_active_filters(*_all_entries[entry_index]))
-        {
-            if (!_hide_identical_lines)
-            {
-                _visible_rows.push_back(VisibleRow {
-                    std::optional<AllLineIndex>(entry_index),
-                    std::nullopt,
-                });
-                previous_deduplication_text = std::nullopt;
-                continue;
-            }
-
-            const std::string deduplication_text = entry_deduplication_text(*_all_entries[entry_index]);
-            if (!previous_deduplication_text.has_value() || *previous_deduplication_text != deduplication_text)
-            {
-                _visible_rows.push_back(VisibleRow {
-                    std::optional<AllLineIndex>(entry_index),
-                    std::nullopt,
-                });
-                previous_deduplication_text = deduplication_text;
-                continue;
-            }
-
-            if (_visible_rows.empty() || !_visible_rows[VisibleLineIndex {static_cast<int>(_visible_rows.size() - 1)}].hidden_identical_run.has_value())
-            {
-                _visible_rows.push_back(VisibleRow {
-                    std::nullopt,
-                    HiddenIdenticalRun {
-                        entry_index,
-                        entry_index,
-                        1,
-                    },
-                });
-                continue;
-            }
-
-            auto& hidden_identical_run                    = _visible_rows[VisibleLineIndex {static_cast<int>(_visible_rows.size() - 1)}].hidden_identical_run;
-            hidden_identical_run->last_hidden_entry_index = entry_index;
-            ++hidden_identical_run->hidden_count;
-        }
-    }
+    append_visible_entries(AllLineIndex {static_cast<int>(start_index)}, std::nullopt);
 }
 
 void AllProcessedSources::expand_visible_entries(AllLineIndex first_new_entry_index)
 {
-    (void)first_new_entry_index;
-    rebuild_visible_entries();
+    // Appending cannot change how earlier entries were classified, so only the new
+    // entries are processed. The only cross-row state the classification needs is the
+    // deduplication text of the last filter-matching entry, which is recoverable from
+    // the last visible row (every entry folded into a hidden run shares its text).
+    std::size_t start_index = static_cast<std::size_t>(std::max(0, first_new_entry_index.value));
+    if (_hidden_before_line_number.has_value())
+    {
+        start_index = std::max(start_index, static_cast<std::size_t>(std::max(0, *_hidden_before_line_number - 1)));
+    }
+
+    append_visible_entries(AllLineIndex {static_cast<int>(start_index)}, deduplication_text_of_last_visible_row());
+}
+
+void AllProcessedSources::append_visible_entries(AllLineIndex first_entry_index, std::optional<std::string> previous_deduplication_text)
+{
+    _visible_rows.reserve(_all_entries.size());
+
+    for (std::size_t index = static_cast<std::size_t>(std::max(0, first_entry_index.value)); index < _all_entries.size(); ++index)
+    {
+        const AllLineIndex entry_index {static_cast<int>(index)};
+        const LogEntry& entry = *_all_entries[entry_index];
+        if (!entry_matches_active_filters(entry))
+        {
+            continue;
+        }
+
+        if (!_hide_identical_lines)
+        {
+            _visible_rows.push_back(VisibleRow {
+                std::optional<AllLineIndex>(entry_index),
+                std::nullopt,
+            });
+            observe_visible_entry_message_widths(entry);
+            continue;
+        }
+
+        std::string deduplication_text = entry_deduplication_text(entry);
+        if (!previous_deduplication_text.has_value() || *previous_deduplication_text != deduplication_text)
+        {
+            _visible_rows.push_back(VisibleRow {
+                std::optional<AllLineIndex>(entry_index),
+                std::nullopt,
+            });
+            observe_visible_entry_message_widths(entry);
+            previous_deduplication_text = std::move(deduplication_text);
+            continue;
+        }
+
+        if (_visible_rows.empty() || !_visible_rows[VisibleLineIndex {static_cast<int>(_visible_rows.size() - 1)}].hidden_identical_run.has_value())
+        {
+            _visible_rows.push_back(VisibleRow {
+                std::nullopt,
+                HiddenIdenticalRun {
+                    entry_index,
+                    entry_index,
+                    1,
+                },
+            });
+            observe_hidden_run_row_width(1);
+            continue;
+        }
+
+        auto& hidden_identical_run                    = _visible_rows[VisibleLineIndex {static_cast<int>(_visible_rows.size() - 1)}].hidden_identical_run;
+        hidden_identical_run->last_hidden_entry_index = entry_index;
+        ++hidden_identical_run->hidden_count;
+        observe_hidden_run_row_width(hidden_identical_run->hidden_count);
+    }
+}
+
+std::optional<std::string> AllProcessedSources::deduplication_text_of_last_visible_row() const
+{
+    if (!_hide_identical_lines || _visible_rows.empty())
+    {
+        return std::nullopt;
+    }
+
+    const auto& last_row = _visible_rows[VisibleLineIndex {static_cast<int>(_visible_rows.size() - 1)}];
+    if (last_row.entry_index.has_value())
+    {
+        return entry_deduplication_text(*_all_entries[*last_row.entry_index]);
+    }
+
+    if (last_row.hidden_identical_run.has_value())
+    {
+        return entry_deduplication_text(*_all_entries[last_row.hidden_identical_run->last_hidden_entry_index]);
+    }
+
+    return std::nullopt;
 }
 
 void AllProcessedSources::reset_column_width_cache()
@@ -824,6 +888,32 @@ void AllProcessedSources::reset_column_width_cache()
     _line_number_column_width = 1;
     _timestamp_column_width   = 0;
     _column_width_grew        = false;
+}
+
+void AllProcessedSources::reset_visible_message_width_cache()
+{
+    _max_visible_message_width_with_original_time    = 0;
+    _max_visible_message_width_without_original_time = 0;
+}
+
+void AllProcessedSources::observe_visible_entry_message_widths(const LogEntry& entry)
+{
+    const int full_width = static_cast<int>(presented_prefix(entry).size() + entry.text.size());
+
+    _max_visible_message_width_with_original_time = std::max(_max_visible_message_width_with_original_time, full_width);
+
+    // extracted_time_view() applies the same validity rules as
+    // message_text_without_extracted_timestamp(), so this matches the rendered length.
+    const int width_without_extracted_time           = full_width - static_cast<int>(extracted_time_view(entry).size());
+    _max_visible_message_width_without_original_time = std::max(_max_visible_message_width_without_original_time, width_without_extracted_time);
+}
+
+void AllProcessedSources::observe_hidden_run_row_width(int hidden_count)
+{
+    const int message_width = static_cast<int>(hidden_run_prefix_text.size() + hidden_run_suffix_text.size()) + decimal_width(static_cast<std::size_t>(hidden_count));
+
+    _max_visible_message_width_with_original_time    = std::max(_max_visible_message_width_with_original_time, message_width);
+    _max_visible_message_width_without_original_time = std::max(_max_visible_message_width_without_original_time, message_width);
 }
 
 void AllProcessedSources::observe_entry_widths(AllLineIndex entry_index, const LogEntry& entry)
@@ -867,11 +957,23 @@ void AllProcessedSources::notify_lines_changed(VisibleLineIndex first_changed_li
 
 bool AllProcessedSources::entry_matches_active_filters(const LogEntry& entry) const
 {
+    if (_include_filter_patterns.empty() && _exclude_filter_patterns.empty())
+    {
+        return true;
+    }
+
     // Fold in the source label and presented text so filters match the same mnemonic-prefixed
-    // message that the user sees.
-    const std::string searchable_text = entry.metadata.source_label + "\n" + presented_text(entry);
-    const bool matches_include        = _include_filter_patterns.empty() || matches_any_pattern(searchable_text, _include_filter_patterns);
-    const bool matches_exclude        = matches_any_pattern(searchable_text, _exclude_filter_patterns);
+    // message that the user sees. Built in a reused scratch buffer: this runs once per entry
+    // during visibility classification.
+    std::string& searchable_text = _searchable_text_scratch;
+    searchable_text.clear();
+    searchable_text.append(entry_source_label(entry));
+    searchable_text.push_back('\n');
+    searchable_text.append(presented_prefix(entry));
+    searchable_text.append(entry.text);
+
+    const bool matches_include = _include_filter_patterns.empty() || matches_any_pattern(searchable_text, _include_filter_patterns);
+    const bool matches_exclude = matches_any_pattern(searchable_text, _exclude_filter_patterns);
     return matches_include && !matches_exclude;
 }
 

@@ -119,8 +119,13 @@ private:
     void flush_paused_updates();
     void rebuild_visible_entries();
     void expand_visible_entries(AllLineIndex first_new_entry_index);
+    void append_visible_entries(AllLineIndex first_entry_index, std::optional<std::string> previous_deduplication_text);
+    std::optional<std::string> deduplication_text_of_last_visible_row() const;
     void reset_column_width_cache();
     void observe_entry_widths(AllLineIndex entry_index, const LogEntry& entry);
+    void reset_visible_message_width_cache();
+    void observe_visible_entry_message_widths(const LogEntry& entry);
+    void observe_hidden_run_row_width(int hidden_count);
     void notify_lines_changed(VisibleLineIndex first_changed_line) const;
     std::string apply_hidden_columns(std::string text) const;
 
@@ -140,6 +145,16 @@ private:
     int _line_number_column_width = 1;
     int _timestamp_column_width   = 0;
     bool _column_width_grew       = false;
+
+    // Maximum message width across the current visible rows, tracked incrementally so
+    // max_rendered_line_width() is O(1) instead of re-rendering every row. Two buckets
+    // keep the show-original-time toggle O(1) as well.
+    int _max_visible_message_width_with_original_time    = 0;
+    int _max_visible_message_width_without_original_time = 0;
+
+    // Reused by entry_matches_active_filters to avoid an allocation per checked entry.
+    // Safe despite const methods: the model is only ever accessed under the model mutex.
+    mutable std::string _searchable_text_scratch;
 
     bool _updates_paused       = false;
     bool _show_original_time   = false;

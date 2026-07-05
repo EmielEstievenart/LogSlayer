@@ -103,6 +103,42 @@ TEST(ZstdFileWatcherTest, SecondPollReturnsNothing)
     expect_no_poll_lines(watcher);
 }
 
+TEST(ZstdFileWatcherTest, BoundedOutputSpreadsDecompressionOverPollsAndReportsBacklog)
+{
+    // Enough decompressed output (~120 KiB) that a 1-byte output cap forces several
+    // polls (each poll decompresses at least one internal buffer's worth).
+    std::string text;
+    std::vector<std::string> expected_lines;
+    for (int index = 0; index < 10000; ++index)
+    {
+        expected_lines.push_back("line number " + std::to_string(index));
+        text += expected_lines.back();
+        text += '\n';
+    }
+
+    ScopedTestFile test_file;
+    test_file.write_zstd(text);
+
+    ZstdFileWatcher watcher(test_file.path().string(), 1);
+
+    std::vector<std::string> collected_lines;
+    std::vector<std::string> lines;
+    ASSERT_TRUE(watcher.poll(lines));
+    collected_lines.insert(collected_lines.end(), lines.begin(), lines.end());
+    EXPECT_TRUE(watcher.backlog_pending());
+    EXPECT_LT(collected_lines.size(), expected_lines.size());
+
+    while (watcher.backlog_pending())
+    {
+        watcher.poll(lines);
+        collected_lines.insert(collected_lines.end(), lines.begin(), lines.end());
+    }
+
+    EXPECT_EQ(collected_lines, expected_lines);
+    EXPECT_FALSE(watcher.backlog_pending());
+    expect_no_poll_lines(watcher);
+}
+
 TEST(ZstdFileWatcherTest, MissingFileThrowsWhenPolled)
 {
     const auto missing_path = make_unique_test_path();

@@ -7,9 +7,14 @@
 namespace slayerlog
 {
 
+/// The label of the entry's owning source. Resolved live through metadata.source (labels
+/// are deduplicated basenames that can change as sources open/close), falling back to the
+/// per-entry copy for entries without a source object (manually built or transient entries).
+const std::string& entry_source_label(const LogEntry& entry);
+
 /// The user-visible prefix for a log entry's owning source.
 /// Returns an empty string when the entry has no source, the mnemonic is hidden, or it is empty.
-std::string presented_prefix(const LogEntry& entry);
+const std::string& presented_prefix(const LogEntry& entry);
 
 /// The user-visible form of a log entry: source mnemonic prefix followed by raw text.
 std::string presented_text(const LogEntry& entry);

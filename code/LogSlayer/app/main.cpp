@@ -365,9 +365,16 @@ std::thread start_watcher_thread(int poll_interval_ms, slayerlog::AllTrackedSour
     return std::thread(
         [poll_interval_ms, tracked_sources = &tracked_sources, model_mutex = &model_mutex, processed_sources = &processed_sources, screen = &screen, keep_running = &keep_running]
         {
+            // Watchers bound the bytes they ingest per poll so each lock hold stays
+            // short. While a source reports leftover backlog, re-poll almost
+            // immediately (releasing the mutex in between keeps the UI responsive
+            // during heavy bursts) instead of sleeping the full interval.
+            constexpr int backlog_poll_interval_ms = 1;
+
+            bool backlog_pending = false;
             while (*keep_running)
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(poll_interval_ms));
+                std::this_thread::sleep_for(std::chrono::milliseconds(backlog_pending ? backlog_poll_interval_ms : poll_interval_ms));
                 if (!*keep_running)
                 {
                     break;
@@ -375,6 +382,7 @@ std::thread start_watcher_thread(int poll_interval_ms, slayerlog::AllTrackedSour
 
                 std::lock_guard lock(*model_mutex);
                 const auto first_new_line_index = tracked_sources->poll();
+                backlog_pending                 = tracked_sources->any_source_backlog_pending();
                 if (first_new_line_index.has_value())
                 {
                     append_sources_delta_to_processed_sources(*tracked_sources, *first_new_line_index, *processed_sources, *screen);

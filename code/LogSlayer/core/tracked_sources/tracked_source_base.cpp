@@ -39,6 +39,7 @@ const std::string& TrackedSourceBase::source_mnemonic() const
 void TrackedSourceBase::set_source_mnemonic(std::string source_mnemonic)
 {
     _source_mnemonic = std::move(source_mnemonic);
+    update_mnemonic_prefix();
 }
 
 bool TrackedSourceBase::mnemonic_visible() const
@@ -49,16 +50,23 @@ bool TrackedSourceBase::mnemonic_visible() const
 void TrackedSourceBase::set_mnemonic_visible(bool mnemonic_visible)
 {
     _mnemonic_visible = mnemonic_visible;
+    update_mnemonic_prefix();
 }
 
-std::string TrackedSourceBase::mnemonic_prefix() const
+const std::string& TrackedSourceBase::mnemonic_prefix() const
+{
+    return _mnemonic_prefix;
+}
+
+void TrackedSourceBase::update_mnemonic_prefix()
 {
     if (!_mnemonic_visible || _source_mnemonic.empty())
     {
-        return {};
+        _mnemonic_prefix.clear();
+        return;
     }
 
-    return _source_mnemonic + " ";
+    _mnemonic_prefix = _source_mnemonic + " ";
 }
 
 void TrackedSourceBase::set_timestamp_format(std::string format)
@@ -231,7 +239,10 @@ LogEntry& TrackedSourceBase::append_entry()
 void TrackedSourceBase::append_merged_entries(const std::vector<LogBatchSourceRange>& source_ranges)
 {
     const std::size_t first_new_entry_index = _entries.size();
-    merge_log_batch(source_ranges, _entries);
+
+    // Clone mode: the merged entries get this source's sequence numbers and source link
+    // stamped below, which must not disturb the range-owned originals (folder children).
+    merge_log_batch(source_ranges, _entries, MergeEntryMode::Clone);
 
     for (std::size_t entry_index = first_new_entry_index; entry_index < _entries.size(); ++entry_index)
     {

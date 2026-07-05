@@ -8,6 +8,7 @@
 
 #include "log_batch.hpp"
 #include "tracked_sources/all_processed_sources.hpp"
+#include "tracked_sources/log_entry_presentation.hpp"
 
 namespace slayerlog
 {
@@ -55,7 +56,7 @@ AlignTimeSession::AlignTimeSession(const AllProcessedSources& processed_sources,
             _aligning.push_back(std::move(aligning_entry));
             if (_aligning_source_label.empty())
             {
-                _aligning_source_label = entry.metadata.source_label;
+                _aligning_source_label = entry_source_label(entry);
             }
         }
         else if (processed_sources.entry_matches_active_filters(entry))

@@ -145,7 +145,6 @@ bool TrackedSourceFolder::poll()
             &child_entries,
             first_new_entry_index,
             source_index,
-            source_label(),
         });
     }
 
@@ -159,6 +158,19 @@ bool TrackedSourceFolder::poll()
     append_merged_entries(source_ranges);
 
     return true;
+}
+
+bool TrackedSourceFolder::backlog_pending() const
+{
+    for (const auto& child : _children)
+    {
+        if (child.second.tracked_source != nullptr && child.second.tracked_source->backlog_pending())
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void TrackedSourceFolder::finish_open_notification(std::string title, std::string message, NotificationLevel level)
@@ -251,7 +263,6 @@ void TrackedSourceFolder::rebuild_entries_from_children()
             &child_entries,
             0,
             source_index,
-            source_label(),
         });
     }
 

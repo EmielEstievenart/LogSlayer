@@ -59,7 +59,7 @@ SearchPattern compile_search_pattern(std::string_view text)
         return SearchPattern {
             trimmed_text,
             regex_text,
-            std::regex(regex_text),
+            std::regex(regex_text, std::regex::ECMAScript | std::regex::optimize),
         };
     }
     catch (const std::regex_error& error)

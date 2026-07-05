@@ -44,22 +44,29 @@ std::optional<LogTimestamp> earliest_new_timestamp(const std::vector<LogBatchSou
 
 std::size_t find_rewrite_start_index(const IndexedVector<std::shared_ptr<LogEntry>, AllLineIndex>& all_lines, LogTimestamp earliest_timestamp)
 {
-    for (std::size_t line_index = 0; line_index < all_lines.size(); ++line_index)
+    // The result is the first timestamped line at or after earliest_timestamp. Because
+    // timestamped lines are merged in order and out-of-order arrivals overlap the tail,
+    // scanning backwards finds it in O(rewritten suffix) instead of O(all lines): once a
+    // timestamp older than earliest_timestamp appears, no earlier line can qualify.
+    std::size_t rewrite_start_index = all_lines.size();
+    for (std::size_t line_index = all_lines.size(); line_index > 0; --line_index)
     {
-        const auto& line     = all_lines[AllLineIndex {static_cast<int>(line_index)}];
+        const auto& line     = all_lines[AllLineIndex {static_cast<int>(line_index - 1)}];
         const auto timestamp = effective_timestamp(line->metadata);
         if (!timestamp.has_value())
         {
             continue;
         }
 
-        if (timestamp.value() >= earliest_timestamp)
+        if (timestamp.value() < earliest_timestamp)
         {
-            return line_index;
+            break;
         }
+
+        rewrite_start_index = line_index - 1;
     }
 
-    return all_lines.size();
+    return rewrite_start_index;
 }
 
 int rebuild_progress_percent(std::size_t completed_step_count, std::size_t total_step_count)
@@ -173,7 +180,7 @@ std::optional<AllLineIndex> AllTrackedSources::poll()
     const auto append_new_tail = [&]() -> AllLineIndex
     {
         const AllLineIndex first_new_index {static_cast<int>(_all_lines.size())};
-        merge_log_batch(source_ranges, merged_lines);
+        merge_log_batch(source_ranges, merged_lines, MergeEntryMode::Share);
         append_merged_lines(merged_lines);
         return first_new_index;
     };
@@ -226,7 +233,6 @@ std::optional<AllLineIndex> AllTrackedSources::poll()
         &existing_suffix,
         0,
         0,
-        std::string(),
         true,
     });
     for (const auto& source_range : source_ranges)
@@ -234,7 +240,7 @@ std::optional<AllLineIndex> AllTrackedSources::poll()
         rewrite_ranges.push_back(source_range);
     }
 
-    merge_log_batch(rewrite_ranges, merged_lines);
+    merge_log_batch(rewrite_ranges, merged_lines, MergeEntryMode::Share);
 
     for (std::size_t merged_index = 0; merged_index < existing_suffix.size(); ++merged_index)
     {
@@ -250,6 +256,19 @@ std::optional<AllLineIndex> AllTrackedSources::poll()
 
     const AllLineIndex first_changed_line {static_cast<int>(rewrite_start_index)};
     return first_changed_line;
+}
+
+bool AllTrackedSources::any_source_backlog_pending() const
+{
+    for (const auto& source : _sources)
+    {
+        if (source->backlog_pending())
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 const IndexedVector<std::shared_ptr<LogEntry>, AllLineIndex>& AllTrackedSources::all_lines() const
@@ -507,7 +526,7 @@ void AllTrackedSources::rebuild_all_lines()
     }
 
     std::vector<std::shared_ptr<LogEntry>> merged_lines;
-    merge_log_batch(source_ranges, merged_lines);
+    merge_log_batch(source_ranges, merged_lines, MergeEntryMode::Share);
     append_merged_lines(merged_lines);
 
     progress_notification.show_or_update(rebuild_progress_notification(100, "100% rebuilt (" + std::to_string(merged_lines.size()) + " log lines)"));
@@ -533,7 +552,6 @@ void AllTrackedSources::append_source_range(std::vector<LogBatchSourceRange>& so
         &entries,
         first_entry_index,
         source_index,
-        source.source_label(),
     });
 }
 

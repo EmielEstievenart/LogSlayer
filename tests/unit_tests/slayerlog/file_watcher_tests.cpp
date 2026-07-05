@@ -90,6 +90,30 @@ TEST(FileWatcherTest, FirstPollReturnsFullExistingFileContents)
     expect_poll_lines(watcher, {"first", "second"});
 }
 
+TEST(FileWatcherTest, BoundedReadsSpreadTailOverPollsAndReportBacklog)
+{
+    ScopedTestFile test_file;
+    test_file.write("line one\nline two\nline three\n");
+
+    FileWatcher watcher(test_file.path().string(), 10);
+
+    std::vector<std::string> lines;
+    ASSERT_TRUE(watcher.poll(lines));
+    EXPECT_EQ(lines, (std::vector<std::string> {"line one"}));
+    EXPECT_TRUE(watcher.backlog_pending());
+
+    std::vector<std::string> remaining_lines;
+    while (watcher.backlog_pending())
+    {
+        watcher.poll(lines);
+        remaining_lines.insert(remaining_lines.end(), lines.begin(), lines.end());
+    }
+
+    EXPECT_EQ(remaining_lines, (std::vector<std::string> {"line two", "line three"}));
+    EXPECT_FALSE(watcher.backlog_pending());
+    expect_no_poll_lines(watcher);
+}
+
 TEST(FileWatcherTest, ReadsOnlyNewlyAppendedLinesWhenFileGrows)
 {
     ScopedTestFile test_file;

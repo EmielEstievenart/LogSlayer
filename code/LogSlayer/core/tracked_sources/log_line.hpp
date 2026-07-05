@@ -22,6 +22,9 @@ struct LogEntryMetadata
     std::optional<std::size_t> extracted_time_end;
     std::uint64_t sequence_number = 0;
     std::size_t source_index      = 0;
+    /// Fallback only: entries owned by a tracked source resolve their label live through
+    /// @ref source (see entry_source_label()), so merges do not copy the label per entry.
+    /// Set it directly only on entries that have no source object (tests, transient copies).
     std::string source_label;
     TrackedSourceBase* source = nullptr;
 

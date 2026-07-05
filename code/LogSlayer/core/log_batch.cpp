@@ -22,8 +22,7 @@ struct SourceRangeBatchState
     const std::vector<std::shared_ptr<LogEntry>>* entries = nullptr;
     std::size_t next_entry_index                          = 0;
     std::size_t source_index                              = 0;
-    std::string source_label;
-    bool preserve_source_metadata = false;
+    bool preserve_source_metadata                         = false;
 };
 
 bool has_pending_entry(const SharedSourceBatchState& state)
@@ -56,13 +55,25 @@ void advance_source(SourceRangeBatchState& state)
     ++state.next_entry_index;
 }
 
-std::shared_ptr<LogEntry> clone_for_source_range(const LogEntry& entry, const SourceRangeBatchState& source_state)
+std::shared_ptr<LogEntry> merged_entry_for_source_range(const std::shared_ptr<LogEntry>& entry, const SourceRangeBatchState& source_state, MergeEntryMode entry_mode)
 {
-    auto cloned_entry = std::make_shared<LogEntry>(entry);
+    // The source label is not stamped per entry: readers resolve it live through
+    // metadata.source (entry_source_label), so labels never go stale and entries
+    // do not each carry a copy of the label string.
+    if (entry_mode == MergeEntryMode::Share)
+    {
+        if (!source_state.preserve_source_metadata)
+        {
+            entry->metadata.source_index = source_state.source_index;
+        }
+
+        return entry;
+    }
+
+    auto cloned_entry = std::make_shared<LogEntry>(*entry);
     if (!source_state.preserve_source_metadata)
     {
         cloned_entry->metadata.source_index = source_state.source_index;
-        cloned_entry->metadata.source_label = source_state.source_label;
     }
 
     return cloned_entry;
@@ -148,7 +159,7 @@ std::vector<std::shared_ptr<LogEntry>> merge_shared_log_batch(const std::vector<
 
 } // namespace
 
-void merge_log_batch(const std::vector<LogBatchSourceRange>& source_ranges, std::vector<std::shared_ptr<LogEntry>>& merged_lines)
+void merge_log_batch(const std::vector<LogBatchSourceRange>& source_ranges, std::vector<std::shared_ptr<LogEntry>>& merged_lines, MergeEntryMode entry_mode)
 {
     std::size_t total_entry_count = 0;
     std::vector<SourceRangeBatchState> source_states;
@@ -165,7 +176,6 @@ void merge_log_batch(const std::vector<LogBatchSourceRange>& source_ranges, std:
             source_range.entries,
             source_range.first_entry_index,
             source_range.source_index,
-            source_range.source_label,
             source_range.preserve_source_metadata,
         });
 
@@ -187,7 +197,7 @@ void merge_log_batch(const std::vector<LogBatchSourceRange>& source_ranges, std:
                     break;
                 }
 
-                merged_lines.push_back(clone_for_source_range(*entry, source_state));
+                merged_lines.push_back(merged_entry_for_source_range(entry, source_state, entry_mode));
                 advance_source(source_state);
                 ++merged_entry_count;
             }
@@ -230,16 +240,16 @@ void merge_log_batch(const std::vector<LogBatchSourceRange>& source_ranges, std:
 
         auto& source_state = source_states[*next_state_index];
         const auto& entry  = current_entry_pointer(source_state);
-        merged_lines.push_back(clone_for_source_range(*entry, source_state));
+        merged_lines.push_back(merged_entry_for_source_range(entry, source_state, entry_mode));
         advance_source(source_state);
         ++merged_entry_count;
     }
 }
 
-std::vector<std::shared_ptr<LogEntry>> merge_log_batch(const std::vector<LogBatchSourceRange>& source_ranges)
+std::vector<std::shared_ptr<LogEntry>> merge_log_batch(const std::vector<LogBatchSourceRange>& source_ranges, MergeEntryMode entry_mode)
 {
     std::vector<std::shared_ptr<LogEntry>> merged_lines;
-    merge_log_batch(source_ranges, merged_lines);
+    merge_log_batch(source_ranges, merged_lines, entry_mode);
     return merged_lines;
 }
 

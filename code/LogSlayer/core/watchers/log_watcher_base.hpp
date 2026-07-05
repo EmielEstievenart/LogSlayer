@@ -18,11 +18,20 @@ public:
         return poll_locked(lines);
     }
 
+    bool backlog_pending() const final
+    {
+        std::lock_guard lock(_mutex);
+        return backlog_pending_locked();
+    }
+
 protected:
     virtual bool poll_locked(std::vector<std::string>& lines) = 0;
 
+    /// Runs under the watcher mutex; implementations report leftover data here.
+    virtual bool backlog_pending_locked() const { return false; }
+
 private:
-    std::mutex _mutex;
+    mutable std::mutex _mutex;
 };
 
 } // namespace slayerlog

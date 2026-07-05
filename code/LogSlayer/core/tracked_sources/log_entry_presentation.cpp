@@ -8,12 +8,23 @@
 namespace slayerlog
 {
 
-std::string presented_prefix(const LogEntry& entry)
+const std::string& entry_source_label(const LogEntry& entry)
+{
+    if (entry.metadata.source != nullptr)
+    {
+        return entry.metadata.source->source_label();
+    }
+
+    return entry.metadata.source_label;
+}
+
+const std::string& presented_prefix(const LogEntry& entry)
 {
     // metadata.source can be null for manually-built tests or transient entries.
+    static const std::string no_prefix;
     if (entry.metadata.source == nullptr)
     {
-        return {};
+        return no_prefix;
     }
 
     return entry.metadata.source->mnemonic_prefix();

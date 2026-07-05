@@ -116,7 +116,14 @@ std::optional<std::string> open_source(AllTrackedSources& sources, const LogSour
     try
     {
         auto source_state = create_tracked_source(source, source_display_path(source), sources.timestamp_format_catalog(), std::move(notifier));
-        source_state->poll();
+
+        // Watchers bound the bytes they ingest per poll; opening drains the whole
+        // existing content so the source is complete before it joins the model.
+        do
+        {
+            source_state->poll();
+        } while (source_state->backlog_pending());
+
         return adopt_opened_source(sources, std::move(source_state));
     }
     catch (const std::exception& ex)
