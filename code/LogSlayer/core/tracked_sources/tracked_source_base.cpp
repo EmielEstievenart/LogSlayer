@@ -63,7 +63,19 @@ std::string TrackedSourceBase::mnemonic_prefix() const
 
 void TrackedSourceBase::set_timestamp_format(std::string format)
 {
-    set_timestamp_catalog(std::make_shared<const TimestampFormatCatalog>(std::vector<std::string> {std::move(format)}));
+    set_timestamp_catalog(std::make_shared<const TimestampFormatCatalog>(std::vector<std::string> {format}));
+    _pinned_timestamp_format = std::move(format);
+}
+
+const std::optional<std::string>& TrackedSourceBase::pinned_timestamp_format() const
+{
+    return _pinned_timestamp_format;
+}
+
+void TrackedSourceBase::reset_timestamp_format(std::shared_ptr<const TimestampFormatCatalog> timestamp_formats)
+{
+    set_timestamp_catalog(std::move(timestamp_formats));
+    _pinned_timestamp_format.reset();
 }
 
 std::optional<std::string> TrackedSourceBase::set_timestamp_offset(LogTimestampOffset offset)

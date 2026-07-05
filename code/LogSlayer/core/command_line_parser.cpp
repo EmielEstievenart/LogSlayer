@@ -24,7 +24,10 @@ void add_command_line_options(boost::program_options::options_description& desc)
     desc.add_options()
         ("help,h", "Show help message")
         ("file,f", po::value<std::vector<std::string>>()->composing(), "Source to open on startup. Repeat for multiple sources; also supports positional sources and ssh://user@host/absolute/path.log.")
-        ("poll-interval-ms", po::value<int>()->default_value(250), "Polling interval in milliseconds");
+        ("poll-interval-ms", po::value<int>()->default_value(250), "Polling interval in milliseconds")
+        ("cmd", po::value<std::vector<std::string>>()->composing(), "Command palette command to run at startup, e.g. --cmd \"filter-out DEBUG\". Repeat for multiple commands; they run in order after the sources are opened. Any palette command works (see the command list below).")
+        ("config", po::value<std::string>(), "Replay a config saved with save-config at startup, e.g. --config crashhunt.")
+        ("resume-last", "Replay the automatically saved previous session (the __last config).");
     // clang-format on
 }
 
@@ -101,6 +104,21 @@ Config parse_command_line(int argc, char* argv[])
             throw po::error("--poll-interval-ms must be greater than 0");
         }
 
+        if (variables.count("cmd") != 0U)
+        {
+            config.startup_commands = variables["cmd"].as<std::vector<std::string>>();
+        }
+        if (variables.count("config") != 0U)
+        {
+            config.config_name = variables["config"].as<std::string>();
+        }
+        config.resume_last = variables.count("resume-last") != 0U;
+
+        if (config.resume_last && !config.config_name.empty())
+        {
+            throw po::error("--config and --resume-last cannot be combined");
+        }
+
         return config;
     }
     catch (const po::error& error)
@@ -125,7 +143,18 @@ std::string build_help_text(const CommandManager& command_manager)
                             "slayerlog app.log worker.log",
                             "slayerlog --file app.log --file worker.log",
                             "slayerlog --file ssh://user@example.com/var/log/app.log",
+                            "slayerlog app.log --cmd \"filter-out DEBUG\" --cmd \"go-to-line 5000\"",
+                            "slayerlog --config crashhunt",
+                            "slayerlog --resume-last",
                             "Press Ctrl+P in the UI to open the command palette for more sources and filters.",
+                        });
+
+    append_help_section(output, "Session Configs",
+                        {
+                            "save-config <name> snapshots the session (sources, offsets, formats, filters, view) into the settings INI.",
+                            "load-config <name> resets the session and replays a saved config; list-configs and delete-config manage them.",
+                            "export-config <path>.bat|.sh writes a runnable script; export-config with no path copies the command line to the clipboard.",
+                            "The previous session is auto-saved on exit as the __last config; start with --resume-last to pick it up.",
                         });
 
     append_help_section(output, "Source Syntax",

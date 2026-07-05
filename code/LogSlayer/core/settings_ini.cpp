@@ -159,4 +159,31 @@ void SettingsIni::set_values(std::string section, std::string key, const std::ve
     }
 }
 
+std::vector<std::string> SettingsIni::sections() const
+{
+    CSimpleIniCaseA::TNamesDepend simple_ini_sections;
+    _impl->ini.GetAllSections(simple_ini_sections);
+    simple_ini_sections.sort(CSimpleIniCaseA::Entry::LoadOrder());
+
+    std::vector<std::string> extracted_sections;
+    for (const auto& entry : simple_ini_sections)
+    {
+        extracted_sections.emplace_back(entry.pItem);
+    }
+
+    return extracted_sections;
+}
+
+bool SettingsIni::has_section(std::string_view section) const
+{
+    const std::string section_name(section);
+    return _impl->ini.GetSection(section_name.c_str()) != nullptr;
+}
+
+void SettingsIni::remove_section(std::string_view section)
+{
+    const std::string section_name(section);
+    _impl->ini.Delete(section_name.c_str(), nullptr, true);
+}
+
 } // namespace slayerlog

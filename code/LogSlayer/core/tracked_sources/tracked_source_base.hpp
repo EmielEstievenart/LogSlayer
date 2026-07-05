@@ -95,6 +95,18 @@ public:
     void set_timestamp_format(std::string format);
 
     /**
+     * @brief Returns the format this source is pinned to via set_timestamp_format,
+     * or std::nullopt while automatic detection across the catalog is active.
+     */
+    const std::optional<std::string>& pinned_timestamp_format() const;
+
+    /**
+     * @brief Restores automatic detection: applies @p timestamp_formats through
+     * set_timestamp_catalog and clears the pinned format.
+     */
+    void reset_timestamp_format(std::shared_ptr<const TimestampFormatCatalog> timestamp_formats);
+
+    /**
      * @brief Replaces the timestamp format catalog and reparses all entries.
      *
      * Passing the application-wide catalog restores automatic format detection.
@@ -212,6 +224,7 @@ private:
     std::uint64_t _next_sequence_number = 0;
     std::shared_ptr<const TimestampFormatCatalog> _timestamp_formats;
     std::optional<LogTimestampOffset> _timestamp_offset;
+    std::optional<std::string> _pinned_timestamp_format;
 };
 
 } // namespace slayerlog

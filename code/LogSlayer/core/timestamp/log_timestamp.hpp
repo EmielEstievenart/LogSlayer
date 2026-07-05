@@ -43,6 +43,11 @@ LogCivilTime to_utc_civil_time(LogTimestamp timestamp);
 std::string format_log_timestamp_utc(LogTimestamp timestamp);
 std::optional<LogTimestampOffset> parse_log_timestamp_offset(std::string_view text);
 std::string format_log_timestamp_offset(LogTimestampOffset offset);
+
+/// Formats @p offset in the exact "[+|-]DD hh:mm:ss[.fraction]" syntax that
+/// parse_log_timestamp_offset reads back, for offsets persisted in configs and
+/// scripts. format_log_timestamp_offset stays the display form ("+00d ...").
+std::string serialize_log_timestamp_offset(LogTimestampOffset offset);
 std::optional<LogTimestamp> add_offset(LogTimestamp timestamp, LogTimestampOffset offset);
 std::optional<LogTimestampOffset> offset_between(LogTimestamp from, LogTimestamp to);
 std::optional<LogTimestampOffset> add_offsets(LogTimestampOffset lhs, LogTimestampOffset rhs);

@@ -26,7 +26,10 @@
 #include "command_manager.hpp"
 #include "command_support.hpp"
 #include "commands/command_history.hpp"
+#include "commands/session_config_store.hpp"
+#include "commands/session_replay.hpp"
 #include "debug_log.hpp"
+#include "session_snapshot.hpp"
 #include "tracked_sources/all_tracked_sources.hpp"
 #include "tracked_sources/tracked_source_factory.hpp"
 #include "timestamp/timestamp_format_catalog.hpp"
@@ -244,6 +247,85 @@ std::shared_ptr<ToastHostComponent> create_toast_host(ftxui::Component viewer, f
     return std::make_shared<ToastHostComponent>(viewer, toast_option);
 }
 
+/// Command lines to replay at startup: a saved config (--config / --resume-last)
+/// first, then any --cmd lines, in the order given.
+std::vector<std::string> collect_startup_command_lines(const slayerlog::Config& config, const slayerlog::SettingsStore& settings_store, bool settings_loaded, slayerlog::Notifier& notifier)
+{
+    std::vector<std::string> command_lines;
+
+    if (config.resume_last || !config.config_name.empty())
+    {
+        const std::string config_name = config.resume_last ? std::string(slayerlog::last_session_config_name) : config.config_name;
+        if (!settings_loaded)
+        {
+            SLAYERLOG_LOG_ERROR("Cannot replay config '" << config_name << "' because settings failed to load");
+            notifier.warning("Configs unavailable", "Settings failed to load, cannot replay '" + config_name + "'");
+        }
+        else
+        {
+            const auto saved_commands = slayerlog::load_session_config(settings_store, config_name);
+            if (saved_commands.has_value())
+            {
+                command_lines = *saved_commands;
+            }
+            else if (config.resume_last)
+            {
+                notifier.warning("No previous session to resume", "Nothing has been auto-saved yet");
+            }
+            else
+            {
+                notifier.error("Unknown config: " + config_name, "See list-configs for the saved configs");
+            }
+        }
+    }
+
+    command_lines.insert(command_lines.end(), config.startup_commands.begin(), config.startup_commands.end());
+    return command_lines;
+}
+
+void replay_startup_commands(const std::vector<std::string>& command_lines, slayerlog::CommandManager& command_manager, const slayerlog::CommandContext& command_context, std::mutex& model_mutex, slayerlog::Notifier& notifier)
+{
+    if (command_lines.empty())
+    {
+        return;
+    }
+
+    SLAYERLOG_LOG_INFO("Replaying " << command_lines.size() << " startup command(s)");
+    slayerlog::SessionReplayReport report;
+    {
+        std::lock_guard lock(model_mutex);
+        report = slayerlog::replay_session_commands(command_lines, command_manager, command_context);
+    }
+
+    for (const auto& error : report.errors)
+    {
+        SLAYERLOG_LOG_ERROR("Startup command failed: " << error);
+        notifier.error("Startup command failed", error);
+    }
+}
+
+/// Snapshots the session into the __last config so --resume-last can restore
+/// it after a reboot. Runs after the watcher and background tasks are joined,
+/// so the model is single-threaded again.
+void auto_save_last_session(slayerlog::SettingsStore& settings_store, bool settings_loaded, const slayerlog::AllTrackedSources& tracked_sources, const slayerlog::AllProcessedSources& processed_sources,
+                            const slayerlog::LogViewService& log_view)
+{
+    if (!settings_loaded)
+    {
+        return;
+    }
+
+    const auto commands = slayerlog::serialize_session_commands(tracked_sources, processed_sources, &log_view);
+    const auto error    = slayerlog::save_session_config(settings_store, slayerlog::last_session_config_name, commands);
+    if (error.has_value())
+    {
+        SLAYERLOG_LOG_ERROR("Failed to auto-save the session: " << *error);
+        return;
+    }
+
+    SLAYERLOG_LOG_INFO("Auto-saved the session as '" << slayerlog::last_session_config_name << "' (" << commands.size() << " commands)");
+}
+
 void join_background_tasks(std::thread& watcher_thread, std::vector<std::thread>& background_tasks)
 {
     if (watcher_thread.joinable())
@@ -366,7 +448,10 @@ int main(int argc, char** argv)
     align_controller.set_notifier(notifier);
     notify_rejected_timestamp_formats(*timestamp_catalog, notifier);
 
-    slayerlog::register_log_view_commands(command_manager, {processed_sources, log_view_bridge, tracked_sources, notifier, &model_mutex, &background_tasks, settings_store.file_path()}, view->find_manager());
+    const slayerlog::CommandContext command_context {processed_sources, log_view_bridge, tracked_sources, notifier, &model_mutex, &background_tasks, settings_store.file_path(), &settings_store};
+    slayerlog::register_log_view_commands(command_manager, command_context, view->find_manager());
+
+    replay_startup_commands(collect_startup_command_lines(config, settings_store, settings_loaded, notifier), command_manager, command_context, model_mutex, notifier);
 
     //This blocks until app is ready for shutdown.
     screen.Loop(toast_host);
@@ -374,6 +459,8 @@ int main(int argc, char** argv)
     SLAYERLOG_LOG_INFO("Screen loop exited");
     keep_running = false;
     join_background_tasks(watcher_thread, background_tasks);
+
+    auto_save_last_session(settings_store, settings_loaded, tracked_sources, processed_sources, log_view_bridge);
 
     SLAYERLOG_LOG_INFO("Slayerlog shutdown complete");
 

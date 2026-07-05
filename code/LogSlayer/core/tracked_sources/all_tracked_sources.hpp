@@ -100,6 +100,15 @@ public:
      */
     std::optional<std::string> reset_source_timestamp_format(std::size_t source_index);
 
+    /** The LogSource of the source at @p source_index. Throws std::out_of_range on a bad index. */
+    const LogSource& source_at(std::size_t source_index) const;
+
+    /**
+     * The single format one source is pinned to via set_source_timestamp_format,
+     * or std::nullopt while the source auto-detects (or the index is invalid).
+     */
+    std::optional<std::string> source_timestamp_format_override(std::size_t source_index) const;
+
     /** Applies a timestamp offset to one source and rebuilds the merged view. */
     std::optional<std::string> set_source_timestamp_offset(std::size_t source_index, LogTimestampOffset offset);
 

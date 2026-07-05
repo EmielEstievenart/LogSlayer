@@ -13,6 +13,7 @@ namespace slayerlog
 class AllProcessedSources;
 class AllTrackedSources;
 class LogViewService;
+class SettingsStore;
 
 /// Services handed to every command. UI-agnostic: the view is reached through
 /// the core LogViewService abstraction (not the concrete terminal controller),
@@ -28,6 +29,10 @@ struct CommandContext
     std::mutex* model_mutex                    = nullptr;
     std::vector<std::thread>* background_tasks = nullptr;
     std::filesystem::path settings_file_path;
+
+    /// Store behind settings_file_path, for commands that persist session
+    /// configs. Null when settings failed to load (saves are disabled).
+    SettingsStore* settings_store = nullptr;
 };
 
 } // namespace slayerlog

@@ -12,6 +12,14 @@ add_executable(
   slayerlog/command_history_tests.cpp
   slayerlog/command_manager_tests.cpp
   slayerlog/command_widget_tests.cpp
+  slayerlog/command_arguments_tests.cpp
+  slayerlog/source_resolver_tests.cpp
+  slayerlog/source_commands_tests.cpp
+  slayerlog/session_snapshot_tests.cpp
+  slayerlog/session_replay_tests.cpp
+  slayerlog/session_script_tests.cpp
+  slayerlog/session_config_store_tests.cpp
+  slayerlog/config_commands_tests.cpp
   slayerlog/log_batch_tests.cpp
   slayerlog/log_timestamp_tests.cpp
   slayerlog/align_time_session_tests.cpp

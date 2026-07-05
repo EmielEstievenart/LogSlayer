@@ -7,10 +7,15 @@
 #include "implementations/align_time_view_command.hpp"
 #include "implementations/clear_column_filters_command.hpp"
 #include "implementations/clear_filters_command.hpp"
+#include "implementations/clear_offset_command.hpp"
 #include "implementations/clear_time_offset_command.hpp"
+#include "implementations/close_all_command.hpp"
+#include "implementations/close_command.hpp"
 #include "implementations/close_open_file_command.hpp"
 #include "implementations/copy_settings_path_command.hpp"
+#include "implementations/delete_config_command.hpp"
 #include "implementations/delete_filters_command.hpp"
+#include "implementations/export_config_command.hpp"
 #include "implementations/export_visible_text_command.hpp"
 #include "implementations/filter_in_command.hpp"
 #include "implementations/filter_out_command.hpp"
@@ -20,12 +25,18 @@
 #include "implementations/hide_identical_lines_command.hpp"
 #include "implementations/hide_original_time_command.hpp"
 #include "implementations/hide_shown_lines_command.hpp"
+#include "implementations/list_configs_command.hpp"
+#include "implementations/load_config_command.hpp"
 #include "implementations/log_view_find_command.hpp"
 #include "implementations/open_command.hpp"
 #include "implementations/open_file_command.hpp"
 #include "implementations/open_folder_command.hpp"
 #include "implementations/reset_column_filter_command.hpp"
 #include "implementations/reset_filters_command.hpp"
+#include "implementations/reset_session_command.hpp"
+#include "implementations/reset_time_format_command.hpp"
+#include "implementations/save_config_command.hpp"
+#include "implementations/set_offset_command.hpp"
 #include "implementations/set_time_format_command.hpp"
 #include "implementations/show_identical_lines_command.hpp"
 #include "implementations/show_original_time_command.hpp"
@@ -57,10 +68,16 @@ void register_shared_view_commands(CommandManager& command_manager, const Comman
     command_manager.register_command(std::make_unique<OpenFileCommand>(context));
     command_manager.register_command(std::make_unique<OpenFolderCommand>(context));
     command_manager.register_command(std::make_unique<CloseOpenFileCommand>(context));
+    command_manager.register_command(std::make_unique<CloseCommand>(context));
+    command_manager.register_command(std::make_unique<CloseAllCommand>(context));
+    command_manager.register_command(std::make_unique<ResetSessionCommand>(context));
 
     command_manager.register_command(std::make_unique<SetTimeFormatCommand>(context));
+    command_manager.register_command(std::make_unique<ResetTimeFormatCommand>(context));
     command_manager.register_command(std::make_unique<AdjustTimeOffsetCommand>(context));
     command_manager.register_command(std::make_unique<ClearTimeOffsetCommand>(context));
+    command_manager.register_command(std::make_unique<SetOffsetCommand>(context));
+    command_manager.register_command(std::make_unique<ClearOffsetCommand>(context));
 
     command_manager.register_command(std::make_unique<GoToLineCommand>(context));
     command_manager.register_command(std::make_unique<HideBeforeLineCommand>(context));
@@ -68,6 +85,12 @@ void register_shared_view_commands(CommandManager& command_manager, const Comman
 
     command_manager.register_command(std::make_unique<ExportVisibleTextCommand>(context));
     command_manager.register_command(std::make_unique<CopySettingsPathCommand>(context));
+
+    command_manager.register_command(std::make_unique<SaveConfigCommand>(context));
+    command_manager.register_command(std::make_unique<LoadConfigCommand>(context, command_manager));
+    command_manager.register_command(std::make_unique<ListConfigsCommand>(context));
+    command_manager.register_command(std::make_unique<DeleteConfigCommand>(context));
+    command_manager.register_command(std::make_unique<ExportConfigCommand>(context));
 }
 
 } // namespace

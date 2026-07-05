@@ -6,6 +6,7 @@
 
 #include "command_support.hpp"
 #include "debug_log.hpp"
+#include "implementations/set_time_format_action.hpp"
 #include "log_view_service.hpp"
 #include "tracked_sources/all_processed_sources.hpp"
 #include "tracked_sources/all_tracked_sources.hpp"
@@ -48,9 +49,10 @@ const CommandDescriptor& SetTimeFormatCommand::descriptor() const
 {
     static const CommandDescriptor descriptor {"set-time-format",
                                                "Set timestamp parser for one source",
-                                               "set-time-format",
-                                               {"Opens a source picker, then a timestamp format picker.", "Confirm each selection with Enter. All lines from that source are reparsed and all tracked lines are re-sorted.",
-                                                "Pick \"Auto\" to restore automatic detection across all configured formats."}};
+                                               std::string(set_time_format_usage),
+                                               {"Without arguments, opens a source picker, then a timestamp format picker.", "Confirm each selection with Enter. All lines from that source are reparsed and all tracked lines are re-sorted.",
+                                                "Pick \"Auto\" (or pass the word auto) to restore automatic detection across all configured formats.",
+                                                "With arguments, applies directly: the source is a path or mnemonic (quote paths containing spaces).", "Example: set-time-format app.log YYYY-MM-DD hh:mm:ss.f*"}};
     return descriptor;
 }
 
@@ -58,7 +60,9 @@ CommandResult SetTimeFormatCommand::execute(std::string_view arguments)
 {
     if (!trim_text(arguments).empty())
     {
-        return {false, "Usage: set-time-format"};
+        // Textual form: apply directly through the core action so scripts and
+        // configs can set formats without the pickers.
+        return set_time_format_from_arguments(_context, arguments);
     }
 
     _labels = _context.tracked_sources.source_display_labels();

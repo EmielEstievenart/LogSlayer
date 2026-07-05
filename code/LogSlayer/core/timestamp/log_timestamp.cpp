@@ -345,6 +345,28 @@ std::string format_log_timestamp_offset(LogTimestampOffset offset)
     return output.str();
 }
 
+std::string serialize_log_timestamp_offset(LogTimestampOffset offset)
+{
+    const bool negative                 = offset.seconds < 0 || offset.nanosecond < 0;
+    const std::int64_t absolute_seconds = offset.seconds < 0 ? -offset.seconds : offset.seconds;
+    const unsigned absolute_nanosecond  = static_cast<unsigned>(offset.nanosecond < 0 ? -offset.nanosecond : offset.nanosecond);
+
+    const std::int64_t days               = absolute_seconds / seconds_per_day;
+    const std::int64_t seconds_after_days = absolute_seconds % seconds_per_day;
+    const unsigned hours                  = static_cast<unsigned>(seconds_after_days / 3600);
+    const unsigned minutes                = static_cast<unsigned>((seconds_after_days % 3600) / 60);
+    const unsigned seconds                = static_cast<unsigned>(seconds_after_days % 60);
+
+    std::ostringstream output;
+    output << (negative ? '-' : '+') << std::setw(2) << std::setfill('0') << days << ' ' << format_two_digits(hours) << ':' << format_two_digits(minutes) << ':' << format_two_digits(seconds);
+    if (absolute_nanosecond != 0)
+    {
+        output << '.' << format_fraction(absolute_nanosecond);
+    }
+
+    return output.str();
+}
+
 std::optional<LogTimestamp> add_offset(LogTimestamp timestamp, LogTimestampOffset offset)
 {
     std::int64_t seconds = 0;

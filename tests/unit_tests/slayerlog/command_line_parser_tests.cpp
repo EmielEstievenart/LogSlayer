@@ -160,4 +160,51 @@ TEST(CommandLineParserTest, ThrowsOnNonPositivePollInterval)
     EXPECT_THROW(parse_command_line(arguments.argc(), arguments.argv()), boost::program_options::error);
 }
 
+TEST(CommandLineParserTest, ParsesStartupCommandsInOrder)
+{
+    ArgumentBuffer arguments {"slayerlog", "a.log", "--cmd", "filter-out DEBUG", "--cmd", "set-offset b.log +00 00:01:00", "--cmd", "go-to-line 42"};
+
+    const auto config = parse_command_line(arguments.argc(), arguments.argv());
+
+    ASSERT_EQ(config.file_paths.size(), 1U);
+    ASSERT_EQ(config.startup_commands.size(), 3U);
+    EXPECT_EQ(config.startup_commands[0], "filter-out DEBUG");
+    EXPECT_EQ(config.startup_commands[1], "set-offset b.log +00 00:01:00");
+    EXPECT_EQ(config.startup_commands[2], "go-to-line 42");
+    EXPECT_TRUE(config.config_name.empty());
+    EXPECT_FALSE(config.resume_last);
+}
+
+TEST(CommandLineParserTest, ParsesConfigNameAndResumeLast)
+{
+    ArgumentBuffer config_arguments {"slayerlog", "--config", "crashhunt"};
+    const auto config = parse_command_line(config_arguments.argc(), config_arguments.argv());
+    EXPECT_EQ(config.config_name, "crashhunt");
+    EXPECT_FALSE(config.resume_last);
+
+    ArgumentBuffer resume_arguments {"slayerlog", "--resume-last"};
+    const auto resume_config = parse_command_line(resume_arguments.argc(), resume_arguments.argv());
+    EXPECT_TRUE(resume_config.resume_last);
+    EXPECT_TRUE(resume_config.config_name.empty());
+}
+
+TEST(CommandLineParserTest, RejectsCombiningConfigAndResumeLast)
+{
+    ArgumentBuffer arguments {"slayerlog", "--config", "crashhunt", "--resume-last"};
+
+    EXPECT_THROW(parse_command_line(arguments.argc(), arguments.argv()), boost::program_options::error);
+}
+
+TEST(CommandLineParserTest, HelpTextDocumentsSessionConfigs)
+{
+    CommandManager manager;
+    const std::string help_text = build_help_text(manager);
+
+    EXPECT_NE(help_text.find("Session Configs:"), std::string::npos);
+    EXPECT_NE(help_text.find("--cmd \"filter-out DEBUG\""), std::string::npos);
+    EXPECT_NE(help_text.find("slayerlog --config crashhunt"), std::string::npos);
+    EXPECT_NE(help_text.find("slayerlog --resume-last"), std::string::npos);
+    EXPECT_NE(help_text.find("export-config"), std::string::npos);
+}
+
 } // namespace slayerlog

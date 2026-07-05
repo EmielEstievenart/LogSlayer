@@ -25,6 +25,10 @@ public:
     std::vector<std::string> values(std::string_view section, std::string_view key) const;
     void set_values(std::string section, std::string key, const std::vector<std::string>& values);
 
+    std::vector<std::string> sections() const;
+    bool has_section(std::string_view section) const;
+    void remove_section(std::string_view section);
+
 private:
     struct Impl;
     std::unique_ptr<Impl> _impl;
